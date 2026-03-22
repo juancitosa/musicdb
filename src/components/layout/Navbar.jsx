@@ -1,5 +1,6 @@
 import { Disc3, LoaderCircle, LogOut, Moon, Search, Sun, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 
 import { useDebounce } from "../../hooks/useDebounce";
@@ -216,33 +217,38 @@ function UserActions() {
           </button>
         </div>
 
-        {showLogoutConfirm ? (
-          <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/65 px-4 backdrop-blur-sm">
-            <div className="w-full max-w-md rounded-3xl border border-border/70 bg-card p-6 shadow-2xl shadow-black/40">
-              <h3 className="text-xl font-bold">Realmente desea cerrar sesion?</h3>
-              <p className="mt-2 text-sm text-muted-foreground">Vas a desconectar la cuenta actual de Spotify.</p>
-              <div className="mt-6 flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowLogoutConfirm(false)}
-                  className="rounded-full border border-border bg-secondary px-4 py-2 text-sm font-medium text-foreground transition hover:bg-secondary/80"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowLogoutConfirm(false);
-                    disconnectSpotify();
-                  }}
-                  className="rounded-full border border-red-500 px-4 py-2 text-sm font-semibold text-red-200 shadow-[0_0_18px_rgba(239,68,68,0.45)] transition hover:bg-red-500/12 hover:text-red-100"
-                >
-                  Cerrar sesion
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : null}
+        {showLogoutConfirm && typeof document !== "undefined"
+          ? createPortal(
+              <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/38 px-4 backdrop-blur-md">
+                <div className="w-full max-w-md rounded-[2rem] border border-white/12 bg-white/8 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.45)] ring-1 ring-white/8 backdrop-blur-2xl">
+                  <h3 className="text-center text-xl font-bold text-foreground">Realmente desea cerrar sesion?</h3>
+                  <p className="mt-3 text-center text-sm text-muted-foreground">
+                    Vas a desconectar la cuenta actual de Spotify.
+                  </p>
+                  <div className="mt-6 flex justify-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowLogoutConfirm(false)}
+                      className="rounded-full border border-white/10 bg-white/6 px-5 py-2.5 text-sm font-medium text-foreground transition hover:bg-white/10"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowLogoutConfirm(false);
+                        disconnectSpotify();
+                      }}
+                      className="rounded-full border border-red-500/90 bg-red-500/6 px-5 py-2.5 text-sm font-semibold text-red-200 shadow-[0_0_24px_rgba(239,68,68,0.4)] transition hover:bg-red-500/14 hover:text-red-100"
+                    >
+                      Cerrar sesion
+                    </button>
+                  </div>
+                </div>
+              </div>,
+              document.body,
+            )
+          : null}
       </>
     );
   }
