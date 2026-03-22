@@ -237,7 +237,14 @@ export default function ProfilePage() {
             <p className="text-sm uppercase tracking-widest text-primary">
               {hasSpotifyFeatures ? "Perfil con Spotify" : user?.authProvider === "local" ? "Cuenta MusicDB" : "Perfil de usuario"}
             </p>
-            <h1 className="text-4xl font-bold">{profileUser?.name}</h1>
+            <div className="mt-1 flex flex-wrap items-center gap-3">
+              <h1 className={`text-4xl font-bold ${user?.isPro ? "pro-username" : ""}`}>{profileUser?.name}</h1>
+              {user?.isPro ? (
+                <span className="pro-badge inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em]">
+                  PRO <Star className="h-3.5 w-3.5 fill-current" />
+                </span>
+              ) : null}
+            </div>
             <p className="mt-1 text-muted-foreground">{profileUser?.email || "Sin email visible"}</p>
           </div>
         </div>
@@ -252,6 +259,9 @@ export default function ProfilePage() {
             </p>
             <p>
               <span className="font-semibold">Spotify:</span> {hasSpotifyFeatures ? `Conectado como ${spotifyUser?.name ?? "usuario"}` : "No conectado"}
+            </p>
+            <p>
+              <span className="font-semibold">MusicDB PRO:</span> {user?.isPro ? "Activo" : "No activo"}
             </p>
             <p>
               <span className="font-semibold">User ID:</span> {user?.id ?? "No disponible"}

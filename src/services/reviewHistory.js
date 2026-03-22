@@ -51,7 +51,12 @@ export async function getReviews(entity_type, entity_id) {
     throw new Error(data?.error?.code || "REVIEWS_FETCH_ERROR");
   }
 
-  return Array.isArray(data?.reviews) ? data.reviews : [];
+  return Array.isArray(data?.reviews)
+    ? data.reviews.map((review) => ({
+        ...review,
+        is_pro: Boolean(review?.is_pro),
+      }))
+    : [];
 }
 
 export async function deleteReview(review_id, session_token) {

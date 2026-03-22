@@ -30,6 +30,7 @@ const VERCEL_APP_ORIGIN_PATTERN = /^https:\/\/[a-z0-9-]+\.vercel\.app$/i;
 
 let cachedAppToken = null;
 let supabaseAdmin = null;
+let cachedUserTableColumns = null;
 
 function isAllowedOrigin(origin) {
   if (!origin) {
@@ -214,6 +215,12 @@ function getSupabaseAdmin() {
 }
 
 function mapUserRecord(user) {
+  const proUntilDate =
+    typeof user?.pro_until === "string" || user?.pro_until instanceof Date
+      ? new Date(user.pro_until)
+      : null;
+  const isProActive = Boolean(proUntilDate && !Number.isNaN(proUntilDate.getTime()) && proUntilDate.getTime() > Date.now());
+
   return {
     id: user.id,
     email: user.email,
@@ -222,6 +229,8 @@ function mapUserRecord(user) {
     display_name: user.display_name,
     avatar_url: user.avatar_url,
     auth_provider: user.auth_provider,
+    is_pro: isProActive,
+    pro_until: user.pro_until ?? null,
     created_at: user.created_at,
     updated_at: user.updated_at,
   };
@@ -247,10 +256,67 @@ function isAggregatesDisabledError(error) {
   return error?.code === "PGRST123";
 }
 
+async function getUserTableColumns(supabase) {
+  if (cachedUserTableColumns) {
+    return cachedUserTableColumns;
+  }
+
+  const { data, error } = await supabase.from("users").select("*").limit(1);
+  handleSupabaseError(error, "Failed to inspect users schema");
+
+  const fallbackColumns = [
+    "id",
+    "email",
+    "username",
+    "display_name",
+    "avatar_url",
+    "auth_provider",
+    "created_at",
+    "updated_at",
+    "password_hash",
+  ];
+
+  cachedUserTableColumns = new Set(data?.[0] ? Object.keys(data[0]) : fallbackColumns);
+  return cachedUserTableColumns;
+}
+
+async function buildUserSelect(supabase, { includePasswordHash = false } = {}) {
+  const columns = await getUserTableColumns(supabase);
+  const selectedColumns = [
+    "id",
+    "email",
+    "username",
+    "display_name",
+    "avatar_url",
+    "auth_provider",
+    "created_at",
+    "updated_at",
+  ];
+
+  if (columns.has("phone")) {
+    selectedColumns.push("phone");
+  }
+
+  if (columns.has("is_pro")) {
+    selectedColumns.push("is_pro");
+  }
+
+  if (columns.has("pro_until")) {
+    selectedColumns.push("pro_until");
+  }
+
+  if (includePasswordHash && columns.has("password_hash")) {
+    selectedColumns.push("password_hash");
+  }
+
+  return selectedColumns.join(", ");
+}
+
 async function getUserById(supabase, userId) {
+  const userSelect = await buildUserSelect(supabase);
   const { data, error } = await supabase
     .from("users")
-    .select("id, email, username, display_name, avatar_url, auth_provider, created_at, updated_at")
+    .select(userSelect)
     .eq("id", userId)
     .maybeSingle();
 
@@ -268,9 +334,10 @@ async function getUserByEmail(supabase, email) {
     return null;
   }
 
+  const userSelect = await buildUserSelect(supabase);
   const { data, error } = await supabase
     .from("users")
-    .select("id, email, username, display_name, avatar_url, auth_provider, created_at, updated_at")
+    .select(userSelect)
     .eq("email", email)
     .maybeSingle();
 
@@ -284,9 +351,10 @@ async function getUserAuthByEmail(supabase, email) {
     return null;
   }
 
+  const userSelect = await buildUserSelect(supabase, { includePasswordHash: true });
   const { data, error } = await supabase
     .from("users")
-    .select("id, email, username, password_hash, display_name, avatar_url, auth_provider, created_at, updated_at")
+    .select(userSelect)
     .eq("email", email)
     .maybeSingle();
 
@@ -326,6 +394,7 @@ async function buildUniqueUsername(supabase, seed) {
 
 async function createUserFromSpotifyProfile(supabase, { email, displayName, avatarUrl }) {
   const username = await buildUniqueUsername(supabase, displayName);
+  const userSelect = await buildUserSelect(supabase);
   const { data, error } = await supabase
     .from("users")
     .insert({
@@ -335,7 +404,7 @@ async function createUserFromSpotifyProfile(supabase, { email, displayName, avat
       avatar_url: avatarUrl,
       auth_provider: "spotify",
     })
-    .select("id, email, username, display_name, avatar_url, auth_provider, created_at, updated_at")
+    .select(userSelect)
     .single();
 
   handleSupabaseError(error, "Failed to create user");
@@ -349,6 +418,7 @@ async function ensureSpotifyAccountRecord(supabase, payload) {
 }
 
 async function updateUserForSpotify(supabase, user, { displayName, avatarUrl }) {
+  const userSelect = await buildUserSelect(supabase);
   const { data, error } = await supabase
     .from("users")
     .update({
@@ -357,7 +427,7 @@ async function updateUserForSpotify(supabase, user, { displayName, avatarUrl }) 
       auth_provider: "spotify",
     })
     .eq("id", user.id)
-    .select("id, email, username, display_name, avatar_url, auth_provider, created_at, updated_at")
+    .select(userSelect)
     .single();
 
   handleSupabaseError(error, "Failed to update user");
@@ -473,6 +543,8 @@ async function createLocalUser(supabase, { email, username, password, phone }) {
   await ensureUserUniqueness(supabase, { email, username });
 
   const hashedPassword = await bcrypt.hash(password, 10);
+  const userColumns = await getUserTableColumns(supabase);
+  const userSelect = await buildUserSelect(supabase);
   const payload = {
     email,
     username,
@@ -481,14 +553,14 @@ async function createLocalUser(supabase, { email, username, password, phone }) {
     auth_provider: "local",
   };
 
-  if (phone) {
+  if (phone && userColumns.has("phone")) {
     payload.phone = phone;
   }
 
   const { data, error } = await supabase
     .from("users")
     .insert(payload)
-    .select("id, email, username, display_name, avatar_url, auth_provider, created_at, updated_at")
+    .select(userSelect)
     .single();
 
   if (error?.message?.includes("phone")) {
@@ -501,7 +573,7 @@ async function createLocalUser(supabase, { email, username, password, phone }) {
         display_name: username,
         auth_provider: "local",
       })
-      .select("id, email, username, display_name, avatar_url, auth_provider, created_at, updated_at")
+      .select(userSelect)
       .single();
 
     handleSupabaseError(fallbackError, "Failed to create local user");
@@ -702,9 +774,20 @@ async function createReview(supabase, { userId, entityType, entityId, reviewText
 }
 
 async function getReviewsForEntityFromDb(supabase, { entityType, entityId }) {
+  const userColumns = await getUserTableColumns(supabase);
+  const reviewUserFields = ["username"];
+
+  if (userColumns.has("is_pro")) {
+    reviewUserFields.push("is_pro");
+  }
+
+  if (userColumns.has("pro_until")) {
+    reviewUserFields.push("pro_until");
+  }
+
   const { data, error } = await supabase
     .from("reviews")
-    .select("id, user_id, review_text, rating_value, created_at, users(username)")
+    .select(`id, user_id, review_text, rating_value, created_at, users(${reviewUserFields.join(",")})`)
     .eq("entity_type", entityType)
     .eq("entity_id", entityId)
     .order("created_at", { ascending: false });
@@ -715,6 +798,7 @@ async function getReviewsForEntityFromDb(supabase, { entityType, entityId }) {
     id: review.id,
     user_id: review.user_id,
     username: review.users?.username ?? "Usuario",
+    is_pro: mapUserRecord(review.users ?? {}).is_pro,
     review_text: review.review_text,
     rating_value: review.rating_value,
     created_at: review.created_at,
@@ -1128,6 +1212,22 @@ app.post(
       user: mapUserRecord(user),
       token: createAppSessionToken(user),
     });
+  }),
+);
+
+app.get(
+  "/api/auth/me",
+  authenticateAppUser,
+  asyncRoute(async (req, res) => {
+    const userId = normalizeUserId(req.user_id);
+
+    if (!userId) {
+      throw createHttpError(400, "INVALID_AUTH_ME_QUERY", "valid user_id is required");
+    }
+
+    const supabase = getSupabaseAdmin();
+    const user = await getUserById(supabase, userId);
+    res.json({ user: mapUserRecord(user) });
   }),
 );
 

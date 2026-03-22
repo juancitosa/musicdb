@@ -70,3 +70,25 @@ export function registerLocalUser(payload) {
 export function loginLocalUser(payload) {
   return postAuthRequest("/auth/login", payload);
 }
+
+export async function fetchAuthenticatedUser(token) {
+  let response;
+
+  try {
+    response = await fetch(`${import.meta.env.VITE_API_URL}/auth/me`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+  } catch {
+    throw new Error("APP_BACKEND_UNAVAILABLE");
+  }
+
+  const data = await parseJsonResponse(response);
+
+  if (!response.ok) {
+    throw new Error(data?.error?.code || "APP_AUTH_ERROR");
+  }
+
+  return data?.user ?? null;
+}
