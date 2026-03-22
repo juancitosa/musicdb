@@ -33,6 +33,24 @@ function formatDate(value) {
   }).format(date);
 }
 
+function formatProUntil(value) {
+  if (!value) {
+    return "";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return new Intl.DateTimeFormat("es-AR", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  }).format(date);
+}
+
 async function getEntityDetails(rating) {
   if (rating.entity_type === "artist") {
     const localArtist = getMockArtist(rating.entity_id);
@@ -141,6 +159,7 @@ export default function ProfilePage() {
   const [historyEntries, setHistoryEntries] = useState([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [historyError, setHistoryError] = useState("");
+  const proUntilLabel = user?.isPro ? formatProUntil(user?.proUntil) : "";
 
   useEffect(() => {
     let cancelled = false;
@@ -246,6 +265,11 @@ export default function ProfilePage() {
               ) : null}
             </div>
             <p className="mt-1 text-muted-foreground">{profileUser?.email || "Sin email visible"}</p>
+            {user?.isPro && proUntilLabel ? (
+              <p className="mt-2 text-sm font-medium text-amber-200">
+                Miembro PRO hasta: <span className="text-amber-100">{proUntilLabel}</span>
+              </p>
+            ) : null}
           </div>
         </div>
       </div>
@@ -263,6 +287,11 @@ export default function ProfilePage() {
             <p>
               <span className="font-semibold">MusicDB PRO:</span> {user?.isPro ? "Activo" : "No activo"}
             </p>
+            {user?.isPro && proUntilLabel ? (
+              <p>
+                <span className="font-semibold">Miembro PRO hasta:</span> {proUntilLabel}
+              </p>
+            ) : null}
             <p>
               <span className="font-semibold">User ID:</span> {user?.id ?? "No disponible"}
             </p>

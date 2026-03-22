@@ -44,6 +44,7 @@ export default function AuthDialog({
   triggerVariant = "default",
   triggerSize = "default",
   initialMode = "login",
+  autoOpen = false,
 }) {
   const navigate = useNavigate();
   const { setAuthenticatedSession } = useAuth();
@@ -63,6 +64,12 @@ export default function AuthDialog({
       setIsSubmitting(false);
     }
   }, [initialMode, isOpen]);
+
+  useEffect(() => {
+    if (autoOpen) {
+      setIsOpen(true);
+    }
+  }, [autoOpen]);
 
   useEffect(() => {
     if (!isOpen) {

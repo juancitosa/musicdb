@@ -1,10 +1,12 @@
-import { Link, Navigate } from "react-router-dom";
+import { Link, Navigate, useLocation } from "react-router-dom";
 
 import AuthDialog from "../components/shared/AuthDialog";
 import { useAuth } from "../hooks/useAuth";
 
 export default function LoginPage() {
   const { isLoggedIn } = useAuth();
+  const location = useLocation();
+  const shouldAutoOpen = Boolean(location.state?.openAuthDialog);
 
   if (isLoggedIn) {
     return <Navigate to="/profile" replace />;
@@ -24,7 +26,7 @@ export default function LoginPage() {
           La app ya no depende de Spotify para votar, crear resenas, usar rankings, navegar ni buscar.
         </div>
 
-        <AuthDialog triggerLabel="Iniciar sesion" triggerClassName="mt-6 w-full justify-center" triggerSize="lg" />
+        <AuthDialog triggerLabel="Iniciar sesion" triggerClassName="mt-6 w-full justify-center" triggerSize="lg" autoOpen={shouldAutoOpen} />
 
         <p className="mt-6 text-center text-sm text-muted-foreground">
           Necesitas una cuenta?{" "}

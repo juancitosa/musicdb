@@ -1,11 +1,26 @@
 import { Check, Crown, Gem, Sparkles, Star } from "lucide-react";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 import Button from "../components/ui/Button";
 import { useAuth } from "../hooks/useAuth";
 
-const freeFeatures = ["Puntuar artistas y albumes", "Ver rankings", "Buscar en el catalogo", "Crear reviews"];
-const proFeatures = ["Todo lo anterior", "Badge PRO con estrella", "Nombre dorado en reviews", "Prioridad en rankings", "Reviews destacadas", "Acceso a funciones exclusivas"];
+const freeFeatures = [
+  "Puntuar artistas y albumes",
+  "Ver rankings",
+  "Buscar en el catalogo",
+  "Crear reviews",
+  "10 reseñas como maximo por dia",
+];
+const proFeatures = [
+  "Todo lo anterior",
+  "Badge PRO con estrella",
+  "Nombre dorado en reviews",
+  "Prioridad en rankings",
+  "Reviews destacadas",
+  "Reseñas y puntuaciones ilimitadas",
+  "Acceso a funciones exclusivas",
+];
 
 const benefitCards = [
   {
@@ -28,6 +43,11 @@ const benefitCards = [
     title: "Funciones exclusivas",
     description: "Espacio reservado para perks y herramientas premium que iremos sumando.",
   },
+  {
+    icon: <Crown className="h-5 w-5" />,
+    title: "Sin limites diarios",
+    description: "Los usuarios PRO tienen reseñas y puntuaciones ilimitadas durante toda su suscripcion.",
+  },
 ];
 
 function FeatureList({ items, accent = "text-foreground" }) {
@@ -47,10 +67,21 @@ function FeatureList({ items, accent = "text-foreground" }) {
 
 export default function ProPage() {
   const { user, appToken } = useAuth();
+  const navigate = useNavigate();
   const isPro = Boolean(user?.isPro);
   const [isCreatingPreference, setIsCreatingPreference] = useState(false);
 
   const handleProClick = async () => {
+    if (!user || !appToken) {
+      navigate("/login", {
+        state: {
+          openAuthDialog: true,
+          redirectTo: "/pro",
+        },
+      });
+      return;
+    }
+
     console.log("[MusicDB PRO] Starting payment preference request");
     setIsCreatingPreference(true);
 

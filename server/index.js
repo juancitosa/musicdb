@@ -317,6 +317,52 @@ async function getUserTableColumns(supabase) {
   return cachedUserTableColumns;
 }
 
+function isProExpired(user) {
+  if (!user?.pro_until) {
+    return false;
+  }
+
+  const proUntilDate = new Date(user.pro_until);
+
+  if (Number.isNaN(proUntilDate.getTime())) {
+    return false;
+  }
+
+  return proUntilDate.getTime() <= Date.now();
+}
+
+async function syncExpiredProStatusIfNeeded(supabase, user, { includePasswordHash = false } = {}) {
+  if (!user) {
+    return null;
+  }
+
+  const userColumns = await getUserTableColumns(supabase);
+  const hasIsProColumn = userColumns.has("is_pro");
+
+  if (!hasIsProColumn || !user.is_pro || !isProExpired(user)) {
+    return user;
+  }
+
+  const userSelect = await buildUserSelect(supabase, { includePasswordHash });
+  const { data, error } = await supabase
+    .from("users")
+    .update({
+      is_pro: false,
+    })
+    .eq("id", user.id)
+    .select(userSelect)
+    .single();
+
+  handleSupabaseError(error, "Failed to expire PRO membership");
+
+  console.log("[pro] Expired membership synchronized", {
+    userId: user.id,
+    pro_until: user.pro_until,
+  });
+
+  return data;
+}
+
 async function buildUserSelect(supabase, { includePasswordHash = false } = {}) {
   const columns = await getUserTableColumns(supabase);
   const selectedColumns = [
@@ -363,7 +409,7 @@ async function getUserById(supabase, userId) {
     throw createHttpError(404, "USER_NOT_FOUND", "The related user was not found");
   }
 
-  return data;
+  return syncExpiredProStatusIfNeeded(supabase, data);
 }
 
 async function getUserByEmail(supabase, email) {
@@ -380,7 +426,7 @@ async function getUserByEmail(supabase, email) {
 
   handleSupabaseError(error, "Failed to fetch user by email");
 
-  return data;
+  return syncExpiredProStatusIfNeeded(supabase, data);
 }
 
 async function getUserAuthByEmail(supabase, email) {
@@ -397,7 +443,7 @@ async function getUserAuthByEmail(supabase, email) {
 
   handleSupabaseError(error, "Failed to fetch user credentials");
 
-  return data;
+  return syncExpiredProStatusIfNeeded(supabase, data, { includePasswordHash: true });
 }
 
 async function getSpotifyAccountBySpotifyUserId(supabase, spotifyUserId) {
