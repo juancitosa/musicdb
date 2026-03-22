@@ -49,8 +49,8 @@ function NavLinks() {
         className={({ isActive }) =>
           `inline-flex min-w-fit shrink-0 whitespace-nowrap rounded-full border px-4 py-2 text-sm font-semibold leading-none transition ${
             isActive
-              ? "border-yellow-400/35 bg-[#171513] text-yellow-100 shadow-[0_10px_30px_rgba(245,158,11,0.08)]"
-              : "border-yellow-500/18 bg-[#111113] text-yellow-100/80 hover:-translate-y-0.5 hover:border-yellow-400/34 hover:bg-[#171513]"
+              ? "border-yellow-300/65 bg-linear-to-r from-[#231a06] via-[#1a150c] to-[#141311] text-yellow-50 shadow-[0_0_24px_rgba(250,204,21,0.16)]"
+              : "border-yellow-400/38 bg-linear-to-r from-[#171206] via-[#121111] to-[#101012] text-yellow-100/95 shadow-[0_0_16px_rgba(250,204,21,0.08)] hover:-translate-y-0.5 hover:border-yellow-300/65 hover:from-[#241b08] hover:via-[#17130f] hover:to-[#141311] hover:text-yellow-50 hover:shadow-[0_0_28px_rgba(250,204,21,0.16)]"
           }`
         }
       >
@@ -61,8 +61,8 @@ function NavLinks() {
         className={({ isActive }) =>
           `inline-flex min-w-fit shrink-0 whitespace-nowrap rounded-full border px-4 py-2 text-sm font-semibold leading-none transition ${
             isActive
-              ? "border-amber-300/35 bg-[#171513] text-amber-100 shadow-[0_10px_30px_rgba(245,158,11,0.08)]"
-              : "border-amber-400/18 bg-[#111113] text-amber-100/80 hover:-translate-y-0.5 hover:border-amber-300/34 hover:bg-[#171513]"
+              ? "border-amber-300/65 bg-linear-to-r from-[#261807] via-[#1d1510] to-[#141311] text-amber-50 shadow-[0_0_24px_rgba(245,158,11,0.18)]"
+              : "border-amber-300/40 bg-linear-to-r from-[#191106] via-[#121111] to-[#101012] text-amber-100/95 shadow-[0_0_16px_rgba(245,158,11,0.08)] hover:-translate-y-0.5 hover:border-amber-200/68 hover:from-[#251807] hover:via-[#18130f] hover:to-[#141311] hover:text-amber-50 hover:shadow-[0_0_28px_rgba(245,158,11,0.18)]"
           }`
         }
       >
