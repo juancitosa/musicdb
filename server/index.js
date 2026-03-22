@@ -509,9 +509,12 @@ async function authenticateAppUser(req, _res, next) {
   try {
     const token = getBearerToken(req);
     const auth = await resolveAuthenticatedUserFromToken(token);
+    const supabase = getSupabaseAdmin();
+    const user = await getUserById(supabase, auth.userId);
     req.user_id = auth.userId;
     req.auth_provider = auth.provider;
     req.spotify_user_id = auth.spotifyUserId ?? null;
+    req.current_user = user;
     next();
   } catch (error) {
     next(error?.status ? error : createHttpError(401, "APP_AUTH_INVALID", "Authentication failed"));
@@ -631,7 +634,7 @@ async function getEntityRatingsSummary(supabase, { entityType, entityId }) {
 async function getUserRatingRecord(supabase, { userId, entityType, entityId }) {
   const { data, error } = await supabase
     .from("ratings")
-    .select("rating_value")
+    .select("id, rating_value")
     .eq("user_id", userId)
     .eq("entity_type", entityType)
     .eq("entity_id", entityId)
@@ -640,6 +643,7 @@ async function getUserRatingRecord(supabase, { userId, entityType, entityId }) {
   handleSupabaseError(error, "Failed to fetch user rating");
 
   return {
+    id: data?.id ?? null,
     rating_value: data?.rating_value ?? null,
   };
 }
@@ -661,6 +665,70 @@ async function getRatingsHistoryForUser(supabase, userId) {
     created_at: rating.created_at,
     updated_at: rating.updated_at,
   }));
+}
+
+function isUserPro(user) {
+  return Boolean(mapUserRecord(user).is_pro);
+}
+
+async function getUserReviewsCountLast24Hours(supabase, userId) {
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { count, error } = await supabase
+    .from("reviews")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .gte("created_at", since);
+
+  handleSupabaseError(error, "Failed to count recent reviews");
+  return Number(count || 0);
+}
+
+async function getUserRatingsCountLast24Hours(supabase, userId) {
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { count, error } = await supabase
+    .from("ratings")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .gte("updated_at", since);
+
+  handleSupabaseError(error, "Failed to count recent ratings");
+  return Number(count || 0);
+}
+
+async function enforceDailyUsageLimit(supabase, user, type, options = {}) {
+  if (!user?.id || isUserPro(user)) {
+    return;
+  }
+
+  if (type === "review") {
+    const reviewsCount = await getUserReviewsCountLast24Hours(supabase, user.id);
+
+    if (reviewsCount >= 10) {
+      throw createHttpError(
+        429,
+        "DAILY_REVIEW_LIMIT_REACHED",
+        "Alcanzaste el limite de 10 resenas en 24 horas. Vuelve a intentarlo mas tarde o hazte PRO.",
+      );
+    }
+
+    return;
+  }
+
+  if (type === "rating") {
+    if (options.isNewRating === false) {
+      return;
+    }
+
+    const ratingsCount = await getUserRatingsCountLast24Hours(supabase, user.id);
+
+    if (ratingsCount >= 10) {
+      throw createHttpError(
+        429,
+        "DAILY_RATING_LIMIT_REACHED",
+        "Alcanzaste el limite de 10 puntuaciones en 24 horas. Vuelve a intentarlo mas tarde o hazte PRO.",
+      );
+    }
+  }
 }
 
 async function getRankingsFallback(supabase, entityType, limit = 10) {
@@ -1313,6 +1381,7 @@ app.post(
   authenticateAppUser,
   asyncRoute(async (req, res) => {
     const userId = normalizeUserId(req.user_id);
+    const currentUser = req.current_user;
     const entityType = normalizeEntityType(req.body.entity_type);
     const entityId = normalizeEntityId(req.body.entity_id);
     const ratingValue = normalizeRatingValue(req.body.rating_value);
@@ -1326,7 +1395,15 @@ app.post(
     }
 
     const supabase = getSupabaseAdmin();
-    await getUserById(supabase, userId);
+    const existingRating = await getUserRatingRecord(supabase, {
+      userId,
+      entityType,
+      entityId,
+    });
+
+    await enforceDailyUsageLimit(supabase, currentUser, "rating", {
+      isNewRating: !existingRating.id,
+    });
 
     const rating = await upsertUserRating(supabase, {
       userId,
@@ -1438,6 +1515,7 @@ app.post(
   authenticateAppUser,
   asyncRoute(async (req, res) => {
     const userId = normalizeUserId(req.user_id);
+    const currentUser = req.current_user;
     const entityType = normalizeEntityType(req.body.entity_type);
     const entityId = normalizeEntityId(req.body.entity_id);
     const reviewText = normalizeReviewText(req.body.review_text);
@@ -1455,7 +1533,7 @@ app.post(
     }
 
     const supabase = getSupabaseAdmin();
-    await getUserById(supabase, userId);
+    await enforceDailyUsageLimit(supabase, currentUser, "review");
 
     const existingReview = await getExistingReview(supabase, {
       userId,
