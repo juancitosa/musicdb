@@ -210,6 +210,18 @@ h6 {
   text-shadow: 0 0 12px rgba(244, 210, 122, 0.22);
 }
 
+.pro-username-shimmer {
+  position: relative;
+  display: inline-block;
+  background-image: linear-gradient(120deg, #c9932e 0%, #f4d27a 28%, #fff6cf 45%, #f4d27a 62%, #c9932e 100%);
+  background-size: 220% 100%;
+  color: transparent;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: pro-gold-shimmer 3.2s ease-in-out infinite;
+  filter: drop-shadow(0 0 8px rgba(244, 210, 122, 0.28));
+}
+
 .pro-badge {
   border: 1px solid rgba(244, 210, 122, 0.32);
   background: linear-gradient(135deg, rgba(244, 210, 122, 0.14), rgba(255, 255, 255, 0.04));
@@ -229,5 +241,16 @@ h6 {
 
   100% {
     transform: translateX(160%);
+  }
+}
+
+@keyframes pro-gold-shimmer {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
   }
 }

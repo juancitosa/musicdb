@@ -57,6 +57,18 @@ function NavLinks() {
       >
         DBRanking
       </NavLink>
+      <NavLink
+        to="/pro"
+        className={({ isActive }) =>
+          `rounded-full border px-4 py-2 text-sm font-semibold transition ${
+            isActive
+              ? "border-amber-300/55 bg-linear-to-r from-amber-300/20 via-yellow-300/12 to-secondary text-amber-100 shadow-lg shadow-amber-400/12"
+              : "border-amber-400/20 bg-linear-to-r from-amber-300/10 via-yellow-200/6 to-secondary text-amber-100/85 hover:-translate-y-0.5 hover:border-amber-300/45 hover:bg-linear-to-r hover:from-amber-300/18 hover:via-yellow-200/10 hover:to-secondary"
+          }`
+        }
+      >
+        Music PRO
+      </NavLink>
     </nav>
   );
 }
@@ -216,7 +228,9 @@ function UserActions() {
                 <UserRound className="h-4 w-4" />
               </div>
             )}
-            <span className="max-w-28 truncate">{profileUser?.name ?? "Mi perfil"}</span>
+            <span className={`max-w-28 truncate ${user?.isPro ? "pro-username pro-username-shimmer" : ""}`}>
+              {profileUser?.name ?? "Mi perfil"}
+            </span>
           </Link>
           <button
             onClick={() => setShowLogoutConfirm(true)}

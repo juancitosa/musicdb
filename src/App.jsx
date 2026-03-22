@@ -11,6 +11,7 @@ import DBRankingPage from "./pages/DBRankingPage";
 import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
 import NotFoundPage from "./pages/NotFoundPage";
+import ProPage from "./pages/ProPage";
 import ProfilePage from "./pages/ProfilePage";
 import RegisterPage from "./pages/RegisterPage";
 import SearchPage from "./pages/SearchPage";
@@ -27,6 +28,7 @@ export default function App() {
                   <Route path="/" element={<HomePage />} />
                   <Route path="/search" element={<SearchPage />} />
                   <Route path="/dbranking" element={<DBRankingPage />} />
+                  <Route path="/pro" element={<ProPage />} />
                   <Route path="/artist/:id" element={<ArtistPage />} />
                   <Route path="/album/:id" element={<AlbumPage />} />
                   <Route path="/login" element={<LoginPage />} />
