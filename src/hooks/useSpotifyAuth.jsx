@@ -78,8 +78,8 @@ export function SpotifyAuthProvider({ children }) {
           if (cancelled) return;
 
           toast({
-            title: "Spotify conectado",
-            description: "Tu cuenta ya quedó sincronizada con la base de datos",
+            title: "Sesión iniciada",
+            description: "Ya puedes rankear artistas y albumes",
           });
           return;
         }

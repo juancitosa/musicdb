@@ -375,6 +375,25 @@ async function getUserRatingRecord(supabase, { userId, entityType, entityId }) {
   };
 }
 
+async function getRatingsHistoryForUser(supabase, userId) {
+  const { data, error } = await supabase
+    .from("ratings")
+    .select("id, entity_type, entity_id, rating_value, created_at, updated_at")
+    .eq("user_id", userId)
+    .order("updated_at", { ascending: false });
+
+  handleSupabaseError(error, "Failed to fetch user ratings history");
+
+  return (data ?? []).map((rating) => ({
+    id: rating.id,
+    entity_type: rating.entity_type,
+    entity_id: rating.entity_id,
+    rating_value: Number(rating.rating_value ?? 0),
+    created_at: rating.created_at,
+    updated_at: rating.updated_at,
+  }));
+}
+
 async function getRankingsFallback(supabase, entityType) {
   const { data, error } = await supabase
     .from("ratings")
@@ -1018,6 +1037,23 @@ app.get(
     });
 
     res.json(rating);
+  }),
+);
+
+app.get(
+  "/api/ratings/me",
+  authenticateSpotifyUser,
+  asyncRoute(async (req, res) => {
+    const userId = normalizeUserId(req.user_id);
+
+    if (!userId) {
+      throw createHttpError(400, "INVALID_MY_RATINGS_QUERY", "valid user_id is required");
+    }
+
+    const supabase = getSupabaseAdmin();
+    const ratings = await getRatingsHistoryForUser(supabase, userId);
+
+    res.json({ ratings });
   }),
 );
 

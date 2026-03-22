@@ -85,6 +85,37 @@ export async function getUserRating(spotify_token, entity_type, entity_id) {
   };
 }
 
+export async function getMyRatings(spotify_token) {
+  let response;
+
+  try {
+    response = await fetch(`${import.meta.env.VITE_API_URL}/ratings/me`, {
+      headers: {
+        Authorization: `Bearer ${spotify_token}`,
+      },
+    });
+  } catch {
+    throw new Error("RATINGS_BACKEND_UNAVAILABLE");
+  }
+
+  const data = await parseJsonResponse(response);
+
+  if (!response.ok) {
+    throw new Error(data?.error?.code || "MY_RATINGS_FETCH_ERROR");
+  }
+
+  return Array.isArray(data?.ratings)
+    ? data.ratings.map((entry) => ({
+        id: entry.id,
+        entity_type: entry.entity_type,
+        entity_id: String(entry.entity_id),
+        rating_value: Number(entry.rating_value ?? 0),
+        created_at: entry.created_at ?? null,
+        updated_at: entry.updated_at ?? null,
+      }))
+    : [];
+}
+
 export async function getRankings(entity_type) {
   let response;
 
