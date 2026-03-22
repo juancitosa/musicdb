@@ -21,6 +21,7 @@ const ALLOWED_ORIGINS = new Set([
   "http://127.0.0.1:5173",
   "http://127.0.0.1:5174",
   "https://musicdb.online",
+  "https://www.musicdb.online",
 ]);
 const VERCEL_APP_ORIGIN_PATTERN = /^https:\/\/[a-z0-9-]+\.vercel\.app$/i;
 

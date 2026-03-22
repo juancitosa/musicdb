@@ -11,6 +11,10 @@ function getRedirectUri() {
     url.hostname = "127.0.0.1";
   }
 
+  if (url.hostname === "www.musicdb.online") {
+    url.hostname = "musicdb.online";
+  }
+
   url.pathname = "/";
   url.search = "";
   url.hash = "";
@@ -65,6 +69,11 @@ export function clearStoredSpotifySession() {
 }
 
 export async function getSpotifyAuthorizationUrl() {
+  if (window.location.hostname === "www.musicdb.online") {
+    window.location.replace(`https://musicdb.online${window.location.pathname}${window.location.search}${window.location.hash}`);
+    return null;
+  }
+
   const verifier = randomString(64);
   const challenge = base64UrlEncode(await sha256(verifier));
   localStorage.setItem(CODE_VERIFIER_KEY, verifier);

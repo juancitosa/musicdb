@@ -194,6 +194,9 @@ export function SpotifyAuthProvider({ children }) {
       isLoadingSpotify: isLoading,
       async connectSpotify() {
         const url = await getSpotifyAuthorizationUrl();
+        if (!url) {
+          return;
+        }
         window.location.href = url;
       },
       disconnectSpotify() {
