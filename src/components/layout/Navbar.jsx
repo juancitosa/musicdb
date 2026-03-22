@@ -47,7 +47,7 @@ function NavLinks() {
       <NavLink
         to="/dbranking"
         className={({ isActive }) =>
-          `rounded-full border px-4 py-2 text-sm font-semibold transition ${
+          `inline-flex min-w-fit shrink-0 whitespace-nowrap rounded-full border px-4 py-2 text-sm font-semibold leading-none transition ${
             isActive
               ? "border-yellow-400/35 bg-[#171513] text-yellow-100 shadow-[0_10px_30px_rgba(245,158,11,0.08)]"
               : "border-yellow-500/18 bg-[#111113] text-yellow-100/80 hover:-translate-y-0.5 hover:border-yellow-400/34 hover:bg-[#171513]"
@@ -59,7 +59,7 @@ function NavLinks() {
       <NavLink
         to="/pro"
         className={({ isActive }) =>
-          `rounded-full border px-4 py-2 text-sm font-semibold transition ${
+          `inline-flex min-w-fit shrink-0 whitespace-nowrap rounded-full border px-4 py-2 text-sm font-semibold leading-none transition ${
             isActive
               ? "border-amber-300/35 bg-[#171513] text-amber-100 shadow-[0_10px_30px_rgba(245,158,11,0.08)]"
               : "border-amber-400/18 bg-[#111113] text-amber-100/80 hover:-translate-y-0.5 hover:border-amber-300/34 hover:bg-[#171513]"
