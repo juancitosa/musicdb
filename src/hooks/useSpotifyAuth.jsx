@@ -125,7 +125,7 @@ export function SpotifyAuthProvider({ children }) {
           if (error?.message === "SPOTIFY_BACKEND_UNAVAILABLE") {
             toast({
               title: "Backend de Spotify no disponible",
-              description: "Levantá el servidor en localhost:3000 para completar el inicio de sesión",
+              description: "Levantá el backend configurado para completar el inicio de sesión",
               variant: "destructive",
             });
           } else if (error?.message === "APP_BACKEND_UNAVAILABLE") {

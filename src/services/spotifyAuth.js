@@ -1,5 +1,4 @@
 const SPOTIFY_CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID || "c1f66adf91794dde89f087a84a559e3b";
-const API = import.meta.env.VITE_API_URL;
 
 function getRedirectUri() {
   if (import.meta.env.VITE_SPOTIFY_REDIRECT_URI) {
@@ -87,7 +86,7 @@ async function requestToken(params) {
   let response;
 
   try {
-    response = await fetch(`${API}${isRefresh ? "/auth/refresh" : "/auth/token"}`, {
+    response = await fetch(`${import.meta.env.VITE_API_URL}${isRefresh ? "/auth/refresh" : "/auth/token"}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

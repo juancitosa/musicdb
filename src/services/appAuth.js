@@ -1,5 +1,3 @@
-const API = import.meta.env.VITE_API_URL;
-
 export async function fetchSpotifyProfile(accessToken) {
   const response = await fetch("https://api.spotify.com/v1/me", {
     headers: {
@@ -29,7 +27,7 @@ export async function syncSpotifyUser(payload) {
   let response;
 
   try {
-    response = await fetch(`${API}/auth/spotify`, {
+    response = await fetch(`${import.meta.env.VITE_API_URL}/auth/spotify`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

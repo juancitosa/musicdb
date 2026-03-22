@@ -1,9 +1,7 @@
 import { clearStoredSpotifySession } from "./spotifyAuth";
 
-const API = import.meta.env.VITE_API_URL;
-
 async function apiFetch(path, { token, query } = {}) {
-  const url = new URL(`${API}${path}`);
+  const url = new URL(`${import.meta.env.VITE_API_URL}${path}`);
 
   if (query) {
     Object.entries(query).forEach(([key, value]) => {
