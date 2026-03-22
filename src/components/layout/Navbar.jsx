@@ -239,7 +239,7 @@ function UserActions() {
                         setShowLogoutConfirm(false);
                         disconnectSpotify();
                       }}
-                      className="rounded-full border border-red-500/90 bg-red-500/6 px-5 py-2.5 text-sm font-semibold text-red-200 shadow-[0_0_24px_rgba(239,68,68,0.4)] transition hover:bg-red-500/14 hover:text-red-100"
+                      className="logout-confirm-button cursor-pointer rounded-full border border-red-500/90 bg-red-500/6 px-5 py-2.5 text-sm font-semibold text-red-200 shadow-[0_0_24px_rgba(239,68,68,0.4)] transition hover:bg-red-500/14 hover:text-red-100"
                     >
                       Cerrar sesion
                     </button>
