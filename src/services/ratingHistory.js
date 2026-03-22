@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api";
+const API = import.meta.env.VITE_API_URL;
 
 export const DEFAULT_RATINGS_SUMMARY = {
   average_rating: 0,
@@ -17,7 +17,7 @@ export async function submitRating({ spotify_token, entity_type, entity_id, rati
   let response;
 
   try {
-    response = await fetch(`${API_BASE_URL}/ratings`, {
+    response = await fetch(`${API}/ratings`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -46,7 +46,7 @@ export async function getRatings(entity_type, entity_id) {
   let response;
 
   try {
-    response = await fetch(`${API_BASE_URL}/ratings/${encodeURIComponent(entity_type)}/${encodeURIComponent(entity_id)}`);
+    response = await fetch(`${API}/ratings/${encodeURIComponent(entity_type)}/${encodeURIComponent(entity_id)}`);
   } catch {
     throw new Error("RATINGS_BACKEND_UNAVAILABLE");
   }
@@ -67,7 +67,7 @@ export async function getUserRating(spotify_token, entity_type, entity_id) {
   let response;
 
   try {
-    response = await fetch(`${API_BASE_URL}/ratings/me/${encodeURIComponent(entity_type)}/${encodeURIComponent(entity_id)}`, {
+    response = await fetch(`${API}/ratings/me/${encodeURIComponent(entity_type)}/${encodeURIComponent(entity_id)}`, {
       headers: {
         Authorization: `Bearer ${spotify_token}`,
       },
@@ -91,7 +91,7 @@ export async function getRankings(entity_type) {
   let response;
 
   try {
-    response = await fetch(`${API_BASE_URL}/rankings/${encodeURIComponent(entity_type)}`);
+    response = await fetch(`${API}/rankings/${encodeURIComponent(entity_type)}`);
   } catch {
     throw new Error("RATINGS_BACKEND_UNAVAILABLE");
   }

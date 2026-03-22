@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api";
+const API = import.meta.env.VITE_API_URL;
 
 async function parseJsonResponse(response) {
   try {
@@ -12,7 +12,7 @@ export async function createReview({ spotify_token, entity_type, entity_id, revi
   let response;
 
   try {
-    response = await fetch(`${API_BASE_URL}/reviews`, {
+    response = await fetch(`${API}/reviews`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -42,7 +42,7 @@ export async function getReviews(entity_type, entity_id) {
   let response;
 
   try {
-    response = await fetch(`${API_BASE_URL}/reviews/${encodeURIComponent(entity_type)}/${encodeURIComponent(entity_id)}`);
+    response = await fetch(`${API}/reviews/${encodeURIComponent(entity_type)}/${encodeURIComponent(entity_id)}`);
   } catch {
     throw new Error("REVIEWS_BACKEND_UNAVAILABLE");
   }
@@ -60,7 +60,7 @@ export async function deleteReview(review_id, spotify_token) {
   let response;
 
   try {
-    response = await fetch(`${API_BASE_URL}/reviews/${encodeURIComponent(review_id)}`, {
+    response = await fetch(`${API}/reviews/${encodeURIComponent(review_id)}`, {
       method: "DELETE",
       headers: {
         "Content-Type": "application/json",
