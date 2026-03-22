@@ -134,7 +134,7 @@ export default function AuthDialog({
 
   const connectedName = spotifyUser?.name ?? "tu cuenta de Spotify";
   const neonButtonClass =
-    "group relative w-full justify-center overflow-hidden border border-violet-400/70 bg-black text-white shadow-[0_0_0_1px_rgba(168,85,247,0.25),0_0_24px_rgba(168,85,247,0.3)] transition-all duration-300 hover:-translate-y-0.5 hover:border-violet-300 hover:shadow-[0_0_0_1px_rgba(196,181,253,0.5),0_0_30px_rgba(168,85,247,0.45)] before:absolute before:inset-y-0 before:left-[-35%] before:w-1/3 before:skew-x-[-22deg] before:bg-linear-to-r before:from-transparent before:via-white/30 before:to-transparent before:opacity-0 before:transition before:duration-500 hover:before:left-[115%] hover:before:opacity-100";
+    "group relative w-full justify-center overflow-hidden border border-violet-400/85 bg-linear-to-b from-black/90 via-zinc-900/78 to-zinc-800/68 text-white shadow-[0_0_0_1px_rgba(168,85,247,0.32),0_0_18px_rgba(168,85,247,0.24),inset_0_1px_0_rgba(255,255,255,0.05)] transition-all duration-300 hover:-translate-y-0.5 hover:border-violet-300 hover:from-black hover:via-zinc-900/88 hover:to-zinc-800/78 hover:shadow-[0_0_0_1px_rgba(196,181,253,0.55),0_0_28px_rgba(168,85,247,0.46),inset_0_1px_0_rgba(255,255,255,0.09)] before:absolute before:inset-y-0 before:left-[-45%] before:w-1/3 before:skew-x-[-22deg] before:bg-linear-to-r before:from-transparent before:via-white/40 before:to-transparent before:opacity-0 before:blur-md before:transition before:duration-500 hover:before:left-[120%] hover:before:opacity-100 after:absolute after:inset-[1px] after:rounded-full after:bg-linear-to-b after:from-white/4 after:via-transparent after:to-transparent after:content-['']";
 
   return (
     <>
