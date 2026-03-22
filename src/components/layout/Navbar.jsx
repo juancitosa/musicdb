@@ -13,7 +13,6 @@ import SpotifyConnectButton from "../shared/SpotifyConnectButton";
 
 const navigationItems = [
   { label: "Inicio", path: "/" },
-  { label: "Explorar", path: "/search" },
 ];
 
 function Brand() {
@@ -50,8 +49,8 @@ function NavLinks() {
         className={({ isActive }) =>
           `rounded-full border px-4 py-2 text-sm font-semibold transition ${
             isActive
-              ? "border-yellow-400/45 bg-linear-to-r from-yellow-500/24 via-amber-400/12 to-secondary text-yellow-100 shadow-lg shadow-yellow-500/10"
-              : "border-yellow-500/20 bg-linear-to-r from-yellow-500/14 via-amber-400/8 to-secondary text-yellow-100/85 hover:-translate-y-0.5 hover:border-yellow-400/40 hover:bg-linear-to-r hover:from-yellow-500/24 hover:via-amber-400/12 hover:to-secondary"
+              ? "border-yellow-400/35 bg-[#171513] text-yellow-100 shadow-[0_10px_30px_rgba(245,158,11,0.08)]"
+              : "border-yellow-500/18 bg-[#111113] text-yellow-100/80 hover:-translate-y-0.5 hover:border-yellow-400/34 hover:bg-[#171513]"
           }`
         }
       >
@@ -62,8 +61,8 @@ function NavLinks() {
         className={({ isActive }) =>
           `rounded-full border px-4 py-2 text-sm font-semibold transition ${
             isActive
-              ? "border-amber-300/55 bg-linear-to-r from-amber-300/20 via-yellow-300/12 to-secondary text-amber-100 shadow-lg shadow-amber-400/12"
-              : "border-amber-400/20 bg-linear-to-r from-amber-300/10 via-yellow-200/6 to-secondary text-amber-100/85 hover:-translate-y-0.5 hover:border-amber-300/45 hover:bg-linear-to-r hover:from-amber-300/18 hover:via-yellow-200/10 hover:to-secondary"
+              ? "border-amber-300/35 bg-[#171513] text-amber-100 shadow-[0_10px_30px_rgba(245,158,11,0.08)]"
+              : "border-amber-400/18 bg-[#111113] text-amber-100/80 hover:-translate-y-0.5 hover:border-amber-300/34 hover:bg-[#171513]"
           }`
         }
       >
@@ -152,6 +151,12 @@ function SearchBox() {
     setShowSuggestions(false);
   }
 
+  function openExplore() {
+    if (!searchTerm.trim()) {
+      navigate("/search");
+    }
+  }
+
   function selectSuggestion() {
     setShowSuggestions(false);
     setSearchTerm("");
@@ -164,7 +169,13 @@ function SearchBox() {
         <input
           value={searchTerm}
           onChange={(event) => setSearchTerm(event.target.value)}
-          onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+          onClick={openExplore}
+          onFocus={() => {
+            openExplore();
+            if (suggestions.length > 0) {
+              setShowSuggestions(true);
+            }
+          }}
           placeholder="Buscar artistas, albumes..."
           className="w-full rounded-full bg-secondary py-2 pr-4 pl-10 text-sm outline-none transition focus:ring-2 focus:ring-primary"
         />
