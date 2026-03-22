@@ -134,7 +134,7 @@ export default function AuthDialog({
 
   const connectedName = spotifyUser?.name ?? "tu cuenta de Spotify";
   const neonButtonClass =
-    "group relative isolate w-full justify-center overflow-hidden border border-violet-400 bg-black text-white shadow-[0_0_0_1px_rgba(168,85,247,0.55),0_0_18px_rgba(168,85,247,0.28)] transition-all duration-300 hover:-translate-y-0.5 hover:border-violet-300 hover:bg-black hover:text-white hover:shadow-[0_0_0_1px_rgba(196,181,253,0.85),0_0_28px_rgba(168,85,247,0.52)] before:absolute before:top-[-2px] before:left-[-30%] before:h-[calc(100%+4px)] before:w-10 before:rounded-full before:bg-[linear-gradient(90deg,transparent,rgba(216,180,254,0.95),transparent)] before:opacity-0 before:blur-[6px] before:transition before:duration-200 hover:before:left-[105%] hover:before:opacity-100";
+    "auth-neon-button w-full justify-center rounded-full border border-violet-400 bg-black px-6 py-3 text-base font-semibold text-white shadow-[0_0_18px_rgba(168,85,247,0.26)] transition-all duration-300 hover:-translate-y-0.5 hover:border-violet-300 hover:bg-black hover:text-white hover:shadow-[0_0_28px_rgba(168,85,247,0.46)]";
 
   return (
     <>
