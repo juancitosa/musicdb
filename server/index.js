@@ -250,7 +250,7 @@ function isAggregatesDisabledError(error) {
 async function getUserById(supabase, userId) {
   const { data, error } = await supabase
     .from("users")
-    .select("id, email, username, phone, display_name, avatar_url, auth_provider, created_at, updated_at")
+    .select("id, email, username, display_name, avatar_url, auth_provider, created_at, updated_at")
     .eq("id", userId)
     .maybeSingle();
 
@@ -270,7 +270,7 @@ async function getUserByEmail(supabase, email) {
 
   const { data, error } = await supabase
     .from("users")
-    .select("id, email, username, phone, display_name, avatar_url, auth_provider, created_at, updated_at")
+    .select("id, email, username, display_name, avatar_url, auth_provider, created_at, updated_at")
     .eq("email", email)
     .maybeSingle();
 
@@ -286,7 +286,7 @@ async function getUserAuthByEmail(supabase, email) {
 
   const { data, error } = await supabase
     .from("users")
-    .select("id, email, username, phone, password, display_name, avatar_url, auth_provider, created_at, updated_at")
+    .select("id, email, username, password_hash, display_name, avatar_url, auth_provider, created_at, updated_at")
     .eq("email", email)
     .maybeSingle();
 
@@ -331,12 +331,11 @@ async function createUserFromSpotifyProfile(supabase, { email, displayName, avat
     .insert({
       email,
       username,
-      phone: null,
       display_name: displayName,
       avatar_url: avatarUrl,
       auth_provider: "spotify",
     })
-    .select("id, email, username, phone, display_name, avatar_url, auth_provider, created_at, updated_at")
+    .select("id, email, username, display_name, avatar_url, auth_provider, created_at, updated_at")
     .single();
 
   handleSupabaseError(error, "Failed to create user");
@@ -358,7 +357,7 @@ async function updateUserForSpotify(supabase, user, { displayName, avatarUrl }) 
       auth_provider: "spotify",
     })
     .eq("id", user.id)
-    .select("id, email, username, phone, display_name, avatar_url, auth_provider, created_at, updated_at")
+    .select("id, email, username, display_name, avatar_url, auth_provider, created_at, updated_at")
     .single();
 
   handleSupabaseError(error, "Failed to update user");
@@ -450,15 +449,16 @@ async function authenticateAppUser(req, _res, next) {
 }
 
 async function ensureUserUniqueness(supabase, { email, username }) {
-  const { data, error } = await supabase
-    .from("users")
-    .select("id, email, username")
-    .or(`email.eq.${email},username.eq.${username}`);
+  const [{ data: emailMatch, error: emailError }, { data: usernameMatch, error: usernameError }] = await Promise.all([
+    supabase.from("users").select("id").eq("email", email).maybeSingle(),
+    supabase.from("users").select("id").eq("username", username).maybeSingle(),
+  ]);
 
-  handleSupabaseError(error, "Failed to validate user uniqueness");
+  handleSupabaseError(emailError, "Failed to validate email uniqueness");
+  handleSupabaseError(usernameError, "Failed to validate username uniqueness");
 
-  const duplicatedEmail = (data ?? []).some((user) => user.email === email);
-  const duplicatedUsername = (data ?? []).some((user) => user.username === username);
+  const duplicatedEmail = Boolean(emailMatch?.id);
+  const duplicatedUsername = Boolean(usernameMatch?.id);
 
   if (duplicatedEmail) {
     throw createHttpError(409, "EMAIL_ALREADY_EXISTS", "There is already an account with that email");
@@ -473,18 +473,40 @@ async function createLocalUser(supabase, { email, username, password, phone }) {
   await ensureUserUniqueness(supabase, { email, username });
 
   const hashedPassword = await bcrypt.hash(password, 10);
+  const payload = {
+    email,
+    username,
+    password_hash: hashedPassword,
+    display_name: username,
+    auth_provider: "local",
+  };
+
+  if (phone) {
+    payload.phone = phone;
+  }
+
   const { data, error } = await supabase
     .from("users")
-    .insert({
-      email,
-      username,
-      password: hashedPassword,
-      phone,
-      display_name: username,
-      auth_provider: "local",
-    })
-    .select("id, email, username, phone, display_name, avatar_url, auth_provider, created_at, updated_at")
+    .insert(payload)
+    .select("id, email, username, display_name, avatar_url, auth_provider, created_at, updated_at")
     .single();
+
+  if (error?.message?.includes("phone")) {
+    const { data: fallbackData, error: fallbackError } = await supabase
+      .from("users")
+      .insert({
+        email,
+        username,
+        password_hash: hashedPassword,
+        display_name: username,
+        auth_provider: "local",
+      })
+      .select("id, email, username, display_name, avatar_url, auth_provider, created_at, updated_at")
+      .single();
+
+    handleSupabaseError(fallbackError, "Failed to create local user");
+    return fallbackData;
+  }
 
   handleSupabaseError(error, "Failed to create local user");
 
@@ -1092,11 +1114,11 @@ app.post(
     const supabase = getSupabaseAdmin();
     const user = await getUserAuthByEmail(supabase, email);
 
-    if (!user?.password) {
+    if (!user?.password_hash) {
       throw createHttpError(401, "LOCAL_LOGIN_INVALID", "Invalid email or password");
     }
 
-    const passwordMatches = await bcrypt.compare(password, user.password);
+    const passwordMatches = await bcrypt.compare(password, user.password_hash);
 
     if (!passwordMatches) {
       throw createHttpError(401, "LOCAL_LOGIN_INVALID", "Invalid email or password");

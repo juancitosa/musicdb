@@ -144,13 +144,13 @@ export default function AuthDialog({
 
       {isOpen && typeof document !== "undefined"
         ? createPortal(
-            <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/55 px-4 backdrop-blur-sm" onClick={() => setIsOpen(false)}>
+            <div className="fixed inset-0 z-[200] flex items-start justify-center overflow-y-auto bg-black/55 px-3 py-3 backdrop-blur-sm sm:items-center sm:px-4 sm:py-4" onClick={() => setIsOpen(false)}>
               <div
-                className="w-full max-w-3xl overflow-hidden rounded-[2rem] border border-white/14 bg-white/8 shadow-[0_30px_100px_rgba(0,0,0,0.45)] ring-1 ring-white/10 backdrop-blur-2xl"
+                className="my-auto w-full max-w-3xl overflow-hidden rounded-[1.6rem] border border-white/14 bg-white/8 shadow-[0_30px_100px_rgba(0,0,0,0.45)] ring-1 ring-white/10 backdrop-blur-2xl sm:rounded-[2rem] max-sm:max-h-[calc(100vh-1.5rem)] max-sm:overflow-y-auto"
                 onClick={(event) => event.stopPropagation()}
               >
                 <div className="grid gap-0 md:grid-cols-[0.95fr_1.05fr]">
-                  <div className="bg-linear-to-br from-[#121a12]/92 via-[#142316]/88 to-[#0b120d]/92 p-8 text-white backdrop-blur-2xl">
+                  <div className="bg-linear-to-br from-[#121a12]/92 via-[#142316]/88 to-[#0b120d]/92 p-5 text-white backdrop-blur-2xl sm:p-8">
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <p className="text-xs font-semibold uppercase tracking-[0.25em] text-white/60">Acceso</p>
@@ -169,7 +169,7 @@ export default function AuthDialog({
                       </button>
                     </div>
 
-                    <div className="mt-8 rounded-[1.5rem] border border-white/12 bg-white/8 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl">
+                    <div className="mt-6 rounded-[1.35rem] border border-white/12 bg-white/8 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl sm:mt-8 sm:rounded-[1.5rem] sm:p-5">
                       <p className="text-sm font-semibold">Continuar con Spotify</p>
                       <p className="mt-2 text-sm text-white/72">
                         Mantiene el flujo actual y desbloquea top artistas, top canciones, top albumes y escuchando ahora.
@@ -183,7 +183,7 @@ export default function AuthDialog({
                     </div>
                   </div>
 
-                  <div className="bg-white/4 p-8 backdrop-blur-2xl">
+                  <div className="bg-white/4 p-5 backdrop-blur-2xl sm:p-8">
                     <div className="relative flex rounded-full border border-white/10 bg-black/18 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl">
                       <div
                         className={`pointer-events-none absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-full bg-white/12 shadow-[0_10px_30px_rgba(0,0,0,0.22)] transition-transform duration-300 ease-out ${
@@ -227,6 +227,7 @@ export default function AuthDialog({
                             type="email"
                             value={form.email}
                             onChange={(event) => updateField("email", event.target.value)}
+                            autoComplete="email"
                             className="w-full rounded-2xl border border-border bg-background py-3 pr-4 pl-11 text-sm outline-none transition focus:border-primary"
                             placeholder="tu@email.com"
                             required
@@ -241,6 +242,7 @@ export default function AuthDialog({
                             type="text"
                             value={form.username}
                             onChange={(event) => updateField("username", event.target.value)}
+                            autoComplete="username"
                             className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none transition focus:border-primary"
                             placeholder="Tu nombre en MusicDB"
                             required
@@ -250,13 +252,14 @@ export default function AuthDialog({
 
                       <div>
                         <label className="mb-2 block text-sm font-medium text-foreground">Contrasena</label>
-                        <input
-                          type="password"
-                          value={form.password}
-                          onChange={(event) => updateField("password", event.target.value)}
-                          className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none transition focus:border-primary"
-                          placeholder={mode === "register" ? "Minimo 6 caracteres" : "Tu contrasena"}
-                          required
+                          <input
+                            type="password"
+                            value={form.password}
+                            onChange={(event) => updateField("password", event.target.value)}
+                            autoComplete={mode === "register" ? "new-password" : "current-password"}
+                            className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none transition focus:border-primary"
+                            placeholder={mode === "register" ? "Minimo 6 caracteres" : "Tu contrasena"}
+                            required
                         />
                       </div>
 
@@ -267,6 +270,7 @@ export default function AuthDialog({
                             type="tel"
                             value={form.phone}
                             onChange={(event) => updateField("phone", event.target.value)}
+                            autoComplete="tel"
                             className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none transition focus:border-primary"
                             placeholder="+54 11 1234 5678"
                           />
