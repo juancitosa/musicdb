@@ -69,6 +69,9 @@ export default function AuthDialog({
       return undefined;
     }
 
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
     function handleEscape(event) {
       if (event.key === "Escape") {
         setIsOpen(false);
@@ -76,7 +79,10 @@ export default function AuthDialog({
     }
 
     document.addEventListener("keydown", handleEscape);
-    return () => document.removeEventListener("keydown", handleEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleEscape);
+    };
   }, [isOpen]);
 
   function updateField(field, value) {
@@ -127,6 +133,8 @@ export default function AuthDialog({
   }
 
   const connectedName = spotifyUser?.name ?? "tu cuenta de Spotify";
+  const neonButtonClass =
+    "group relative w-full justify-center overflow-hidden border border-violet-400/70 bg-black text-white shadow-[0_0_0_1px_rgba(168,85,247,0.25),0_0_24px_rgba(168,85,247,0.3)] transition-all duration-300 hover:-translate-y-0.5 hover:border-violet-300 hover:shadow-[0_0_0_1px_rgba(196,181,253,0.5),0_0_30px_rgba(168,85,247,0.45)] before:absolute before:inset-y-0 before:left-[-35%] before:w-1/3 before:skew-x-[-22deg] before:bg-linear-to-r before:from-transparent before:via-white/30 before:to-transparent before:opacity-0 before:transition before:duration-500 hover:before:left-[115%] hover:before:opacity-100";
 
   return (
     <>
@@ -138,11 +146,11 @@ export default function AuthDialog({
         ? createPortal(
             <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/55 px-4 backdrop-blur-sm" onClick={() => setIsOpen(false)}>
               <div
-                className="w-full max-w-3xl overflow-hidden rounded-[2rem] border border-border bg-card shadow-[0_30px_100px_rgba(0,0,0,0.45)]"
+                className="w-full max-w-3xl overflow-hidden rounded-[2rem] border border-white/14 bg-white/8 shadow-[0_30px_100px_rgba(0,0,0,0.45)] ring-1 ring-white/10 backdrop-blur-2xl"
                 onClick={(event) => event.stopPropagation()}
               >
                 <div className="grid gap-0 md:grid-cols-[0.95fr_1.05fr]">
-                  <div className="bg-linear-to-br from-[#121a12] via-[#142316] to-[#0b120d] p-8 text-white">
+                  <div className="bg-linear-to-br from-[#121a12]/92 via-[#142316]/88 to-[#0b120d]/92 p-8 text-white backdrop-blur-2xl">
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <p className="text-xs font-semibold uppercase tracking-[0.25em] text-white/60">Acceso</p>
@@ -161,7 +169,7 @@ export default function AuthDialog({
                       </button>
                     </div>
 
-                    <div className="mt-8 rounded-[1.5rem] border border-white/10 bg-white/6 p-5">
+                    <div className="mt-8 rounded-[1.5rem] border border-white/12 bg-white/8 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl">
                       <p className="text-sm font-semibold">Continuar con Spotify</p>
                       <p className="mt-2 text-sm text-white/72">
                         Mantiene el flujo actual y desbloquea top artistas, top canciones, top albumes y escuchando ahora.
@@ -175,16 +183,21 @@ export default function AuthDialog({
                     </div>
                   </div>
 
-                  <div className="p-8">
-                    <div className="flex rounded-full bg-secondary p-1">
+                  <div className="bg-white/6 p-8 backdrop-blur-2xl">
+                    <div className="relative flex rounded-full border border-white/10 bg-black/18 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl">
+                      <div
+                        className={`pointer-events-none absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-full bg-white/12 shadow-[0_10px_30px_rgba(0,0,0,0.22)] transition-transform duration-300 ease-out ${
+                          mode === "register" ? "translate-x-full" : "translate-x-0"
+                        }`}
+                      />
                       <button
                         type="button"
                         onClick={() => {
                           setMode("login");
                           setError("");
                         }}
-                        className={`flex flex-1 items-center justify-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold transition ${
-                          mode === "login" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                        className={`relative z-10 flex flex-1 items-center justify-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold transition ${
+                          mode === "login" ? "text-white" : "text-white/60 hover:text-white"
                         }`}
                       >
                         <LogIn className="h-4 w-4" />
@@ -196,12 +209,12 @@ export default function AuthDialog({
                           setMode("register");
                           setError("");
                         }}
-                        className={`flex flex-1 items-center justify-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold transition ${
-                          mode === "register" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                        className={`relative z-10 flex flex-1 items-center justify-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold transition ${
+                          mode === "register" ? "text-white" : "text-white/60 hover:text-white"
                         }`}
                       >
                         <UserPlus className="h-4 w-4" />
-                        Cuenta MusicDB
+                        Crear cuenta MusicDB
                       </button>
                     </div>
 
@@ -223,7 +236,7 @@ export default function AuthDialog({
 
                       {mode === "register" ? (
                         <div>
-                          <label className="mb-2 block text-sm font-medium text-foreground">Username</label>
+                          <label className="mb-2 block text-sm font-medium text-foreground">Nombre de Usuario</label>
                           <input
                             type="text"
                             value={form.username}
@@ -249,7 +262,7 @@ export default function AuthDialog({
 
                       {mode === "register" ? (
                         <div>
-                          <label className="mb-2 block text-sm font-medium text-foreground">Phone opcional</label>
+                          <label className="mb-2 block text-sm font-medium text-foreground">Telefono (Opcional)</label>
                           <input
                             type="tel"
                             value={form.phone}
@@ -262,7 +275,7 @@ export default function AuthDialog({
 
                       {error ? <p className="rounded-2xl border border-destructive/25 bg-destructive/8 px-4 py-3 text-sm text-destructive">{error}</p> : null}
 
-                      <Button type="submit" className="w-full justify-center" size="lg" disabled={isSubmitting}>
+                      <Button type="submit" className={neonButtonClass} size="lg" disabled={isSubmitting}>
                         {isSubmitting
                           ? mode === "register"
                             ? "Creando cuenta..."
