@@ -6,7 +6,7 @@ async function parseJsonResponse(response) {
   }
 }
 
-export async function createReview({ spotify_token, entity_type, entity_id, review_text, rating_value }) {
+export async function createReview({ session_token, entity_type, entity_id, review_text, rating_value }) {
   let response;
 
   try {
@@ -14,7 +14,7 @@ export async function createReview({ spotify_token, entity_type, entity_id, revi
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${spotify_token}`,
+        Authorization: `Bearer ${session_token}`,
       },
       body: JSON.stringify({
         entity_type,
@@ -54,7 +54,7 @@ export async function getReviews(entity_type, entity_id) {
   return Array.isArray(data?.reviews) ? data.reviews : [];
 }
 
-export async function deleteReview(review_id, spotify_token) {
+export async function deleteReview(review_id, session_token) {
   let response;
 
   try {
@@ -62,7 +62,7 @@ export async function deleteReview(review_id, spotify_token) {
       method: "DELETE",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${spotify_token}`,
+        Authorization: `Bearer ${session_token}`,
       },
     });
   } catch {

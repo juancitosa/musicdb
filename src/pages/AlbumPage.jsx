@@ -7,7 +7,6 @@ import PopularityBar from "../components/shared/PopularityBar";
 import RatingStars from "../components/shared/RatingStars";
 import Button from "../components/ui/Button";
 import { useAuth } from "../hooks/useAuth";
-import { useSpotifyAuth } from "../hooks/useSpotifyAuth";
 import { getMockAlbum, getMockAlbumTracks, getMockArtist } from "../services/catalog";
 import { DEFAULT_RATINGS_SUMMARY, getRatings, getUserRating, submitRating } from "../services/ratingHistory";
 import { createReview, deleteReview, getReviews } from "../services/reviewHistory";
@@ -23,8 +22,7 @@ function formatReviewDate(value) {
 
 export default function AlbumPage() {
   const { id } = useParams();
-  const { isLoggedIn, user } = useAuth();
-  const { isSpotifyConnected, spotifyToken } = useSpotifyAuth();
+  const { isLoggedIn, user, appToken } = useAuth();
   const [album, setAlbum] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -40,7 +38,7 @@ export default function AlbumPage() {
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [reviewError, setReviewError] = useState("");
   const [deletingReviewId, setDeletingReviewId] = useState(null);
-  const canInteract = isLoggedIn || isSpotifyConnected;
+  const canInteract = isLoggedIn;
   const currentUserId = user?.id ?? null;
 
   useEffect(() => {
@@ -121,7 +119,7 @@ export default function AlbumPage() {
 
     async function loadUserRating() {
       try {
-        const response = await getUserRating(spotifyToken, "album", String(album.id));
+        const response = await getUserRating(appToken, "album", String(album.id));
 
         if (!cancelled) {
           setUserRating(response.rating_value ?? 0);
@@ -138,7 +136,7 @@ export default function AlbumPage() {
     return () => {
       cancelled = true;
     };
-  }, [album, currentUserId, spotifyToken]);
+  }, [album, appToken, currentUserId]);
 
   useEffect(() => {
     if (!album) {
@@ -185,7 +183,7 @@ export default function AlbumPage() {
   const primaryArtist = album ? (isLocal ? localArtist : album.artists?.[0]) : null;
 
   async function handleRateAlbum(nextRating) {
-    if (!album || !currentUserId || !spotifyToken) {
+    if (!album || !currentUserId || !appToken) {
       throw new Error("RATING_AUTH_REQUIRED");
     }
 
@@ -194,7 +192,7 @@ export default function AlbumPage() {
 
     try {
       const response = await submitRating({
-        spotify_token: spotifyToken,
+        session_token: appToken,
         entity_type: "album",
         entity_id: String(album.id),
         rating_value: nextRating,
@@ -213,7 +211,7 @@ export default function AlbumPage() {
   async function handleSubmitReview(event) {
     event.preventDefault();
 
-    if (!reviewText.trim() || !canInteract || !album || !currentUserId || !spotifyToken) {
+    if (!reviewText.trim() || !canInteract || !album || !currentUserId || !appToken) {
       return;
     }
 
@@ -222,7 +220,7 @@ export default function AlbumPage() {
 
     try {
       await createReview({
-        spotify_token: spotifyToken,
+        session_token: appToken,
         entity_type: "album",
         entity_id: String(album.id),
         review_text: reviewText.trim(),
@@ -244,7 +242,7 @@ export default function AlbumPage() {
   }
 
   async function handleDeleteReview(reviewId) {
-    if (!currentUserId || !reviewId || !spotifyToken) {
+    if (!currentUserId || !reviewId || !appToken) {
       return;
     }
 
@@ -252,7 +250,7 @@ export default function AlbumPage() {
     setReviewError("");
 
     try {
-      await deleteReview(reviewId, spotifyToken);
+      await deleteReview(reviewId, appToken);
       setReviews((currentReviews) => currentReviews.filter((review) => review.id !== reviewId));
     } catch {
       setReviewError("No pudimos eliminar la reseña.");
@@ -446,7 +444,7 @@ export default function AlbumPage() {
               </form>
             ) : (
               <div className="mb-6 rounded-xl border border-border bg-secondary/50 p-4 text-center">
-                <p className="mb-2 text-sm text-muted-foreground">Inicia sesion o conecta Spotify para dejar una reseña y puntuar.</p>
+                <p className="mb-2 text-sm text-muted-foreground">Inicia sesion para dejar una reseña y puntuar.</p>
                 <AuthRestrictionMessage />
               </div>
             )}

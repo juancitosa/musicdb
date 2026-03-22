@@ -38,7 +38,7 @@ function exchangeCodeOnce(code) {
 }
 
 export function SpotifyAuthProvider({ children }) {
-  const { setAuthenticatedUser, clearAuthenticatedUser } = useAuth();
+  const { setAuthenticatedSession } = useAuth();
   const { toast } = useToast();
   const [spotifyUser, setSpotifyUser] = useState(null);
   const [session, setSession] = useState(() => getStoredSpotifySession());
@@ -52,11 +52,11 @@ export function SpotifyAuthProvider({ children }) {
       const nextUser = normalizeSpotifyUser(profile);
 
       setSpotifyUser(nextUser);
-      setAuthenticatedUser(response.user);
+      setAuthenticatedSession(response);
 
       return nextUser;
     },
-    [setAuthenticatedUser],
+    [setAuthenticatedSession],
   );
 
   useEffect(() => {
@@ -80,18 +80,18 @@ export function SpotifyAuthProvider({ children }) {
           if (cancelled) return;
 
           toast({
-            title: "Sesión iniciada",
-            description: "Ya puedes rankear artistas y albumes",
+            title: "Sesion iniciada",
+            description: "Ya puedes usar MusicDB y las funciones extra de Spotify",
           });
           return;
         }
 
         let storedSession = getStoredSpotifySession();
+
         if (!storedSession?.accessToken) {
           if (!cancelled) {
             setSession(null);
             setSpotifyUser(null);
-            clearAuthenticatedUser();
           }
           return;
         }
@@ -103,7 +103,6 @@ export function SpotifyAuthProvider({ children }) {
             if (!cancelled) {
               setSession(null);
               setSpotifyUser(null);
-              clearAuthenticatedUser();
             }
 
             return;
@@ -121,37 +120,36 @@ export function SpotifyAuthProvider({ children }) {
           clearStoredSpotifySession();
           setSession(null);
           setSpotifyUser(null);
-          clearAuthenticatedUser();
           clearSpotifyCodeFromUrl();
 
           if (error?.message === "SPOTIFY_BACKEND_UNAVAILABLE") {
             toast({
               title: "Backend de Spotify no disponible",
-              description: "Levantá el backend configurado para completar el inicio de sesión",
+              description: "Levanta el backend configurado para completar el inicio de sesion",
               variant: "destructive",
             });
           } else if (error?.message === "APP_BACKEND_UNAVAILABLE") {
             toast({
               title: "Backend de la app no disponible",
-              description: "Levantá el backend y verificá la conexión con Supabase",
+              description: "Levanta el backend y verifica la conexion con Supabase",
               variant: "destructive",
             });
           } else if (error?.message === "SPOTIFY_CONFIG_MISSING") {
             toast({
-              title: "Spotify no está configurado",
-              description: "Completá las credenciales en server/.env y reiniciá el backend",
+              title: "Spotify no esta configurado",
+              description: "Completa las credenciales en server/.env y reinicia el backend",
               variant: "destructive",
             });
           } else if (error?.message === "SUPABASE_CONFIG_MISSING") {
             toast({
-              title: "Supabase no está configurado",
-              description: "Completá las credenciales en server/.env y reiniciá el backend",
+              title: "Supabase no esta configurado",
+              description: "Completa las credenciales en server/.env y reinicia el backend",
               variant: "destructive",
             });
           } else if (error?.message === "SPOTIFY_TOKEN_EXCHANGE_ERROR") {
             toast({
-              title: "Spotify rechazó el inicio de sesión",
-              description: "Revisá la redirect URI y las credenciales del backend",
+              title: "Spotify rechazo el inicio de sesion",
+              description: "Revisa la redirect URI y las credenciales del backend",
               variant: "destructive",
             });
           } else if (error?.message === "INVALID_SPOTIFY_AUTH_PAYLOAD") {
@@ -160,16 +158,22 @@ export function SpotifyAuthProvider({ children }) {
               description: "No pudimos sincronizar tu cuenta con la base de datos",
               variant: "destructive",
             });
+          } else if (error?.message === "SPOTIFY_FORBIDDEN") {
+            toast({
+              title: "Spotify devolvio 403",
+              description: "Ignoramos esa respuesta y la app sigue funcionando sin esas funciones extra",
+              variant: "destructive",
+            });
           } else if (error?.message === "SPOTIFY_TOKEN_UNAUTHORIZED" || error?.message === "TOKEN_EXPIRED") {
             toast({
-              title: "Sesión de Spotify expirada",
-              description: "Volvé a conectar Spotify para seguir usando datos reales",
+              title: "Sesion de Spotify expirada",
+              description: "Vuelve a conectar Spotify para seguir usando datos personales",
               variant: "destructive",
             });
           } else {
             toast({
-              title: "No se pudo iniciar sesión con Spotify",
-              description: "Revisá la configuración del backend y volvé a intentarlo",
+              title: "No se pudo iniciar sesion con Spotify",
+              description: "Revisa la configuracion del backend y vuelve a intentarlo",
               variant: "destructive",
             });
           }
@@ -186,7 +190,7 @@ export function SpotifyAuthProvider({ children }) {
     return () => {
       cancelled = true;
     };
-  }, [clearAuthenticatedUser, loadSpotifyProfile, toast]);
+  }, [loadSpotifyProfile, toast]);
 
   const value = useMemo(
     () => ({
@@ -214,15 +218,15 @@ export function SpotifyAuthProvider({ children }) {
           if (error?.message === "SPOTIFY_BACKEND_UNAVAILABLE") {
             toast({
               title: "Preparando inicio con Spotify",
-              description: "El backend tardó demasiado en despertar. Intentá nuevamente en unos segundos.",
+              description: "El backend tardo demasiado en despertar. Intenta nuevamente en unos segundos.",
               variant: "destructive",
             });
             return;
           }
 
           toast({
-            title: "No se pudo iniciar sesión con Spotify",
-            description: "Revisá la configuración del backend y volvé a intentarlo",
+            title: "No se pudo iniciar sesion con Spotify",
+            description: "Revisa la configuracion del backend y vuelve a intentarlo",
             variant: "destructive",
           });
         } finally {
@@ -233,11 +237,10 @@ export function SpotifyAuthProvider({ children }) {
         clearStoredSpotifySession();
         setSession(null);
         setSpotifyUser(null);
-        clearAuthenticatedUser();
-        toast({ title: "Sesión cerrada" });
+        toast({ title: "Spotify desconectado" });
       },
     }),
-    [clearAuthenticatedUser, isBootstrapping, isConnecting, session?.accessToken, spotifyUser, toast],
+    [isBootstrapping, isConnecting, session?.accessToken, spotifyUser, toast],
   );
 
   return <SpotifyAuthContext.Provider value={value}>{children}</SpotifyAuthContext.Provider>;

@@ -22,6 +22,10 @@ async function apiFetch(path, { token, query } = {}) {
     throw new Error("TOKEN_EXPIRED");
   }
 
+  if (response.status === 403 && token) {
+    throw new Error("SPOTIFY_FORBIDDEN");
+  }
+
   if (!response.ok) {
     throw new Error(`Spotify API error: ${response.status}`);
   }
@@ -126,7 +130,11 @@ export async function getCurrentlyPlayingTrack(token) {
   try {
     return await apiFetch("/me/player/currently-playing", { token });
   } catch (error) {
-    if (error?.message === "SPOTIFY_EMPTY_RESPONSE" || error?.message === "Spotify API error: 204") {
+    if (
+      error?.message === "SPOTIFY_EMPTY_RESPONSE" ||
+      error?.message === "Spotify API error: 204" ||
+      error?.message === "SPOTIFY_FORBIDDEN"
+    ) {
       return null;
     }
 

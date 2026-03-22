@@ -3,6 +3,7 @@ import { Disc3, Search, Star, UserRound, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 
+import { getMockAlbum, getMockArtist } from "../services/catalog";
 import { useAuth } from "../hooks/useAuth";
 import { useSpotifyAuth } from "../hooks/useSpotifyAuth";
 import { getMyRatings } from "../services/ratingHistory";
@@ -32,6 +33,35 @@ function formatDate(value) {
   }).format(date);
 }
 
+async function getEntityDetails(rating) {
+  if (rating.entity_type === "artist") {
+    const localArtist = getMockArtist(rating.entity_id);
+
+    if (localArtist) {
+      return {
+        name: localArtist.name,
+        genres: [localArtist.genre],
+        images: localArtist.image ? [{ url: localArtist.image }] : [],
+      };
+    }
+
+    return getArtistById(rating.entity_id);
+  }
+
+  const localAlbum = getMockAlbum(rating.entity_id);
+
+  if (localAlbum) {
+    return {
+      name: localAlbum.title,
+      artists: localAlbum.artist ? [{ name: localAlbum.artist }] : [],
+      release_date: localAlbum.year ? `${localAlbum.year}` : "",
+      images: localAlbum.coverArt ? [{ url: localAlbum.coverArt }] : [],
+    };
+  }
+
+  return getAlbumById(rating.entity_id);
+}
+
 function normalizeRatingEntry(rating, entity) {
   if (rating.entity_type === "artist") {
     return {
@@ -52,7 +82,7 @@ function normalizeRatingEntry(rating, entity) {
     entityType: "album",
     entityId: rating.entity_id,
     title: entity?.name ?? "Album no disponible",
-    subtitle: `${entity?.artists?.[0]?.name ?? "Album"}${entity?.release_date ? ` · ${entity.release_date.slice(0, 4)}` : ""}`,
+    subtitle: `${entity?.artists?.[0]?.name ?? "Album"}${entity?.release_date ? ` · ${String(entity.release_date).slice(0, 4)}` : ""}`,
     image: getImageUrl(entity?.images),
     href: `/album/${rating.entity_id}`,
     ratingValue: rating.rating_value,
@@ -101,10 +131,10 @@ function RatingHistoryCard({ entry }) {
 }
 
 export default function ProfilePage() {
-  const { isLoggedIn, user } = useAuth();
-  const { isSpotifyConnected, isLoadingSpotify, spotifyUser, spotifyToken } = useSpotifyAuth();
+  const { isLoggedIn, user, appToken, isSpotifyUser } = useAuth();
+  const { isSpotifyConnected, isLoadingSpotify, spotifyUser } = useSpotifyAuth();
   const profileUser = spotifyUser ?? user;
-  const canViewProfile = isLoggedIn || isSpotifyConnected;
+  const hasSpotifyFeatures = isSpotifyUser && isSpotifyConnected;
   const [historyFilter, setHistoryFilter] = useState("all");
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -116,7 +146,7 @@ export default function ProfilePage() {
     let cancelled = false;
 
     async function loadRatingsHistory() {
-      if (!spotifyToken) {
+      if (!appToken) {
         if (!cancelled) {
           setHistoryEntries([]);
         }
@@ -127,14 +157,10 @@ export default function ProfilePage() {
       setHistoryError("");
 
       try {
-        const ratings = await getMyRatings(spotifyToken);
+        const ratings = await getMyRatings(appToken);
         const hydratedEntries = await Promise.all(
           ratings.map(async (rating) => {
-            const entity =
-              rating.entity_type === "artist"
-                ? await getArtistById(rating.entity_id)
-                : await getAlbumById(rating.entity_id);
-
+            const entity = await getEntityDetails(rating);
             return normalizeRatingEntry(rating, entity);
           }),
         );
@@ -159,7 +185,7 @@ export default function ProfilePage() {
     return () => {
       cancelled = true;
     };
-  }, [spotifyToken]);
+  }, [appToken]);
 
   const filteredEntries = useMemo(() => {
     const normalizedTerm = searchTerm.trim().toLowerCase();
@@ -192,7 +218,7 @@ export default function ProfilePage() {
     );
   }
 
-  if (!canViewProfile) {
+  if (!isLoggedIn) {
     return <Navigate to="/" replace />;
   }
 
@@ -209,7 +235,7 @@ export default function ProfilePage() {
           </div>
           <div>
             <p className="text-sm uppercase tracking-widest text-primary">
-              {spotifyUser ? "Perfil de Spotify" : "Perfil de usuario"}
+              {hasSpotifyFeatures ? "Perfil con Spotify" : user?.authProvider === "local" ? "Cuenta MusicDB" : "Perfil de usuario"}
             </p>
             <h1 className="text-4xl font-bold">{profileUser?.name}</h1>
             <p className="mt-1 text-muted-foreground">{profileUser?.email || "Sin email visible"}</p>
@@ -222,10 +248,10 @@ export default function ProfilePage() {
           <h2 className="text-xl font-bold">Estado de sesion</h2>
           <div className="mt-4 space-y-3 text-sm">
             <p>
-              <span className="font-semibold">Estado de cuenta:</span> {isSpotifyConnected ? "Verificada" : "Sin verificar"}
+              <span className="font-semibold">Proveedor:</span> {user?.authProvider === "spotify" ? "Spotify + MusicDB" : "MusicDB"}
             </p>
             <p>
-              <span className="font-semibold">Spotify:</span> {isSpotifyConnected ? `Conectado como ${spotifyUser?.name ?? "usuario"}` : "No conectado"}
+              <span className="font-semibold">Spotify:</span> {hasSpotifyFeatures ? `Conectado como ${spotifyUser?.name ?? "usuario"}` : "No conectado"}
             </p>
             <p>
               <span className="font-semibold">User ID:</span> {user?.id ?? "No disponible"}

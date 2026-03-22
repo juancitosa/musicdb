@@ -11,7 +11,7 @@ async function parseJsonResponse(response) {
   }
 }
 
-export async function submitRating({ spotify_token, entity_type, entity_id, rating_value }) {
+export async function submitRating({ session_token, entity_type, entity_id, rating_value }) {
   let response;
 
   try {
@@ -19,7 +19,7 @@ export async function submitRating({ spotify_token, entity_type, entity_id, rati
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${spotify_token}`,
+        Authorization: `Bearer ${session_token}`,
       },
       body: JSON.stringify({
         entity_type,
@@ -61,13 +61,13 @@ export async function getRatings(entity_type, entity_id) {
   };
 }
 
-export async function getUserRating(spotify_token, entity_type, entity_id) {
+export async function getUserRating(session_token, entity_type, entity_id) {
   let response;
 
   try {
     response = await fetch(`${import.meta.env.VITE_API_URL}/ratings/me/${encodeURIComponent(entity_type)}/${encodeURIComponent(entity_id)}`, {
       headers: {
-        Authorization: `Bearer ${spotify_token}`,
+        Authorization: `Bearer ${session_token}`,
       },
     });
   } catch {
@@ -85,13 +85,13 @@ export async function getUserRating(spotify_token, entity_type, entity_id) {
   };
 }
 
-export async function getMyRatings(spotify_token) {
+export async function getMyRatings(session_token) {
   let response;
 
   try {
     response = await fetch(`${import.meta.env.VITE_API_URL}/ratings/me`, {
       headers: {
-        Authorization: `Bearer ${spotify_token}`,
+        Authorization: `Bearer ${session_token}`,
       },
     });
   } catch {

@@ -7,9 +7,19 @@ import { SpotifyAlbumCard } from "../components/shared/AlbumCard";
 import { SpotifyArtistCard } from "../components/shared/ArtistCard";
 import SectionHeader from "../components/shared/SectionHeader";
 import SkeletonCard from "../components/shared/SkeletonCard";
+import { useAuth } from "../hooks/useAuth";
 import { useSpotifyAuth } from "../hooks/useSpotifyAuth";
 import { useTheme } from "../hooks/useTheme";
-import { formatTrackDuration, getCurrentlyPlayingTrack, getFeaturedArtists, getFeaturedNewReleases, getImageUrl, getTopAlbumsFromTopTracks, getTopArtists, getTopTracks } from "../services/spotify";
+import {
+  formatTrackDuration,
+  getCurrentlyPlayingTrack,
+  getFeaturedArtists,
+  getFeaturedNewReleases,
+  getImageUrl,
+  getTopAlbumsFromTopTracks,
+  getTopArtists,
+  getTopTracks,
+} from "../services/spotify";
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -30,7 +40,7 @@ const podiumClasses = [
 const trackRangeOptions = [
   { key: "short_term", label: "Ultimas 4 semanas" },
   { key: "medium_term", label: "Ultimos 6 meses" },
-  { key: "long_term", label: "Ultimo año" },
+  { key: "long_term", label: "Ultimo ano" },
 ];
 
 const trackRangeFallbacks = {
@@ -40,7 +50,9 @@ const trackRangeFallbacks = {
 };
 
 export default function HomePage() {
+  const { isSpotifyUser } = useAuth();
   const { isSpotifyConnected, isLoadingSpotify, spotifyToken } = useSpotifyAuth();
+  const hasSpotifyFeatures = isSpotifyUser && isSpotifyConnected && Boolean(spotifyToken);
   const { theme } = useTheme();
   const [topArtists, setTopArtists] = useState([]);
   const [topTracks, setTopTracks] = useState([]);
@@ -60,7 +72,7 @@ export default function HomePage() {
     let pollIntervalId = null;
 
     async function loadCurrentlyPlaying() {
-      if (!isSpotifyConnected || !spotifyToken) {
+      if (!hasSpotifyFeatures) {
         setCurrentlyPlaying(null);
         setDisplayedProgressMs(0);
         return;
@@ -91,7 +103,7 @@ export default function HomePage() {
         window.clearInterval(pollIntervalId);
       }
     };
-  }, [isSpotifyConnected, spotifyToken]);
+  }, [hasSpotifyFeatures, spotifyToken]);
 
   useEffect(() => {
     if (!currentlyPlaying?.is_playing || !currentlyPlaying?.item?.duration_ms) {
@@ -119,8 +131,8 @@ export default function HomePage() {
 
       try {
         const [publicArtists, albumResponse] = await Promise.all([
-          isSpotifyConnected && spotifyToken ? getTopArtists(spotifyToken, 10) : getFeaturedArtists(),
-          isSpotifyConnected && spotifyToken ? getTopAlbumsFromTopTracks(spotifyToken, 30, 50) : getFeaturedNewReleases(null, 50),
+          hasSpotifyFeatures ? getTopArtists(spotifyToken, 10) : getFeaturedArtists(),
+          hasSpotifyFeatures ? getTopAlbumsFromTopTracks(spotifyToken, 30, 50) : getFeaturedNewReleases(null, 50),
         ]);
 
         setTopArtists((publicArtists.items ?? publicArtists ?? []).slice(0, 10));
@@ -130,7 +142,7 @@ export default function HomePage() {
         setFeaturedAlbums([]);
       }
 
-      if (!isSpotifyConnected || !spotifyToken) {
+      if (!hasSpotifyFeatures) {
         setTopTracks([]);
         setResolvedTopTracksRange("medium_term");
         setLoadingSections(false);
@@ -176,7 +188,7 @@ export default function HomePage() {
     }
 
     loadHome();
-  }, [isLoadingSpotify, isSpotifyConnected, spotifyToken, topTracksRange]);
+  }, [hasSpotifyFeatures, isLoadingSpotify, spotifyToken, topTracksRange]);
 
   const featuredArtist = topArtists[0] ?? null;
   const currentlyPlayingTrack = currentlyPlaying?.item ?? null;
@@ -185,13 +197,13 @@ export default function HomePage() {
     : 0;
   const newReleasesPageSize = 5;
   const newReleasesPageCount = Math.max(Math.ceil(featuredAlbums.length / newReleasesPageSize), 1);
-  const visibleAlbums = isSpotifyConnected
+  const visibleAlbums = hasSpotifyFeatures
     ? featuredAlbums.slice(0, 5)
     : featuredAlbums.slice(newReleasesPage * newReleasesPageSize, newReleasesPage * newReleasesPageSize + newReleasesPageSize);
-  const extraTopAlbums = isSpotifyConnected ? featuredAlbums.slice(5, 30) : [];
+  const extraTopAlbums = hasSpotifyFeatures ? featuredAlbums.slice(5, 30) : [];
 
   useEffect(() => {
-    if (isSpotifyConnected || featuredAlbums.length <= newReleasesPageSize) {
+    if (hasSpotifyFeatures || featuredAlbums.length <= newReleasesPageSize) {
       return;
     }
 
@@ -201,7 +213,7 @@ export default function HomePage() {
     }, 4000);
 
     return () => window.clearInterval(intervalId);
-  }, [featuredAlbums.length, isSpotifyConnected, newReleasesPageCount]);
+  }, [featuredAlbums.length, hasSpotifyFeatures, newReleasesPageCount]);
 
   useEffect(() => {
     if (newReleasesPage >= newReleasesPageCount) {
@@ -210,7 +222,7 @@ export default function HomePage() {
   }, [newReleasesPage, newReleasesPageCount]);
 
   function renderAlbumCard(album, rank) {
-    if (!isSpotifyConnected) {
+    if (!hasSpotifyFeatures) {
       return (
         <motion.div key={album.id} variants={itemVariants}>
           <SpotifyAlbumCard album={album} />
@@ -256,7 +268,7 @@ export default function HomePage() {
             <div className="relative flex max-w-2xl flex-col items-start px-6 py-16 sm:py-20 lg:px-12 lg:py-24">
               <span className="mb-4 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/20 px-3 py-1 text-sm font-medium text-primary backdrop-blur-md">
                 <Flame className="h-4 w-4" />
-                {isSpotifyConnected ? "Tu artista favorito" : "Artista destacado"}
+                {hasSpotifyFeatures ? "Tu artista favorito" : "Artista destacado"}
               </span>
               <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-4 text-4xl font-extrabold leading-tight text-white sm:text-5xl lg:text-7xl">
                 {featuredArtist.name}
@@ -355,8 +367,8 @@ export default function HomePage() {
           <section>
             <SectionHeader
               icon={<Flame className="h-6 w-6 text-primary" />}
-              title={isSpotifyConnected ? "Tus Artistas Favoritos" : "Artistas Populares"}
-              subtitle={isSpotifyConnected ? "Tus artistas más escuchados en Spotify" : "Descubrí artistas populares del catálogo de Spotify"}
+              title={hasSpotifyFeatures ? "Tus Artistas Favoritos" : "Artistas Populares"}
+              subtitle={hasSpotifyFeatures ? "Tus artistas mas escuchados en Spotify" : "Descubri artistas populares del catalogo de Spotify"}
             />
             {loadingSections ? (
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 sm:gap-6">
@@ -384,7 +396,7 @@ export default function HomePage() {
         )}
 
         <section>
-          {isSpotifyConnected ? (
+          {hasSpotifyFeatures ? (
             <SectionHeader
               icon={<Disc3 className="h-6 w-6 text-primary" />}
               title="Tus Albumes Mas Escuchados"
@@ -429,7 +441,7 @@ export default function HomePage() {
             </div>
           ) : featuredAlbums.length > 0 ? (
             <>
-              {isSpotifyConnected ? (
+              {hasSpotifyFeatures ? (
                 <motion.div variants={containerVariants} initial="hidden" whileInView="show" viewport={{ once: true, margin: "-100px" }} className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 sm:gap-6">
                   {visibleAlbums.map((album, index) => renderAlbumCard(album, index + 1))}
                 </motion.div>
@@ -451,7 +463,7 @@ export default function HomePage() {
                 </div>
               )}
 
-              {isSpotifyConnected && showAllTopAlbums && extraTopAlbums.length > 0 ? (
+              {hasSpotifyFeatures && showAllTopAlbums && extraTopAlbums.length > 0 ? (
                 <motion.div
                   variants={containerVariants}
                   initial="hidden"
@@ -463,7 +475,7 @@ export default function HomePage() {
                 </motion.div>
               ) : null}
 
-              {isSpotifyConnected && featuredAlbums.length > 5 ? (
+              {hasSpotifyFeatures && featuredAlbums.length > 5 ? (
                 <div className="mt-6 flex justify-center">
                   <button
                     type="button"
@@ -482,7 +494,7 @@ export default function HomePage() {
           )}
         </section>
 
-        {isSpotifyConnected && topTracks.length > 0 ? (
+        {hasSpotifyFeatures && topTracks.length > 0 ? (
           <section>
             <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div>

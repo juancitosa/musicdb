@@ -1,3 +1,35 @@
+async function parseJsonResponse(response) {
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
+async function postAuthRequest(path, payload) {
+  let response;
+
+  try {
+    response = await fetch(`${import.meta.env.VITE_API_URL}${path}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    throw new Error("APP_BACKEND_UNAVAILABLE");
+  }
+
+  const data = await parseJsonResponse(response);
+
+  if (!response.ok) {
+    throw new Error(data?.error?.code || "APP_AUTH_ERROR");
+  }
+
+  return data;
+}
+
 export async function fetchSpotifyProfile(accessToken) {
   const response = await fetch("https://api.spotify.com/v1/me", {
     headers: {
@@ -7,6 +39,10 @@ export async function fetchSpotifyProfile(accessToken) {
 
   if (response.status === 401) {
     throw new Error("TOKEN_EXPIRED");
+  }
+
+  if (response.status === 403) {
+    throw new Error("SPOTIFY_FORBIDDEN");
   }
 
   if (!response.ok) {
@@ -23,33 +59,14 @@ export async function fetchSpotifyProfile(accessToken) {
   };
 }
 
-export async function syncSpotifyUser(payload) {
-  let response;
+export function syncSpotifyUser(payload) {
+  return postAuthRequest("/auth/spotify", payload);
+}
 
-  try {
-    response = await fetch(`${import.meta.env.VITE_API_URL}/auth/spotify`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
-  } catch {
-    throw new Error("APP_BACKEND_UNAVAILABLE");
-  }
+export function registerLocalUser(payload) {
+  return postAuthRequest("/auth/register", payload);
+}
 
-  let data = null;
-
-  try {
-    data = await response.json();
-  } catch {
-    data = null;
-  }
-
-  if (!response.ok) {
-    const errorCode = data?.error?.code;
-    throw new Error(errorCode || "APP_AUTH_ERROR");
-  }
-
-  return data;
+export function loginLocalUser(payload) {
+  return postAuthRequest("/auth/login", payload);
 }

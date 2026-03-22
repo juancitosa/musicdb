@@ -22,52 +22,99 @@ function normalizeUser(user) {
     id: user.id,
     email: user.email ?? "",
     username: user.username ?? "",
-    displayName: user.display_name ?? user.displayName ?? user.username ?? "Spotify User",
-    authProvider: user.auth_provider ?? user.authProvider ?? "spotify",
+    phone: user.phone ?? "",
+    displayName: user.display_name ?? user.displayName ?? user.username ?? "MusicDB User",
+    authProvider: user.auth_provider ?? user.authProvider ?? "local",
     avatar: user.avatar_url ?? user.avatar ?? "",
-    name: user.display_name ?? user.displayName ?? user.username ?? "Spotify User",
+    name: user.display_name ?? user.displayName ?? user.username ?? "MusicDB User",
   };
 }
 
-function persistSession(user) {
+function normalizeSession(session) {
+  if (!session?.user || !session?.token) {
+    return null;
+  }
+
+  const user = normalizeUser(session.user);
+
   if (!user) {
+    return null;
+  }
+
+  return {
+    user,
+    token: session.token,
+  };
+}
+
+function persistSession(session) {
+  if (!session) {
     localStorage.removeItem(SESSION_KEY);
     return;
   }
 
-  localStorage.setItem(SESSION_KEY, JSON.stringify(user));
+  localStorage.setItem(SESSION_KEY, JSON.stringify(session));
 }
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
+  const [appToken, setAppToken] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    setUser(normalizeUser(readStoredSession()));
+    const session = normalizeSession(readStoredSession());
+    setUser(session?.user ?? null);
+    setAppToken(session?.token ?? null);
     setIsLoading(false);
   }, []);
 
-  const setAuthenticatedUser = useCallback((nextUser) => {
-    const normalizedUser = normalizeUser(nextUser);
-    setUser(normalizedUser);
-    persistSession(normalizedUser);
-    return normalizedUser;
+  const setAuthenticatedSession = useCallback((session) => {
+    const normalizedSession = normalizeSession(session);
+    setUser(normalizedSession?.user ?? null);
+    setAppToken(normalizedSession?.token ?? null);
+    persistSession(normalizedSession);
+    return normalizedSession?.user ?? null;
   }, []);
+
+  const setAuthenticatedUser = useCallback(
+    (nextUser) => {
+      const normalizedUser = normalizeUser(nextUser);
+
+      if (!normalizedUser || !appToken) {
+        return null;
+      }
+
+      const nextSession = {
+        user: normalizedUser,
+        token: appToken,
+      };
+
+      setUser(normalizedUser);
+      persistSession(nextSession);
+      return normalizedUser;
+    },
+    [appToken],
+  );
 
   const clearAuthenticatedUser = useCallback(() => {
     setUser(null);
+    setAppToken(null);
     persistSession(null);
   }, []);
 
   const value = useMemo(
     () => ({
       user,
+      appToken,
       isLoading,
       isLoggedIn: Boolean(user),
+      isSpotifyUser: user?.authProvider === "spotify",
+      isLocalUser: user?.authProvider === "local",
+      setAuthenticatedSession,
       setAuthenticatedUser,
       clearAuthenticatedUser,
     }),
-    [clearAuthenticatedUser, isLoading, setAuthenticatedUser, user],
+    [appToken, clearAuthenticatedUser, isLoading, setAuthenticatedSession, setAuthenticatedUser, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

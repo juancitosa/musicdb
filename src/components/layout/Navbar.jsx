@@ -4,9 +4,11 @@ import { createPortal } from "react-dom";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 
 import { useDebounce } from "../../hooks/useDebounce";
+import { useAuth } from "../../hooks/useAuth";
 import { useSpotifyAuth } from "../../hooks/useSpotifyAuth";
 import { useTheme } from "../../hooks/useTheme";
 import { getImageUrl, searchSpotify } from "../../services/spotify";
+import AuthDialog from "../shared/AuthDialog";
 import SpotifyConnectButton from "../shared/SpotifyConnectButton";
 
 const navigationItems = [
@@ -186,26 +188,35 @@ function ThemeToggle() {
 }
 
 function UserActions() {
+  const { isLoggedIn, user, clearAuthenticatedUser, isSpotifyUser } = useAuth();
   const { isSpotifyConnected, spotifyUser, connectSpotify, disconnectSpotify } = useSpotifyAuth();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const profileUser = spotifyUser ?? user;
 
-  if (isSpotifyConnected) {
+  if (isLoggedIn) {
     return (
       <>
         <div className="flex items-center gap-2">
+          {!isSpotifyConnected && !isSpotifyUser ? (
+            <div className="hidden md:block">
+              <SpotifyConnectButton onClick={() => connectSpotify({ forcePrompt: true })} className="px-4 py-2 text-sm">
+                Conectar Spotify
+              </SpotifyConnectButton>
+            </div>
+          ) : null}
           <Link
             to="/profile"
             className="flex items-center gap-2 rounded-full border border-white/5 bg-zinc-900 px-3 py-1.5 text-sm font-medium text-foreground transition hover:bg-zinc-800"
-            title={spotifyUser?.name ?? "Perfil"}
+            title={profileUser?.name ?? "Perfil"}
           >
-            {spotifyUser?.avatar ? (
-              <img src={spotifyUser.avatar} alt={spotifyUser.name} className="h-7 w-7 rounded-full object-cover" />
+            {profileUser?.avatar ? (
+              <img src={profileUser.avatar} alt={profileUser.name} className="h-7 w-7 rounded-full object-cover" />
             ) : (
               <div className="flex h-7 w-7 items-center justify-center rounded-full bg-secondary">
                 <UserRound className="h-4 w-4" />
               </div>
             )}
-            <span className="max-w-28 truncate">{spotifyUser?.name ?? "Mi perfil"}</span>
+            <span className="max-w-28 truncate">{profileUser?.name ?? "Mi perfil"}</span>
           </Link>
           <button
             onClick={() => setShowLogoutConfirm(true)}
@@ -223,7 +234,9 @@ function UserActions() {
                 <div className="w-full max-w-md rounded-[2rem] border border-white/12 bg-white/8 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.45)] ring-1 ring-white/8 backdrop-blur-2xl">
                   <h3 className="text-center text-xl font-bold text-foreground">Realmente desea cerrar sesion?</h3>
                   <p className="mt-3 text-center text-sm text-muted-foreground">
-                    Vas a desconectar la cuenta actual de Spotify.
+                    {isSpotifyConnected
+                      ? "Vas a cerrar tu sesion de MusicDB y desconectar Spotify."
+                      : "Vas a cerrar tu sesion actual de MusicDB."}
                   </p>
                   <div className="mt-6 flex justify-center gap-3">
                     <button
@@ -237,7 +250,10 @@ function UserActions() {
                       type="button"
                       onClick={() => {
                         setShowLogoutConfirm(false);
-                        disconnectSpotify();
+                        if (isSpotifyConnected) {
+                          disconnectSpotify();
+                        }
+                        clearAuthenticatedUser();
                       }}
                       className="logout-confirm-button cursor-pointer rounded-full border border-red-500/90 bg-red-500/6 px-5 py-2.5 text-sm font-semibold text-red-200 shadow-[0_0_24px_rgba(239,68,68,0.4)] transition hover:bg-red-500/14 hover:text-red-100"
                     >
@@ -256,14 +272,10 @@ function UserActions() {
   return (
     <>
       <div className="hidden items-center gap-2 md:flex">
-        <SpotifyConnectButton onClick={() => connectSpotify({ forcePrompt: true })} className="px-4 py-2 text-sm">
-          Conectar Spotify
-        </SpotifyConnectButton>
+        <AuthDialog triggerLabel="Iniciar sesion" triggerClassName="px-4 py-2 text-sm" />
       </div>
       <div className="flex items-center gap-2 md:hidden">
-        <SpotifyConnectButton onClick={() => connectSpotify({ forcePrompt: true })} size="default" className="px-3 py-2 text-xs">
-          Spotify
-        </SpotifyConnectButton>
+        <AuthDialog triggerLabel="Entrar" triggerSize="default" triggerClassName="px-3 py-2 text-xs" />
       </div>
     </>
   );

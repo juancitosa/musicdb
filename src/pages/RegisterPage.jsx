@@ -1,14 +1,12 @@
 import { Link, Navigate } from "react-router-dom";
 
-import SpotifyConnectButton from "../components/shared/SpotifyConnectButton";
+import AuthDialog from "../components/shared/AuthDialog";
 import { useAuth } from "../hooks/useAuth";
-import { useSpotifyAuth } from "../hooks/useSpotifyAuth";
 
 export default function RegisterPage() {
   const { isLoggedIn } = useAuth();
-  const { connectSpotify, isLoadingSpotify, isSpotifyConnected } = useSpotifyAuth();
 
-  if (isLoggedIn || isSpotifyConnected) {
+  if (isLoggedIn) {
     return <Navigate to="/profile" replace />;
   }
 
@@ -18,22 +16,25 @@ export default function RegisterPage() {
         <div className="mb-8 text-center">
           <h1 className="text-3xl font-bold">Crear cuenta</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            La cuenta se crea automaticamente con tu perfil de Spotify en Supabase.
+            Crea una cuenta MusicDB con email y contrasena. Spotify queda como opcion adicional.
           </p>
         </div>
 
         <div className="rounded-2xl border border-border bg-background/60 p-4 text-sm text-muted-foreground">
-          Usamos tu `display_name`, email y avatar de Spotify para crear o recuperar tu usuario.
+          Con la cuenta local puedes votar, dejar resenas, usar rankings y explorar toda la app sin depender del limite de usuarios de Spotify.
         </div>
 
-        <SpotifyConnectButton onClick={connectSpotify} disabled={isLoadingSpotify} size="lg" className="mt-6 w-full justify-center">
-          {isLoadingSpotify ? "Conectando..." : "Crear cuenta con Spotify"}
-        </SpotifyConnectButton>
+        <AuthDialog
+          triggerLabel="Crear cuenta"
+          triggerClassName="mt-6 w-full justify-center"
+          triggerSize="lg"
+          initialMode="register"
+        />
 
         <p className="mt-6 text-center text-sm text-muted-foreground">
-          Ya tenes acceso?{" "}
+          Ya tienes acceso?{" "}
           <Link to="/login" className="cursor-pointer font-semibold text-primary hover:underline">
-            Entra con Spotify
+            Iniciar sesion
           </Link>
         </p>
       </div>

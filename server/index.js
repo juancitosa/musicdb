@@ -1,6 +1,8 @@
 import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 import { randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 
@@ -13,6 +15,7 @@ const SPOTIFY_CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY =
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
+const APP_JWT_SECRET = process.env.APP_JWT_SECRET || "musicdb-local-dev-secret";
 const SPOTIFY_API_BASE_URL = "https://api.spotify.com/v1";
 const SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token";
 const ALLOWED_ORIGINS = new Set([
@@ -75,6 +78,37 @@ function normalizeDisplayName(displayName, fallback = "Spotify User") {
 
   const value = displayName.trim();
   return value || fallback;
+}
+
+function normalizeUsername(username) {
+  if (typeof username !== "string") {
+    return null;
+  }
+
+  const value = username.trim();
+  return value || null;
+}
+
+function normalizePassword(password) {
+  if (typeof password !== "string") {
+    return null;
+  }
+
+  const value = password.trim();
+  return value.length >= 6 ? value : null;
+}
+
+function normalizePhone(phone) {
+  if (phone === undefined || phone === null || phone === "") {
+    return null;
+  }
+
+  if (typeof phone !== "string") {
+    return null;
+  }
+
+  const value = phone.trim();
+  return value || null;
 }
 
 function normalizeAvatarUrl(avatarUrl) {
@@ -184,6 +218,7 @@ function mapUserRecord(user) {
     id: user.id,
     email: user.email,
     username: user.username,
+    phone: user.phone ?? null,
     display_name: user.display_name,
     avatar_url: user.avatar_url,
     auth_provider: user.auth_provider,
@@ -215,7 +250,7 @@ function isAggregatesDisabledError(error) {
 async function getUserById(supabase, userId) {
   const { data, error } = await supabase
     .from("users")
-    .select("id, email, username, display_name, avatar_url, auth_provider, created_at, updated_at")
+    .select("id, email, username, phone, display_name, avatar_url, auth_provider, created_at, updated_at")
     .eq("id", userId)
     .maybeSingle();
 
@@ -235,11 +270,27 @@ async function getUserByEmail(supabase, email) {
 
   const { data, error } = await supabase
     .from("users")
-    .select("id, email, username, display_name, avatar_url, auth_provider, created_at, updated_at")
+    .select("id, email, username, phone, display_name, avatar_url, auth_provider, created_at, updated_at")
     .eq("email", email)
     .maybeSingle();
 
   handleSupabaseError(error, "Failed to fetch user by email");
+
+  return data;
+}
+
+async function getUserAuthByEmail(supabase, email) {
+  if (!email) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from("users")
+    .select("id, email, username, phone, password, display_name, avatar_url, auth_provider, created_at, updated_at")
+    .eq("email", email)
+    .maybeSingle();
+
+  handleSupabaseError(error, "Failed to fetch user credentials");
 
   return data;
 }
@@ -280,11 +331,12 @@ async function createUserFromSpotifyProfile(supabase, { email, displayName, avat
     .insert({
       email,
       username,
+      phone: null,
       display_name: displayName,
       avatar_url: avatarUrl,
       auth_provider: "spotify",
     })
-    .select("id, email, username, display_name, avatar_url, auth_provider, created_at, updated_at")
+    .select("id, email, username, phone, display_name, avatar_url, auth_provider, created_at, updated_at")
     .single();
 
   handleSupabaseError(error, "Failed to create user");
@@ -298,21 +350,143 @@ async function ensureSpotifyAccountRecord(supabase, payload) {
 }
 
 async function updateUserForSpotify(supabase, user, { displayName, avatarUrl }) {
-  const nextAuthProvider =
-    user.auth_provider && user.auth_provider !== "spotify" ? "hybrid" : "spotify";
-
   const { data, error } = await supabase
     .from("users")
     .update({
       display_name: displayName,
       avatar_url: avatarUrl,
-      auth_provider: nextAuthProvider,
+      auth_provider: "spotify",
     })
     .eq("id", user.id)
-    .select("id, email, username, display_name, avatar_url, auth_provider, created_at, updated_at")
+    .select("id, email, username, phone, display_name, avatar_url, auth_provider, created_at, updated_at")
     .single();
 
   handleSupabaseError(error, "Failed to update user");
+
+  return data;
+}
+
+function createAppSessionToken(user) {
+  return jwt.sign(
+    {
+      sub: user.id,
+      auth_provider: user.auth_provider,
+      email: user.email ?? "",
+      username: user.username ?? "",
+    },
+    APP_JWT_SECRET,
+    { expiresIn: "30d" },
+  );
+}
+
+function verifyAppSessionToken(token) {
+  return jwt.verify(token, APP_JWT_SECRET);
+}
+
+function getBearerToken(req) {
+  const authHeader = req.headers.authorization || "";
+
+  if (!authHeader.startsWith("Bearer ")) {
+    return null;
+  }
+
+  return authHeader.slice("Bearer ".length);
+}
+
+async function resolveAuthenticatedUserFromToken(token) {
+  if (!token) {
+    throw createHttpError(401, "APP_AUTH_REQUIRED", "Authentication is required");
+  }
+
+  try {
+    const payload = verifyAppSessionToken(token);
+    const userId = normalizeUserId(payload?.sub);
+
+    if (!userId) {
+      throw createHttpError(401, "APP_AUTH_INVALID", "Invalid session token");
+    }
+
+    return { userId, provider: "app" };
+  } catch (jwtError) {
+    try {
+      const spotifyProfile = await spotifyRequest("/me", { token });
+      const spotifyUserId = normalizeEntityId(spotifyProfile?.id);
+
+      if (!spotifyUserId) {
+        throw createHttpError(401, "SPOTIFY_AUTH_INVALID", "Invalid Spotify user profile");
+      }
+
+      const supabase = getSupabaseAdmin();
+      const spotifyAccount = await getSpotifyAccountBySpotifyUserId(supabase, spotifyUserId);
+
+      if (!spotifyAccount?.user_id) {
+        throw createHttpError(401, "SPOTIFY_ACCOUNT_NOT_LINKED", "Spotify account is not linked to an app user");
+      }
+
+      return { userId: spotifyAccount.user_id, provider: "spotify", spotifyUserId };
+    } catch (spotifyError) {
+      if (jwtError?.status) {
+        throw jwtError;
+      }
+
+      throw spotifyError?.status
+        ? spotifyError
+        : createHttpError(401, "APP_AUTH_INVALID", "Authentication failed");
+    }
+  }
+}
+
+async function authenticateAppUser(req, _res, next) {
+  try {
+    const token = getBearerToken(req);
+    const auth = await resolveAuthenticatedUserFromToken(token);
+    req.user_id = auth.userId;
+    req.auth_provider = auth.provider;
+    req.spotify_user_id = auth.spotifyUserId ?? null;
+    next();
+  } catch (error) {
+    next(error?.status ? error : createHttpError(401, "APP_AUTH_INVALID", "Authentication failed"));
+  }
+}
+
+async function ensureUserUniqueness(supabase, { email, username }) {
+  const { data, error } = await supabase
+    .from("users")
+    .select("id, email, username")
+    .or(`email.eq.${email},username.eq.${username}`);
+
+  handleSupabaseError(error, "Failed to validate user uniqueness");
+
+  const duplicatedEmail = (data ?? []).some((user) => user.email === email);
+  const duplicatedUsername = (data ?? []).some((user) => user.username === username);
+
+  if (duplicatedEmail) {
+    throw createHttpError(409, "EMAIL_ALREADY_EXISTS", "There is already an account with that email");
+  }
+
+  if (duplicatedUsername) {
+    throw createHttpError(409, "USERNAME_ALREADY_EXISTS", "That username is already in use");
+  }
+}
+
+async function createLocalUser(supabase, { email, username, password, phone }) {
+  await ensureUserUniqueness(supabase, { email, username });
+
+  const hashedPassword = await bcrypt.hash(password, 10);
+  const { data, error } = await supabase
+    .from("users")
+    .insert({
+      email,
+      username,
+      password: hashedPassword,
+      phone,
+      display_name: username,
+      auth_provider: "local",
+    })
+    .select("id, email, username, phone, display_name, avatar_url, auth_provider, created_at, updated_at")
+    .single();
+
+  handleSupabaseError(error, "Failed to create local user");
 
   return data;
 }
@@ -600,13 +774,13 @@ async function requestSpotifyToken(params) {
 }
 
 function getUserAccessToken(req) {
-  const authHeader = req.headers.authorization || "";
+  const token = getBearerToken(req);
 
-  if (!authHeader.startsWith("Bearer ")) {
+  if (!token) {
     throw createHttpError(401, "SPOTIFY_AUTH_REQUIRED", "Missing Spotify user token");
   }
 
-  return authHeader.slice("Bearer ".length);
+  return token;
 }
 
 async function spotifyRequest(path, { token, query } = {}) {
@@ -879,6 +1053,63 @@ app.get(
 );
 
 app.post(
+  "/api/auth/register",
+  asyncRoute(async (req, res) => {
+    const email = normalizeEmail(req.body.email);
+    const username = normalizeUsername(req.body.username);
+    const password = normalizePassword(req.body.password);
+    const phone = normalizePhone(req.body.phone);
+
+    if (!email || !username || !password) {
+      throw createHttpError(400, "INVALID_REGISTER_PAYLOAD", "email, username and password are required");
+    }
+
+    const supabase = getSupabaseAdmin();
+    const user = await createLocalUser(supabase, {
+      email,
+      username,
+      password,
+      phone,
+    });
+
+    res.status(201).json({
+      user: mapUserRecord(user),
+      token: createAppSessionToken(user),
+    });
+  }),
+);
+
+app.post(
+  "/api/auth/login",
+  asyncRoute(async (req, res) => {
+    const email = normalizeEmail(req.body.email);
+    const password = typeof req.body.password === "string" ? req.body.password : null;
+
+    if (!email || !password) {
+      throw createHttpError(400, "INVALID_LOGIN_PAYLOAD", "email and password are required");
+    }
+
+    const supabase = getSupabaseAdmin();
+    const user = await getUserAuthByEmail(supabase, email);
+
+    if (!user?.password) {
+      throw createHttpError(401, "LOCAL_LOGIN_INVALID", "Invalid email or password");
+    }
+
+    const passwordMatches = await bcrypt.compare(password, user.password);
+
+    if (!passwordMatches) {
+      throw createHttpError(401, "LOCAL_LOGIN_INVALID", "Invalid email or password");
+    }
+
+    res.json({
+      user: mapUserRecord(user),
+      token: createAppSessionToken(user),
+    });
+  }),
+);
+
+app.post(
   "/api/auth/token",
   asyncRoute(async (req, res) => {
     const data = await requestSpotifyToken({
@@ -927,7 +1158,7 @@ app.post(
 
     if (existingAccount?.user_id) {
       const user = await getUserById(supabase, existingAccount.user_id);
-      res.json({ user: mapUserRecord(user) });
+      res.json({ user: mapUserRecord(user), token: createAppSessionToken(user) });
       return;
     }
 
@@ -951,13 +1182,13 @@ app.post(
       spotify_avatar_url: avatarUrl,
     });
 
-    res.status(201).json({ user: mapUserRecord(user) });
+    res.status(201).json({ user: mapUserRecord(user), token: createAppSessionToken(user) });
   }),
 );
 
 app.post(
   "/api/ratings",
-  authenticateSpotifyUser,
+  authenticateAppUser,
   asyncRoute(async (req, res) => {
     const userId = normalizeUserId(req.user_id);
     const entityType = normalizeEntityType(req.body.entity_type);
@@ -1020,7 +1251,7 @@ app.get(
 
 app.get(
   "/api/ratings/me/:entity_type/:entity_id",
-  authenticateSpotifyUser,
+  authenticateAppUser,
   asyncRoute(async (req, res) => {
     const userId = normalizeUserId(req.user_id);
     const entityType = normalizeEntityType(req.params.entity_type);
@@ -1047,7 +1278,7 @@ app.get(
 
 app.get(
   "/api/ratings/me",
-  authenticateSpotifyUser,
+  authenticateAppUser,
   asyncRoute(async (req, res) => {
     const userId = normalizeUserId(req.user_id);
 
@@ -1082,7 +1313,7 @@ app.get(
 
 app.post(
   "/api/reviews",
-  authenticateSpotifyUser,
+  authenticateAppUser,
   asyncRoute(async (req, res) => {
     const userId = normalizeUserId(req.user_id);
     const entityType = normalizeEntityType(req.body.entity_type);
@@ -1152,7 +1383,7 @@ app.get(
 
 app.delete(
   "/api/reviews/:review_id",
-  authenticateSpotifyUser,
+  authenticateAppUser,
   asyncRoute(async (req, res) => {
     const reviewId = normalizeReviewId(req.params.review_id);
     const userId = normalizeUserId(req.user_id);
@@ -1370,7 +1601,7 @@ app.use((error, _req, res, _next) => {
       code: error.code || "INTERNAL_SERVER_ERROR",
       message:
         statusCode === 401
-          ? "Spotify authorization failed"
+          ? error.message || "Authentication failed"
           : statusCode === 403
             ? "Spotify access forbidden"
             : statusCode === 404

@@ -84,8 +84,9 @@ function getArtistRankingBadge(position) {
 
 export default function ArtistPage() {
   const { id } = useParams();
-  const { isLoggedIn, user } = useAuth();
+  const { isLoggedIn, user, appToken, isSpotifyUser } = useAuth();
   const { isSpotifyConnected, spotifyToken } = useSpotifyAuth();
+  const hasSpotifyFeatures = isSpotifyUser && isSpotifyConnected && Boolean(spotifyToken);
   const [artist, setArtist] = useState(null);
   const [albums, setAlbums] = useState([]);
   const [likedTracks, setLikedTracks] = useState([]);
@@ -108,7 +109,7 @@ export default function ArtistPage() {
   const [deletingReviewId, setDeletingReviewId] = useState(null);
   const [releaseFilter, setReleaseFilter] = useState("all");
   const [artistRankingPosition, setArtistRankingPosition] = useState(null);
-  const canInteract = isLoggedIn || isSpotifyConnected;
+  const canInteract = isLoggedIn;
   const currentUserId = user?.id ?? null;
 
   useEffect(() => {
@@ -148,7 +149,7 @@ export default function ArtistPage() {
 
   useEffect(() => {
     async function loadLikedTracks() {
-      if (!id || isLocal || !isSpotifyConnected || !spotifyToken) {
+      if (!id || isLocal || !hasSpotifyFeatures) {
         setLikedTracks([]);
         setLikedTracksError("");
         setShowLikedTracks(false);
@@ -170,7 +171,7 @@ export default function ArtistPage() {
     }
 
     loadLikedTracks();
-  }, [id, isLocal, isSpotifyConnected, spotifyToken]);
+  }, [hasSpotifyFeatures, id, isLocal, spotifyToken]);
 
   useEffect(() => {
     if (!artist) {
@@ -250,7 +251,7 @@ export default function ArtistPage() {
 
     async function loadUserRating() {
       try {
-        const response = await getUserRating(spotifyToken, "artist", String(artist.id));
+        const response = await getUserRating(appToken, "artist", String(artist.id));
 
         if (!cancelled) {
           setUserRating(response.rating_value ?? 0);
@@ -267,7 +268,7 @@ export default function ArtistPage() {
     return () => {
       cancelled = true;
     };
-  }, [artist, currentUserId, spotifyToken]);
+  }, [appToken, artist, currentUserId]);
 
   useEffect(() => {
     if (!artist) {
@@ -349,7 +350,7 @@ export default function ArtistPage() {
   const rankingBadge = artistRankingPosition ? getArtistRankingBadge(artistRankingPosition) : null;
 
   async function handleRateArtist(nextRating) {
-    if (!artist || !currentUserId || !spotifyToken) {
+    if (!artist || !currentUserId || !appToken) {
       throw new Error("RATING_AUTH_REQUIRED");
     }
 
@@ -358,7 +359,7 @@ export default function ArtistPage() {
 
     try {
       const response = await submitRating({
-        spotify_token: spotifyToken,
+        session_token: appToken,
         entity_type: "artist",
         entity_id: String(artist.id),
         rating_value: nextRating,
@@ -377,7 +378,7 @@ export default function ArtistPage() {
   async function handleSubmitReview(event) {
     event.preventDefault();
 
-    if (!reviewText.trim() || !canInteract || !artist || !currentUserId || !spotifyToken) {
+    if (!reviewText.trim() || !canInteract || !artist || !currentUserId || !appToken) {
       return;
     }
 
@@ -386,7 +387,7 @@ export default function ArtistPage() {
 
     try {
       await createReview({
-        spotify_token: spotifyToken,
+        session_token: appToken,
         entity_type: "artist",
         entity_id: String(artist.id),
         review_text: reviewText.trim(),
@@ -408,7 +409,7 @@ export default function ArtistPage() {
   }
 
   async function handleDeleteReview(reviewId) {
-    if (!currentUserId || !reviewId || !spotifyToken) {
+    if (!currentUserId || !reviewId || !appToken) {
       return;
     }
 
@@ -416,7 +417,7 @@ export default function ArtistPage() {
     setReviewError("");
 
     try {
-      await deleteReview(reviewId, spotifyToken);
+      await deleteReview(reviewId, appToken);
       setReviews((currentReviews) => currentReviews.filter((review) => review.id !== reviewId));
     } catch {
       setReviewError("No pudimos eliminar la reseña.");
@@ -550,7 +551,7 @@ export default function ArtistPage() {
             )}
           </section>
 
-          {!isLocal && isSpotifyConnected ? (
+          {!isLocal && hasSpotifyFeatures ? (
             <section className="rounded-2xl border border-border bg-card p-4 shadow-lg shadow-black/5">
               <button type="button" onClick={() => setShowLikedTracks((current) => !current)} className="flex w-full items-center gap-4 text-left">
                 <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl bg-secondary">
@@ -624,7 +625,7 @@ export default function ArtistPage() {
               </form>
             ) : (
               <div className="mb-6 rounded-xl border border-border bg-secondary/50 p-4 text-center">
-                <p className="mb-2 text-sm text-muted-foreground">Inicia sesion o conecta Spotify para dejar una reseña y puntuar.</p>
+                <p className="mb-2 text-sm text-muted-foreground">Inicia sesion para dejar una reseña y puntuar.</p>
                 <AuthRestrictionMessage />
               </div>
             )}

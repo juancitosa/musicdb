@@ -3,7 +3,6 @@ import { Star } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { useAuth } from "../../hooks/useAuth";
-import { useSpotifyAuth } from "../../hooks/useSpotifyAuth";
 import { useToast } from "../../hooks/useToast";
 
 export default function RatingStars({
@@ -15,11 +14,10 @@ export default function RatingStars({
   disabled = false,
 }) {
   const { isLoggedIn } = useAuth();
-  const { isSpotifyConnected } = useSpotifyAuth();
   const { toast } = useToast();
   const [hovered, setHovered] = useState(0);
   const [rating, setRating] = useState(initialRating);
-  const canRate = isLoggedIn || isSpotifyConnected;
+  const canRate = isLoggedIn;
   const iconClassName = size === "sm" ? "h-4 w-4" : "h-6 w-6";
 
   useEffect(() => {
@@ -33,8 +31,8 @@ export default function RatingStars({
 
     if (!canRate) {
       toast({
-        title: "Acción requerida",
-        description: "Debes iniciar sesión o conectar Spotify para puntuar",
+        title: "Accion requerida",
+        description: "Debes iniciar sesion para puntuar",
         variant: "destructive",
       });
       return;
@@ -44,14 +42,14 @@ export default function RatingStars({
       setRating(nextRating);
       await onRate?.(nextRating);
       toast({
-        title: "Puntuación guardada",
+        title: "Puntuacion guardada",
         description: `Has calificado con ${nextRating}/${max}`,
       });
     } catch {
       setRating(initialRating);
       toast({
-        title: "No se pudo guardar la puntuación",
-        description: "Revisá tu conexión e intentá nuevamente",
+        title: "No se pudo guardar la puntuacion",
+        description: "Revisa tu conexion e intenta nuevamente",
         variant: "destructive",
       });
     }
