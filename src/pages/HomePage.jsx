@@ -9,7 +9,7 @@ import SectionHeader from "../components/shared/SectionHeader";
 import SkeletonCard from "../components/shared/SkeletonCard";
 import { useSpotifyAuth } from "../hooks/useSpotifyAuth";
 import { useTheme } from "../hooks/useTheme";
-import { getFeaturedArtists, getFeaturedNewReleases, getImageUrl, getTopAlbumsFromTopTracks, getTopArtists, getTopTracks } from "../services/spotify";
+import { getCurrentlyPlayingTrack, getFeaturedArtists, getFeaturedNewReleases, getImageUrl, getTopAlbumsFromTopTracks, getTopArtists, getTopTracks } from "../services/spotify";
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -51,6 +51,41 @@ export default function HomePage() {
   const [newReleasesDirection, setNewReleasesDirection] = useState(1);
   const [topTracksRange, setTopTracksRange] = useState("medium_term");
   const [loadingSections, setLoadingSections] = useState(false);
+  const [currentlyPlaying, setCurrentlyPlaying] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    let intervalId = null;
+
+    async function loadCurrentlyPlaying() {
+      if (!isSpotifyConnected || !spotifyToken) {
+        setCurrentlyPlaying(null);
+        return;
+      }
+
+      try {
+        const playback = await getCurrentlyPlayingTrack(spotifyToken);
+
+        if (!cancelled) {
+          setCurrentlyPlaying(playback?.is_playing && playback?.item ? playback : null);
+        }
+      } catch {
+        if (!cancelled) {
+          setCurrentlyPlaying(null);
+        }
+      }
+    }
+
+    loadCurrentlyPlaying();
+    intervalId = window.setInterval(loadCurrentlyPlaying, 20000);
+
+    return () => {
+      cancelled = true;
+      if (intervalId) {
+        window.clearInterval(intervalId);
+      }
+    };
+  }, [isSpotifyConnected, spotifyToken]);
 
   useEffect(() => {
     async function loadHome() {
@@ -209,6 +244,13 @@ export default function HomePage() {
                   </span>
                 ))}
               </div>
+              {currentlyPlaying?.item ? (
+                <div className="mb-6 rounded-2xl border border-white/15 bg-black/30 px-4 py-3 text-white/90 backdrop-blur-md">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/65">Escuchando ahora</p>
+                  <p className="mt-1 truncate text-base font-semibold">{currentlyPlaying.item.name}</p>
+                  <p className="truncate text-sm text-white/75">{currentlyPlaying.item.artists?.map((artist) => artist.name).join(", ")}</p>
+                </div>
+              ) : null}
               <Link
                 to={`/artist/${featuredArtist.id}`}
                 className="inline-flex items-center rounded-full bg-primary px-6 py-3 text-lg font-semibold text-primary-foreground shadow-lg shadow-primary/25 transition hover:scale-105 hover:bg-primary/90"

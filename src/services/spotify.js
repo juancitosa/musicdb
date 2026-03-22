@@ -26,6 +26,10 @@ async function apiFetch(path, { token, query } = {}) {
     throw new Error(`Spotify API error: ${response.status}`);
   }
 
+  if (response.status === 204) {
+    return null;
+  }
+
   return response.json();
 }
 
@@ -116,6 +120,18 @@ export function getTopTracks(token, limit = 10, timeRange = "medium_term") {
       time_range: timeRange,
     },
   });
+}
+
+export async function getCurrentlyPlayingTrack(token) {
+  try {
+    return await apiFetch("/me/player/currently-playing", { token });
+  } catch (error) {
+    if (error?.message === "SPOTIFY_EMPTY_RESPONSE" || error?.message === "Spotify API error: 204") {
+      return null;
+    }
+
+    throw error;
+  }
 }
 
 export function getNewReleases(_token, limit = 12) {

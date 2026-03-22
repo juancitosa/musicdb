@@ -32,6 +32,7 @@ const SCOPES = [
   "user-read-private",
   "user-read-email",
   "user-library-read",
+  "user-read-currently-playing",
 ];
 
 function delay(ms) {
@@ -76,7 +77,7 @@ export function clearStoredSpotifySession() {
   localStorage.removeItem(CODE_VERIFIER_KEY);
 }
 
-export async function getSpotifyAuthorizationUrl() {
+export async function getSpotifyAuthorizationUrl({ forcePrompt = false } = {}) {
   if (window.location.hostname === "www.musicdb.online") {
     window.location.replace(`https://musicdb.online${window.location.pathname}${window.location.search}${window.location.hash}`);
     return null;
@@ -93,6 +94,7 @@ export async function getSpotifyAuthorizationUrl() {
     code_challenge_method: "S256",
     code_challenge: challenge,
     scope: SCOPES.join(" "),
+    ...(forcePrompt ? { show_dialog: "true" } : {}),
   });
 
   return `https://accounts.spotify.com/authorize?${params.toString()}`;

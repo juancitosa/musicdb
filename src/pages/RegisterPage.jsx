@@ -18,7 +18,7 @@ export default function RegisterPage() {
         <div className="mb-8 text-center">
           <h1 className="text-3xl font-bold">Crear cuenta</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            La cuenta se crea automáticamente con tu perfil de Spotify en Supabase.
+            La cuenta se crea automaticamente con tu perfil de Spotify en Supabase.
           </p>
         </div>
 
@@ -31,9 +31,9 @@ export default function RegisterPage() {
         </SpotifyConnectButton>
 
         <p className="mt-6 text-center text-sm text-muted-foreground">
-          ¿Ya tenés acceso?{" "}
-          <Link to="/login" className="font-semibold text-primary hover:underline">
-            Entrá con Spotify
+          Ya tenes acceso?{" "}
+          <Link to="/login" className="cursor-pointer font-semibold text-primary hover:underline">
+            Entra con Spotify
           </Link>
         </p>
       </div>

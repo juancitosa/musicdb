@@ -194,7 +194,7 @@ export function SpotifyAuthProvider({ children }) {
       spotifyToken: session?.accessToken ?? null,
       isSpotifyConnected: Boolean(session?.accessToken),
       isLoadingSpotify: isBootstrapping || isConnecting,
-      async connectSpotify() {
+      async connectSpotify(options = {}) {
         if (isConnecting) {
           return;
         }
@@ -204,7 +204,7 @@ export function SpotifyAuthProvider({ children }) {
         try {
           await wakeSpotifyBackend();
 
-          const url = await getSpotifyAuthorizationUrl();
+          const url = await getSpotifyAuthorizationUrl(options);
           if (!url) {
             return;
           }

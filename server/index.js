@@ -626,6 +626,10 @@ async function spotifyRequest(path, { token, query } = {}) {
     },
   });
 
+  if (response.status === 204) {
+    return null;
+  }
+
   if (!response.ok) {
     const message = await response.text();
     throw createHttpError(response.status, "SPOTIFY_API_ERROR", message || `Spotify request failed with status ${response.status}`);
@@ -1323,6 +1327,21 @@ app.get(
         time_range: req.query.time_range || "medium_term",
       },
     });
+    res.json(data);
+  }),
+);
+
+app.get(
+  "/api/me/player/currently-playing",
+  asyncRoute(async (req, res) => {
+    const token = getUserAccessToken(req);
+    const data = await spotifyRequest("/me/player/currently-playing", { token });
+
+    if (!data) {
+      res.status(204).send();
+      return;
+    }
+
     res.json(data);
   }),
 );
