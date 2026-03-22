@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { AudioLines, ChevronLeft, ChevronRight, Disc3, Flame, Search, SearchX } from "lucide-react";
+import { AudioLines, ChevronLeft, ChevronRight, Disc3, Flame, SearchX } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
@@ -218,24 +218,6 @@ export default function SearchPage() {
 
   return (
     <div className="animate-in px-4 py-8 duration-300 sm:px-6 lg:px-8">
-      <div className="relative mx-auto mb-10 max-w-3xl">
-        <form onSubmit={handleSearch}>
-          <Search className="pointer-events-none absolute top-1/2 left-6 h-6 w-6 -translate-y-1/2 text-muted-foreground" />
-          <input
-            type="text"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder=""
-            className="w-full rounded-2xl border-2 border-border/50 bg-card py-5 pr-24 pl-16 text-xl font-medium shadow-lg shadow-black/5 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10 md:pr-28 md:text-2xl"
-          />
-          {query.trim() ? (
-            <button type="submit" className="absolute inset-y-0 right-4 text-sm font-medium text-primary hover:underline">
-              Buscar
-            </button>
-          ) : null}
-        </form>
-      </div>
-
       {hasSearched ? (
         <div className="mb-8 flex flex-wrap justify-center gap-2">
           {[
