@@ -4,6 +4,7 @@ import express from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { randomUUID } from "node:crypto";
+import { MercadoPagoConfig, Payment } from "mercadopago";
 import { createClient } from "@supabase/supabase-js";
 
 dotenv.config();
@@ -21,6 +22,7 @@ const SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token";
 const MERCADO_PAGO_API_BASE_URL = "https://api.mercadopago.com";
 const MERCADO_PAGO_ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN || process.env.MERCADO_PAGO_ACCESS_TOKEN;
 const PUBLIC_APP_URL = process.env.PUBLIC_APP_URL || "https://musicdb.online";
+const PUBLIC_API_URL = process.env.PUBLIC_API_URL || process.env.BACKEND_PUBLIC_URL || "https://musicdb-backend.onrender.com";
 const ALLOWED_ORIGINS = new Set([
   "http://localhost:5173",
   "http://localhost:5174",
@@ -34,6 +36,8 @@ const VERCEL_APP_ORIGIN_PATTERN = /^https:\/\/[a-z0-9-]+\.vercel\.app$/i;
 let cachedAppToken = null;
 let supabaseAdmin = null;
 let cachedUserTableColumns = null;
+let mercadoPagoClient = null;
+let mercadoPagoPaymentClient = null;
 
 function isAllowedOrigin(origin) {
   if (!origin) {
@@ -224,6 +228,27 @@ function getSupabaseAdmin() {
   }
 
   return supabaseAdmin;
+}
+
+function getMercadoPagoPaymentClient() {
+  if (!MERCADO_PAGO_ACCESS_TOKEN) {
+    throw createHttpError(500, "MERCADO_PAGO_CONFIG_MISSING", "Mercado Pago access token is not configured");
+  }
+
+  if (!mercadoPagoClient) {
+    mercadoPagoClient = new MercadoPagoConfig({
+      accessToken: MERCADO_PAGO_ACCESS_TOKEN,
+      options: {
+        timeout: 5000,
+      },
+    });
+  }
+
+  if (!mercadoPagoPaymentClient) {
+    mercadoPagoPaymentClient = new Payment(mercadoPagoClient);
+  }
+
+  return mercadoPagoPaymentClient;
 }
 
 function mapUserRecord(user) {
@@ -597,6 +622,29 @@ async function createLocalUser(supabase, { email, username, password, phone }) {
 
   handleSupabaseError(error, "Failed to create local user");
 
+  return data;
+}
+
+async function updateUserProStatus(supabase, userId, nextProUntil) {
+  const userSelect = await buildUserSelect(supabase);
+  const payload = {
+    pro_until: nextProUntil,
+  };
+
+  const userColumns = await getUserTableColumns(supabase);
+
+  if (userColumns.has("is_pro")) {
+    payload.is_pro = true;
+  }
+
+  const { data, error } = await supabase
+    .from("users")
+    .update(payload)
+    .eq("id", userId)
+    .select(userSelect)
+    .single();
+
+  handleSupabaseError(error, "Failed to update PRO status");
   return data;
 }
 
@@ -1218,6 +1266,7 @@ async function createMercadoPagoPreference({ user }) {
   }
 
   const appUrl = normalizeUrl(PUBLIC_APP_URL, "https://musicdb.online");
+  const apiUrl = normalizeUrl(PUBLIC_API_URL, "https://musicdb-backend.onrender.com");
   const requestBody = {
     items: [
       {
@@ -1244,6 +1293,7 @@ async function createMercadoPagoPreference({ user }) {
       failure: `${appUrl}/pro?payment=failure`,
       pending: `${appUrl}/pro?payment=pending`,
     },
+    notification_url: `${apiUrl}/api/payments/webhook`,
     auto_return: "approved",
     statement_descriptor: "MUSICDB PRO",
   };
@@ -1279,6 +1329,80 @@ async function createMercadoPagoPreference({ user }) {
   }
 
   return data;
+}
+
+function extractMercadoPagoPaymentId(req) {
+  const candidates = [
+    req.body?.data?.id,
+    req.body?.id,
+    req.query?.["data.id"],
+    req.query?.id,
+  ];
+
+  const typeCandidate = req.body?.type || req.body?.topic || req.query?.type || req.query?.topic || null;
+
+  const paymentId = candidates.find((candidate) => candidate !== undefined && candidate !== null && candidate !== "");
+
+  return {
+    paymentId: paymentId ? String(paymentId).trim() : null,
+    topic: typeof typeCandidate === "string" ? typeCandidate.trim().toLowerCase() : null,
+  };
+}
+
+function isApprovedMercadoPagoPayment(payment) {
+  return payment?.status === "approved";
+}
+
+function buildNextProUntil(currentProUntil) {
+  const currentTimestamp = currentProUntil ? new Date(currentProUntil).getTime() : NaN;
+  const baseTime = Number.isFinite(currentTimestamp) && currentTimestamp > Date.now() ? currentTimestamp : Date.now();
+  return new Date(baseTime + 30 * 24 * 60 * 60 * 1000).toISOString();
+}
+
+async function activateProFromMercadoPagoPayment(paymentId) {
+  const paymentClient = getMercadoPagoPaymentClient();
+  const payment = await paymentClient.get({
+    id: paymentId,
+  });
+
+  console.log("[payments:webhook] Mercado Pago payment fetched", {
+    paymentId,
+    status: payment?.status,
+    external_reference: payment?.external_reference,
+    metadata_user_id: payment?.metadata?.user_id ?? null,
+  });
+
+  if (!isApprovedMercadoPagoPayment(payment)) {
+    return {
+      acknowledged: true,
+      approved: false,
+      payment,
+    };
+  }
+
+  const userId = normalizeUserId(payment?.metadata?.user_id || payment?.external_reference);
+
+  if (!userId) {
+    throw createHttpError(400, "MERCADO_PAGO_USER_ID_MISSING", "Approved payment is missing a valid user_id");
+  }
+
+  const supabase = getSupabaseAdmin();
+  const currentUser = await getUserById(supabase, userId);
+  const nextProUntil = buildNextProUntil(currentUser?.pro_until);
+  const updatedUser = await updateUserProStatus(supabase, userId, nextProUntil);
+
+  console.log("[payments:webhook] PRO activated", {
+    userId,
+    paymentId,
+    pro_until: nextProUntil,
+  });
+
+  return {
+    acknowledged: true,
+    approved: true,
+    payment,
+    user: mapUserRecord(updatedUser),
+  };
 }
 
 function asyncRoute(handler) {
@@ -1325,6 +1449,42 @@ app.post(
       id: preference.id,
       init_point: preference.init_point,
       sandbox_init_point: preference.sandbox_init_point ?? null,
+    });
+  }),
+);
+
+app.post(
+  "/api/payments/webhook",
+  asyncRoute(async (req, res) => {
+    const { paymentId, topic } = extractMercadoPagoPaymentId(req);
+
+    console.log("[payments:webhook] Notification received", {
+      topic,
+      paymentId,
+      body: req.body,
+      query: req.query,
+    });
+
+    if (topic && topic !== "payment") {
+      res.status(200).json({
+        received: true,
+        ignored: true,
+        reason: `Unsupported topic: ${topic}`,
+      });
+      return;
+    }
+
+    if (!paymentId) {
+      throw createHttpError(400, "MERCADO_PAGO_PAYMENT_ID_MISSING", "Mercado Pago webhook is missing payment id");
+    }
+
+    const result = await activateProFromMercadoPagoPayment(paymentId);
+
+    res.status(200).json({
+      received: true,
+      approved: result.approved,
+      user_id: result.user?.id ?? null,
+      pro_until: result.user?.pro_until ?? null,
     });
   }),
 );
