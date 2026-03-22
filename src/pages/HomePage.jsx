@@ -53,6 +53,7 @@ export default function HomePage() {
   const [loadingSections, setLoadingSections] = useState(false);
   const [currentlyPlaying, setCurrentlyPlaying] = useState(null);
   const [displayedProgressMs, setDisplayedProgressMs] = useState(0);
+  const [isNowPlayingExpanded, setIsNowPlayingExpanded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -283,37 +284,69 @@ export default function HomePage() {
 
       {currentlyPlayingTrack ? (
         <section className="mx-4 -mt-8 mb-12 sm:mx-6 lg:mx-8">
-          <div className="relative overflow-hidden rounded-3xl border border-border/60 bg-card/95 p-4 shadow-xl shadow-black/10 backdrop-blur-xl sm:p-5">
-            <div className="flex items-center gap-4">
-              <img
+          <motion.div
+            layout
+            onMouseEnter={() => setIsNowPlayingExpanded(true)}
+            onMouseLeave={() => setIsNowPlayingExpanded(false)}
+            animate={{
+              width: isNowPlayingExpanded ? "100%" : "50%",
+            }}
+            transition={{ type: "spring", stiffness: 260, damping: 26 }}
+            className="relative overflow-hidden rounded-3xl border border-border/60 bg-card/95 p-3 shadow-xl shadow-black/10 backdrop-blur-xl sm:p-4 max-md:w-full"
+          >
+            <motion.div layout className="flex items-center gap-3">
+              <motion.img
+                layout
                 src={getImageUrl(currentlyPlayingTrack.album?.images)}
                 alt={currentlyPlayingTrack.album?.name ?? currentlyPlayingTrack.name}
-                className="h-16 w-16 shrink-0 rounded-2xl object-cover sm:h-18 sm:w-18"
+                className={`shrink-0 rounded-2xl object-cover ${isNowPlayingExpanded ? "h-16 w-16 sm:h-[72px] sm:w-[72px]" : "h-10 w-10 sm:h-12 sm:w-12"}`}
               />
               <div className="min-w-0 flex-1">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-primary">Escuchando ahora</p>
-                <p className="mt-1 truncate text-base font-semibold sm:text-lg">{currentlyPlayingTrack.name}</p>
-                <p className="truncate text-sm text-muted-foreground">
-                  {currentlyPlayingTrack.artists?.map((artist) => artist.name).join(", ")}
+                <p className="truncate text-[10px] font-semibold uppercase tracking-[0.22em] text-primary sm:text-[11px]">Escuchando ahora</p>
+                <p className={`truncate font-semibold ${isNowPlayingExpanded ? "mt-1 text-base sm:text-lg" : "mt-0.5 text-sm sm:text-base"}`}>
+                  {currentlyPlayingTrack.name}
                 </p>
+                <motion.p
+                  animate={{
+                    opacity: isNowPlayingExpanded ? 1 : 0.78,
+                  }}
+                  className={`truncate text-muted-foreground ${isNowPlayingExpanded ? "text-sm" : "text-xs"}`}
+                >
+                  {currentlyPlayingTrack.artists?.map((artist) => artist.name).join(", ")}
+                </motion.p>
               </div>
-              <div className="hidden shrink-0 text-right sm:block">
+              <motion.div
+                animate={{
+                  opacity: isNowPlayingExpanded ? 1 : 0,
+                  width: isNowPlayingExpanded ? "auto" : 0,
+                }}
+                className="hidden shrink-0 overflow-hidden text-right sm:block"
+              >
                 <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Duracion</p>
                 <p className="mt-1 font-semibold">{formatTrackDuration(currentlyPlayingTrack.duration_ms ?? 0)}</p>
-              </div>
-            </div>
+              </motion.div>
+            </motion.div>
 
-            <div className="mt-4">
-              <div className="h-2 overflow-hidden rounded-full bg-secondary">
+            <motion.div
+              layout
+              animate={{
+                marginTop: isNowPlayingExpanded ? 16 : 10,
+              }}
+            >
+              <div className={`overflow-hidden rounded-full bg-secondary ${isNowPlayingExpanded ? "h-2" : "h-1.5"}`}>
                 <div className="h-full rounded-full bg-primary transition-[width] duration-500" style={{ width: `${currentlyPlayingProgress}%` }} />
               </div>
-              <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+              <motion.div
+                animate={{
+                  opacity: isNowPlayingExpanded ? 1 : 0.82,
+                }}
+                className="mt-2 flex items-center justify-between text-xs text-muted-foreground"
+              >
                 <span>{formatTrackDuration(displayedProgressMs)}</span>
-                <span className="sm:hidden">{formatTrackDuration(currentlyPlayingTrack.duration_ms ?? 0)}</span>
-                <span className="hidden sm:inline">{currentlyPlayingTrack.album?.name ?? "Spotify"}</span>
-              </div>
-            </div>
-          </div>
+                <span>{isNowPlayingExpanded ? currentlyPlayingTrack.album?.name ?? "Spotify" : formatTrackDuration(currentlyPlayingTrack.duration_ms ?? 0)}</span>
+              </motion.div>
+            </motion.div>
+          </motion.div>
         </section>
       ) : null}
 
