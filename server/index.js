@@ -23,6 +23,12 @@ const MERCADO_PAGO_API_BASE_URL = "https://api.mercadopago.com";
 const MERCADO_PAGO_ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN || process.env.MERCADO_PAGO_ACCESS_TOKEN;
 const PUBLIC_APP_URL = process.env.PUBLIC_APP_URL || "https://musicdb.online";
 const PUBLIC_API_URL = process.env.PUBLIC_API_URL || process.env.BACKEND_PUBLIC_URL || "https://musicdb-backend.onrender.com";
+const PRO_SUBSCRIPTION_PLANS = {
+  "1m": { price: 2500, months: 1, title: "MusicDB PRO - 1 mes" },
+  "3m": { price: 6500, months: 3, title: "MusicDB PRO - 3 meses" },
+  "6m": { price: 12000, months: 6, title: "MusicDB PRO - 6 meses" },
+  "12m": { price: 20000, months: 12, title: "MusicDB PRO - 12 meses" },
+};
 const ALLOWED_ORIGINS = new Set([
   "http://localhost:5173",
   "http://localhost:5174",
@@ -135,6 +141,15 @@ function normalizeUrl(value, fallback) {
 
   const normalized = value.trim().replace(/\/+$/, "");
   return normalized || fallback;
+}
+
+function normalizeSubscriptionPlan(plan) {
+  if (typeof plan !== "string") {
+    return null;
+  }
+
+  const normalized = plan.trim().toLowerCase();
+  return PRO_SUBSCRIPTION_PLANS[normalized] ? normalized : null;
 }
 
 function normalizeEntityType(entityType) {
@@ -1306,26 +1321,35 @@ async function getSavedTracksByArtist(token, artistId, query = {}) {
   };
 }
 
-async function createMercadoPagoPreference({ user }) {
+async function createMercadoPagoPreference({ user, plan }) {
   if (!MERCADO_PAGO_ACCESS_TOKEN) {
     throw createHttpError(500, "MERCADO_PAGO_CONFIG_MISSING", "Mercado Pago access token is not configured");
   }
 
+  const normalizedPlan = normalizeSubscriptionPlan(plan);
+
+  if (!normalizedPlan) {
+    throw createHttpError(400, "INVALID_PRO_PLAN", "A valid PRO subscription plan is required");
+  }
+
+  const selectedPlan = PRO_SUBSCRIPTION_PLANS[normalizedPlan];
   const appUrl = normalizeUrl(PUBLIC_APP_URL, "https://musicdb.online");
   const apiUrl = normalizeUrl(PUBLIC_API_URL, "https://musicdb-backend.onrender.com");
   const requestBody = {
     items: [
       {
-        title: "MusicDB PRO",
-        description: "Suscripcion MusicDB PRO",
+        title: selectedPlan.title,
+        description: `Suscripcion MusicDB PRO por ${selectedPlan.months} ${selectedPlan.months === 1 ? "mes" : "meses"}`,
         quantity: 1,
         currency_id: "ARS",
-        unit_price: 2500,
+        unit_price: selectedPlan.price,
       },
     ],
     external_reference: user.id,
     metadata: {
       user_id: user.id,
+      plan: normalizedPlan,
+      months: selectedPlan.months,
       username: user.username ?? "",
       email: user.email ?? "",
     },
@@ -1399,10 +1423,37 @@ function isApprovedMercadoPagoPayment(payment) {
   return payment?.status === "approved";
 }
 
-function buildNextProUntil(currentProUntil) {
+function normalizePurchasedMonths(value) {
+  const numericValue = Number(value);
+
+  if (!Number.isInteger(numericValue) || numericValue <= 0) {
+    return null;
+  }
+
+  return numericValue;
+}
+
+function getSubscriptionMonthsFromPayment(payment) {
+  const metadataPlan = normalizeSubscriptionPlan(payment?.metadata?.plan);
+
+  if (metadataPlan) {
+    return PRO_SUBSCRIPTION_PLANS[metadataPlan].months;
+  }
+
+  const metadataMonths = normalizePurchasedMonths(payment?.metadata?.months);
+
+  if (metadataMonths) {
+    return metadataMonths;
+  }
+
+  return 1;
+}
+
+function buildNextProUntil(currentProUntil, months = 1) {
   const currentTimestamp = currentProUntil ? new Date(currentProUntil).getTime() : NaN;
   const baseTime = Number.isFinite(currentTimestamp) && currentTimestamp > Date.now() ? currentTimestamp : Date.now();
-  return new Date(baseTime + 30 * 24 * 60 * 60 * 1000).toISOString();
+  const daysToAdd = months === 12 ? 365 : months * 30;
+  return new Date(baseTime + daysToAdd * 24 * 60 * 60 * 1000).toISOString();
 }
 
 async function activateProFromMercadoPagoPayment(paymentId) {
@@ -1427,6 +1478,7 @@ async function activateProFromMercadoPagoPayment(paymentId) {
   }
 
   const userId = normalizeUserId(payment?.metadata?.user_id || payment?.external_reference);
+  const purchasedMonths = getSubscriptionMonthsFromPayment(payment);
 
   if (!userId) {
     throw createHttpError(400, "MERCADO_PAGO_USER_ID_MISSING", "Approved payment is missing a valid user_id");
@@ -1434,12 +1486,13 @@ async function activateProFromMercadoPagoPayment(paymentId) {
 
   const supabase = getSupabaseAdmin();
   const currentUser = await getUserById(supabase, userId);
-  const nextProUntil = buildNextProUntil(currentUser?.pro_until);
+  const nextProUntil = buildNextProUntil(currentUser?.pro_until, purchasedMonths);
   const updatedUser = await updateUserProStatus(supabase, userId, nextProUntil);
 
   console.log("[payments:webhook] PRO activated", {
     userId,
     paymentId,
+    months: purchasedMonths,
     pro_until: nextProUntil,
   });
 
@@ -1482,13 +1535,19 @@ app.post(
   authenticateAppUser,
   asyncRoute(async (req, res) => {
     const currentUser = req.current_user;
+    const plan = normalizeSubscriptionPlan(req.body?.plan);
 
     if (!currentUser?.id) {
       throw createHttpError(401, "APP_AUTH_REQUIRED", "Authentication is required");
     }
 
+    if (!plan) {
+      throw createHttpError(400, "INVALID_PRO_PLAN", "A valid PRO subscription plan is required");
+    }
+
     const preference = await createMercadoPagoPreference({
       user: currentUser,
+      plan,
     });
 
     res.status(201).json({

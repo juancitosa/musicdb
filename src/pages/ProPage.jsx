@@ -2,6 +2,7 @@ import { Check, Crown, Gem, Sparkles, Star, XCircle } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
+import PricingModal from "../components/shared/PricingModal";
 import Button from "../components/ui/Button";
 import { useAuth } from "../hooks/useAuth";
 
@@ -50,6 +51,13 @@ const benefitCards = [
   },
 ];
 
+const pricingPlans = [
+  { id: "1m", label: "1 Mes", price: 2500, months: 1, isRecommended: false },
+  { id: "3m", label: "3 Meses", price: 6500, months: 3, isRecommended: false },
+  { id: "6m", label: "6 Meses", price: 12000, months: 6, isRecommended: true },
+  { id: "12m", label: "12 Meses", price: 20000, months: 12, isRecommended: false },
+];
+
 function FeatureList({ items, accent = "text-foreground" }) {
   return (
     <ul className="space-y-3">
@@ -71,6 +79,8 @@ export default function ProPage() {
   const [searchParams] = useSearchParams();
   const isPro = Boolean(user?.isPro);
   const [isCreatingPreference, setIsCreatingPreference] = useState(false);
+  const [isPricingOpen, setIsPricingOpen] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState("");
   const paymentStatus = searchParams.get("payment");
   const paymentFeedback = useMemo(() => {
     if (paymentStatus === "success") {
@@ -110,16 +120,25 @@ export default function ProPage() {
       return;
     }
 
-    console.log("[MusicDB PRO] Starting payment preference request");
+    setIsPricingOpen(true);
+  };
+
+  const handlePlanSelection = async (planId) => {
+    console.log("[MusicDB PRO] Starting payment preference request", { plan: planId });
     setIsCreatingPreference(true);
+    setSelectedPlan(planId);
 
     try {
       const res = await fetch(`${import.meta.env.VITE_API_URL}/payments/create-preference`, {
         method: "POST",
         credentials: "include",
         headers: {
+          "Content-Type": "application/json",
           ...(appToken ? { Authorization: `Bearer ${appToken}` } : {}),
         },
+        body: JSON.stringify({
+          plan: planId,
+        }),
       });
 
       const rawResponse = await res.text();
@@ -144,6 +163,7 @@ export default function ProPage() {
       }
 
       if (data.init_point) {
+        setIsPricingOpen(false);
         window.location.href = data.init_point;
         return;
       }
@@ -153,11 +173,25 @@ export default function ProPage() {
       console.error("[MusicDB PRO] Error creating payment:", err);
     } finally {
       setIsCreatingPreference(false);
+      setSelectedPlan("");
     }
   };
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <PricingModal
+        isOpen={isPricingOpen}
+        plans={pricingPlans}
+        isLoading={isCreatingPreference}
+        selectedPlan={selectedPlan}
+        onClose={() => {
+          if (!isCreatingPreference) {
+            setIsPricingOpen(false);
+          }
+        }}
+        onSelectPlan={handlePlanSelection}
+      />
+
       {paymentFeedback ? (
         <section
           className={`mb-8 rounded-[1.8rem] border p-5 shadow-[0_18px_50px_-30px_rgba(0,0,0,0.55)] sm:p-6 ${
