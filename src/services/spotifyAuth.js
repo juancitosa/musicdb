@@ -25,12 +25,20 @@ function getRedirectUri() {
 const REDIRECT_URI = getRedirectUri();
 const TOKEN_KEY = "spotify_auth_session";
 const CODE_VERIFIER_KEY = "spotify_code_verifier";
+const API_BASE_URL = import.meta.env.VITE_API_URL;
+const BACKEND_WAKEUP_URL = `${API_BASE_URL}/api`;
 const SCOPES = [
   "user-top-read",
   "user-read-private",
   "user-read-email",
   "user-library-read",
 ];
+
+function delay(ms) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
 
 async function sha256(value) {
   const data = new TextEncoder().encode(value);
@@ -88,6 +96,44 @@ export async function getSpotifyAuthorizationUrl() {
   });
 
   return `https://accounts.spotify.com/authorize?${params.toString()}`;
+}
+
+async function wakeBackendAttempt(timeoutMs) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    await fetch(BACKEND_WAKEUP_URL, {
+      method: "GET",
+      signal: controller.signal,
+      cache: "no-store",
+    });
+    return true;
+  } catch {
+    return false;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
+export async function wakeSpotifyBackend({
+  retries = 3,
+  timeoutMs = 8_000,
+  retryDelayMs = 1_500,
+} = {}) {
+  for (let attempt = 1; attempt <= retries; attempt += 1) {
+    const isAwake = await wakeBackendAttempt(timeoutMs);
+
+    if (isAwake) {
+      return true;
+    }
+
+    if (attempt < retries) {
+      await delay(retryDelayMs);
+    }
+  }
+
+  throw new Error("SPOTIFY_BACKEND_UNAVAILABLE");
 }
 
 async function requestToken(params) {

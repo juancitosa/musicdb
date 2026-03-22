@@ -9,6 +9,7 @@ import {
   getSpotifyCodeFromUrl,
   getStoredSpotifySession,
   refreshSpotifyToken,
+  wakeSpotifyBackend,
 } from "../services/spotifyAuth";
 import { useAuth } from "./useAuth";
 import { useToast } from "./useToast";
@@ -41,7 +42,8 @@ export function SpotifyAuthProvider({ children }) {
   const { toast } = useToast();
   const [spotifyUser, setSpotifyUser] = useState(null);
   const [session, setSession] = useState(() => getStoredSpotifySession());
-  const [isLoading, setIsLoading] = useState(true);
+  const [isBootstrapping, setIsBootstrapping] = useState(true);
+  const [isConnecting, setIsConnecting] = useState(false);
 
   const loadSpotifyProfile = useCallback(
     async (accessToken) => {
@@ -61,7 +63,7 @@ export function SpotifyAuthProvider({ children }) {
     let cancelled = false;
 
     async function bootstrap() {
-      setIsLoading(true);
+      setIsBootstrapping(true);
 
       try {
         const code = getSpotifyCodeFromUrl();
@@ -174,7 +176,7 @@ export function SpotifyAuthProvider({ children }) {
         }
       } finally {
         if (!cancelled) {
-          setIsLoading(false);
+          setIsBootstrapping(false);
         }
       }
     }
@@ -191,13 +193,41 @@ export function SpotifyAuthProvider({ children }) {
       spotifyUser,
       spotifyToken: session?.accessToken ?? null,
       isSpotifyConnected: Boolean(session?.accessToken),
-      isLoadingSpotify: isLoading,
+      isLoadingSpotify: isBootstrapping || isConnecting,
       async connectSpotify() {
-        const url = await getSpotifyAuthorizationUrl();
-        if (!url) {
+        if (isConnecting) {
           return;
         }
-        window.location.href = url;
+
+        setIsConnecting(true);
+
+        try {
+          await wakeSpotifyBackend();
+
+          const url = await getSpotifyAuthorizationUrl();
+          if (!url) {
+            return;
+          }
+
+          window.location.href = url;
+        } catch (error) {
+          if (error?.message === "SPOTIFY_BACKEND_UNAVAILABLE") {
+            toast({
+              title: "Preparando inicio con Spotify",
+              description: "El backend tardó demasiado en despertar. Intentá nuevamente en unos segundos.",
+              variant: "destructive",
+            });
+            return;
+          }
+
+          toast({
+            title: "No se pudo iniciar sesión con Spotify",
+            description: "Revisá la configuración del backend y volvé a intentarlo",
+            variant: "destructive",
+          });
+        } finally {
+          setIsConnecting(false);
+        }
       },
       disconnectSpotify() {
         clearStoredSpotifySession();
@@ -207,7 +237,7 @@ export function SpotifyAuthProvider({ children }) {
         toast({ title: "Sesión cerrada" });
       },
     }),
-    [clearAuthenticatedUser, isLoading, session?.accessToken, spotifyUser, toast],
+    [clearAuthenticatedUser, isBootstrapping, isConnecting, session?.accessToken, spotifyUser, toast],
   );
 
   return <SpotifyAuthContext.Provider value={value}>{children}</SpotifyAuthContext.Provider>;
