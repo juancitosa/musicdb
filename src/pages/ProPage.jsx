@@ -1,4 +1,5 @@
 import { Check, Crown, Gem, Sparkles, Star } from "lucide-react";
+import { useState } from "react";
 
 import Button from "../components/ui/Button";
 import { useAuth } from "../hooks/useAuth";
@@ -47,6 +48,33 @@ function FeatureList({ items, accent = "text-foreground" }) {
 export default function ProPage() {
   const { user } = useAuth();
   const isPro = Boolean(user?.isPro);
+  const [isCreatingPreference, setIsCreatingPreference] = useState(false);
+
+  const handleProClick = async () => {
+    console.log("[MusicDB PRO] Starting payment preference request");
+    setIsCreatingPreference(true);
+
+    try {
+      const res = await fetch("https://musicdb-backend.onrender.com/api/payments/create-preference", {
+        method: "POST",
+        credentials: "include",
+      });
+
+      const data = await res.json();
+      console.log("[MusicDB PRO] Payment preference response:", data);
+
+      if (data.init_point) {
+        window.location.href = data.init_point;
+        return;
+      }
+
+      console.error("[MusicDB PRO] No init_point received");
+    } catch (err) {
+      console.error("[MusicDB PRO] Error creating payment:", err);
+    } finally {
+      setIsCreatingPreference(false);
+    }
+  };
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -76,9 +104,11 @@ export default function ProPage() {
               <Button
                 type="button"
                 size="lg"
+                onClick={handleProClick}
+                disabled={isCreatingPreference}
                 className="rounded-full border border-amber-300/40 bg-amber-300/12 text-amber-100 shadow-[0_0_28px_rgba(245,158,11,0.12)] transition hover:bg-amber-300/18"
               >
-                Hacerme PRO
+                {isCreatingPreference ? "Redirigiendo..." : "Hacerme PRO"}
               </Button>
             )}
           </div>
@@ -150,9 +180,11 @@ export default function ProPage() {
             <Button
               type="button"
               size="lg"
+              onClick={handleProClick}
+              disabled={isCreatingPreference}
               className="rounded-full border border-amber-300/40 bg-amber-300/12 text-amber-100 shadow-[0_0_28px_rgba(245,158,11,0.12)] transition hover:bg-amber-300/18"
             >
-              Hacerme PRO
+              {isCreatingPreference ? "Redirigiendo..." : "Hacerme PRO"}
             </Button>
           )}
         </div>
