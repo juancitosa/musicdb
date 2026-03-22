@@ -1,6 +1,6 @@
-import { Check, Crown, Gem, Sparkles, Star } from "lucide-react";
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Check, Crown, Gem, Sparkles, Star, XCircle } from "lucide-react";
+import { useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import Button from "../components/ui/Button";
 import { useAuth } from "../hooks/useAuth";
@@ -68,8 +68,36 @@ function FeatureList({ items, accent = "text-foreground" }) {
 export default function ProPage() {
   const { user, appToken } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const isPro = Boolean(user?.isPro);
   const [isCreatingPreference, setIsCreatingPreference] = useState(false);
+  const paymentStatus = searchParams.get("payment");
+  const paymentFeedback = useMemo(() => {
+    if (paymentStatus === "success") {
+      return {
+        tone: "success",
+        title: "Bienvenido a Music PRO",
+        description: "Tus beneficios:",
+        items: [
+          "Username en dorado con estrella.",
+          "Mayor visibilidad en rankings.",
+          "Reviews destacadas.",
+          "Reseñas y puntuaciones ilimitadas.",
+        ],
+      };
+    }
+
+    if (paymentStatus === "failure" || paymentStatus === "pending") {
+      return {
+        tone: "error",
+        title: "El pago no se realizó correctamente, intente nuevamente",
+        description: "",
+        items: [],
+      };
+    }
+
+    return null;
+  }, [paymentStatus]);
 
   const handleProClick = async () => {
     if (!user || !appToken) {
@@ -130,6 +158,49 @@ export default function ProPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      {paymentFeedback ? (
+        <section
+          className={`mb-8 rounded-[1.8rem] border p-5 shadow-[0_18px_50px_-30px_rgba(0,0,0,0.55)] sm:p-6 ${
+            paymentFeedback.tone === "success"
+              ? "border-amber-300/30 bg-[linear-gradient(135deg,rgba(38,28,8,0.95),rgba(19,15,10,0.96))]"
+              : "border-red-400/30 bg-[linear-gradient(135deg,rgba(42,10,12,0.95),rgba(22,12,14,0.96))]"
+          }`}
+        >
+          <div className="flex items-start gap-4">
+            <div
+              className={`mt-0.5 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border ${
+                paymentFeedback.tone === "success"
+                  ? "border-amber-300/35 bg-amber-300/12 text-amber-200"
+                  : "border-red-400/35 bg-red-500/12 text-red-200"
+              }`}
+            >
+              {paymentFeedback.tone === "success" ? <Star className="h-5 w-5 fill-current" /> : <XCircle className="h-5 w-5" />}
+            </div>
+
+            <div className="min-w-0">
+              <h2 className={`text-xl font-bold ${paymentFeedback.tone === "success" ? "text-amber-100" : "text-red-100"}`}>
+                {paymentFeedback.title}
+              </h2>
+              {paymentFeedback.description ? (
+                <p className={`mt-2 text-sm ${paymentFeedback.tone === "success" ? "text-amber-50/85" : "text-red-50/85"}`}>
+                  {paymentFeedback.description}
+                </p>
+              ) : null}
+              {paymentFeedback.items.length > 0 ? (
+                <ul className="mt-4 space-y-2">
+                  {paymentFeedback.items.map((item) => (
+                    <li key={item} className="flex items-start gap-2 text-sm text-amber-50/88">
+                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          </div>
+        </section>
+      ) : null}
+
       <section className="relative overflow-hidden rounded-[2rem] border border-amber-300/18 bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.16),transparent_28%),linear-gradient(135deg,rgba(7,7,9,0.96),rgba(19,16,12,0.94),rgba(10,10,12,0.98))] p-8 shadow-[0_28px_80px_rgba(0,0,0,0.32)] sm:p-12">
         <div className="absolute inset-0 bg-[linear-gradient(120deg,transparent,rgba(255,255,255,0.03),transparent)]" />
         <div className="relative max-w-3xl">
