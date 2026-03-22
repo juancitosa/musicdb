@@ -292,7 +292,7 @@ export default function HomePage() {
               width: isNowPlayingExpanded ? "100%" : "50%",
             }}
             transition={{ type: "spring", stiffness: 260, damping: 26 }}
-            className="relative overflow-hidden rounded-3xl border border-border/60 bg-card/95 p-3 shadow-xl shadow-black/10 backdrop-blur-xl sm:p-4 max-md:w-full"
+            className="relative mx-auto overflow-hidden rounded-3xl border border-border/60 bg-card/95 p-3 shadow-xl shadow-black/10 backdrop-blur-xl sm:p-4 max-md:!w-full"
           >
             <motion.div layout className="flex items-center gap-3">
               <motion.img

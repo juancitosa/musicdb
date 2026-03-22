@@ -74,7 +74,7 @@ function SearchSuggestionItem({ item, onSelect }) {
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{item.name}</p>
         <p className="truncate text-xs text-muted-foreground capitalize">
-          {item._type === "artist" ? "Artista" : `Álbum · ${item.artists?.[0]?.name ?? ""}`}
+          {item._type === "artist" ? "Artista" : `Album · ${item.artists?.[0]?.name ?? ""}`}
         </p>
       </div>
     </Link>
@@ -150,7 +150,7 @@ function SearchBox() {
           value={searchTerm}
           onChange={(event) => setSearchTerm(event.target.value)}
           onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
-          placeholder="Buscar artistas, álbumes..."
+          placeholder="Buscar artistas, albumes..."
           className="w-full rounded-full bg-secondary py-2 pr-4 pl-10 text-sm outline-none transition focus:ring-2 focus:ring-primary"
         />
         {isLoadingSuggestions ? <LoaderCircle className="absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 animate-spin text-primary" /> : null}
@@ -186,45 +186,76 @@ function ThemeToggle() {
 
 function UserActions() {
   const { isSpotifyConnected, spotifyUser, connectSpotify, disconnectSpotify } = useSpotifyAuth();
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   if (isSpotifyConnected) {
     return (
-      <div className="flex items-center gap-2">
-        <Link
-          to="/profile"
-          className="flex items-center gap-2 rounded-full border border-white/5 bg-zinc-900 px-3 py-1.5 text-sm font-medium text-foreground transition hover:bg-zinc-800"
-          title={spotifyUser?.name ?? "Perfil"}
-        >
-          {spotifyUser?.avatar ? (
-            <img src={spotifyUser.avatar} alt={spotifyUser.name} className="h-7 w-7 rounded-full object-cover" />
-          ) : (
-            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-secondary">
-              <UserRound className="h-4 w-4" />
+      <>
+        <div className="flex items-center gap-2">
+          <Link
+            to="/profile"
+            className="flex items-center gap-2 rounded-full border border-white/5 bg-zinc-900 px-3 py-1.5 text-sm font-medium text-foreground transition hover:bg-zinc-800"
+            title={spotifyUser?.name ?? "Perfil"}
+          >
+            {spotifyUser?.avatar ? (
+              <img src={spotifyUser.avatar} alt={spotifyUser.name} className="h-7 w-7 rounded-full object-cover" />
+            ) : (
+              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-secondary">
+                <UserRound className="h-4 w-4" />
+              </div>
+            )}
+            <span className="max-w-28 truncate">{spotifyUser?.name ?? "Mi perfil"}</span>
+          </Link>
+          <button
+            onClick={() => setShowLogoutConfirm(true)}
+            className="rounded-full bg-secondary p-2 text-muted-foreground transition hover:bg-secondary/80 hover:text-foreground"
+            aria-label="Cerrar sesion"
+            title="Cerrar sesion de Spotify"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
+        </div>
+
+        {showLogoutConfirm ? (
+          <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/65 px-4 backdrop-blur-sm">
+            <div className="w-full max-w-md rounded-3xl border border-border/70 bg-card p-6 shadow-2xl shadow-black/40">
+              <h3 className="text-xl font-bold">Realmente desea cerrar sesion?</h3>
+              <p className="mt-2 text-sm text-muted-foreground">Vas a desconectar la cuenta actual de Spotify.</p>
+              <div className="mt-6 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowLogoutConfirm(false)}
+                  className="rounded-full border border-border bg-secondary px-4 py-2 text-sm font-medium text-foreground transition hover:bg-secondary/80"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowLogoutConfirm(false);
+                    disconnectSpotify();
+                  }}
+                  className="rounded-full border border-red-500 px-4 py-2 text-sm font-semibold text-red-200 shadow-[0_0_18px_rgba(239,68,68,0.45)] transition hover:bg-red-500/12 hover:text-red-100"
+                >
+                  Cerrar sesion
+                </button>
+              </div>
             </div>
-          )}
-          <span className="max-w-28 truncate">{spotifyUser?.name ?? "Mi perfil"}</span>
-        </Link>
-        <button
-          onClick={disconnectSpotify}
-          className="rounded-full bg-secondary p-2 text-muted-foreground transition hover:bg-secondary/80 hover:text-foreground"
-          aria-label="Cerrar sesión"
-          title="Cerrar sesión de Spotify"
-        >
-          <LogOut className="h-4 w-4" />
-        </button>
-      </div>
+          </div>
+        ) : null}
+      </>
     );
   }
 
   return (
     <>
       <div className="hidden items-center gap-2 md:flex">
-        <SpotifyConnectButton onClick={connectSpotify} className="px-4 py-2 text-sm">
+        <SpotifyConnectButton onClick={() => connectSpotify({ forcePrompt: true })} className="px-4 py-2 text-sm">
           Conectar Spotify
         </SpotifyConnectButton>
       </div>
       <div className="flex items-center gap-2 md:hidden">
-        <SpotifyConnectButton onClick={connectSpotify} size="default" className="px-3 py-2 text-xs">
+        <SpotifyConnectButton onClick={() => connectSpotify({ forcePrompt: true })} size="default" className="px-3 py-2 text-xs">
           Spotify
         </SpotifyConnectButton>
       </div>
