@@ -18,6 +18,9 @@ const SUPABASE_SERVICE_ROLE_KEY =
 const APP_JWT_SECRET = process.env.APP_JWT_SECRET || "musicdb-local-dev-secret";
 const SPOTIFY_API_BASE_URL = "https://api.spotify.com/v1";
 const SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token";
+const MERCADO_PAGO_API_BASE_URL = "https://api.mercadopago.com";
+const MERCADO_PAGO_ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN || process.env.MERCADO_PAGO_ACCESS_TOKEN;
+const PUBLIC_APP_URL = process.env.PUBLIC_APP_URL || "https://musicdb.online";
 const ALLOWED_ORIGINS = new Set([
   "http://localhost:5173",
   "http://localhost:5174",
@@ -119,6 +122,15 @@ function normalizeAvatarUrl(avatarUrl) {
 
   const value = avatarUrl.trim();
   return value || null;
+}
+
+function normalizeUrl(value, fallback) {
+  if (typeof value !== "string") {
+    return fallback;
+  }
+
+  const normalized = value.trim().replace(/\/+$/, "");
+  return normalized || fallback;
 }
 
 function normalizeEntityType(entityType) {
@@ -1200,6 +1212,75 @@ async function getSavedTracksByArtist(token, artistId, query = {}) {
   };
 }
 
+async function createMercadoPagoPreference({ user }) {
+  if (!MERCADO_PAGO_ACCESS_TOKEN) {
+    throw createHttpError(500, "MERCADO_PAGO_CONFIG_MISSING", "Mercado Pago access token is not configured");
+  }
+
+  const appUrl = normalizeUrl(PUBLIC_APP_URL, "https://musicdb.online");
+  const requestBody = {
+    items: [
+      {
+        title: "MusicDB PRO",
+        description: "Suscripcion MusicDB PRO",
+        quantity: 1,
+        currency_id: "ARS",
+        unit_price: 2500,
+      },
+    ],
+    external_reference: user.id,
+    metadata: {
+      user_id: user.id,
+      username: user.username ?? "",
+      email: user.email ?? "",
+    },
+    payer: user.email
+      ? {
+          email: user.email,
+        }
+      : undefined,
+    back_urls: {
+      success: `${appUrl}/pro?payment=success`,
+      failure: `${appUrl}/pro?payment=failure`,
+      pending: `${appUrl}/pro?payment=pending`,
+    },
+    auto_return: "approved",
+    statement_descriptor: "MUSICDB PRO",
+  };
+
+  const response = await fetch(`${MERCADO_PAGO_API_BASE_URL}/checkout/preferences`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${MERCADO_PAGO_ACCESS_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(requestBody),
+  });
+
+  const rawBody = await response.text();
+  let data = null;
+
+  try {
+    data = rawBody ? JSON.parse(rawBody) : null;
+  } catch {
+    data = null;
+  }
+
+  if (!response.ok) {
+    throw createHttpError(
+      502,
+      "MERCADO_PAGO_PREFERENCE_ERROR",
+      data?.message || data?.error || "Failed to create Mercado Pago preference",
+    );
+  }
+
+  if (!data?.init_point) {
+    throw createHttpError(502, "MERCADO_PAGO_INIT_POINT_MISSING", "Mercado Pago did not return init_point");
+  }
+
+  return data;
+}
+
 function asyncRoute(handler) {
   return async (req, res, next) => {
     try {
@@ -1223,6 +1304,28 @@ app.get(
       },
     });
     res.json(data);
+  }),
+);
+
+app.post(
+  "/api/payments/create-preference",
+  authenticateAppUser,
+  asyncRoute(async (req, res) => {
+    const currentUser = req.current_user;
+
+    if (!currentUser?.id) {
+      throw createHttpError(401, "APP_AUTH_REQUIRED", "Authentication is required");
+    }
+
+    const preference = await createMercadoPagoPreference({
+      user: currentUser,
+    });
+
+    res.status(201).json({
+      id: preference.id,
+      init_point: preference.init_point,
+      sandbox_init_point: preference.sandbox_init_point ?? null,
+    });
   }),
 );
 

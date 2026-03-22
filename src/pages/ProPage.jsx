@@ -46,7 +46,7 @@ function FeatureList({ items, accent = "text-foreground" }) {
 }
 
 export default function ProPage() {
-  const { user } = useAuth();
+  const { user, appToken } = useAuth();
   const isPro = Boolean(user?.isPro);
   const [isCreatingPreference, setIsCreatingPreference] = useState(false);
 
@@ -55,13 +55,34 @@ export default function ProPage() {
     setIsCreatingPreference(true);
 
     try {
-      const res = await fetch("https://musicdb-backend.onrender.com/api/payments/create-preference", {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/payments/create-preference`, {
         method: "POST",
         credentials: "include",
+        headers: {
+          ...(appToken ? { Authorization: `Bearer ${appToken}` } : {}),
+        },
       });
 
-      const data = await res.json();
+      const rawResponse = await res.text();
+      let data = null;
+
+      try {
+        data = rawResponse ? JSON.parse(rawResponse) : null;
+      } catch {
+        data = {
+          raw: rawResponse,
+        };
+      }
+
       console.log("[MusicDB PRO] Payment preference response:", data);
+
+      if (!res.ok) {
+        console.error("[MusicDB PRO] Payment preference request failed:", {
+          status: res.status,
+          data,
+        });
+        return;
+      }
 
       if (data.init_point) {
         window.location.href = data.init_point;
