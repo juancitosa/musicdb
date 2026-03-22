@@ -9,7 +9,7 @@ import SectionHeader from "../components/shared/SectionHeader";
 import SkeletonCard from "../components/shared/SkeletonCard";
 import { useSpotifyAuth } from "../hooks/useSpotifyAuth";
 import { useTheme } from "../hooks/useTheme";
-import { getCurrentlyPlayingTrack, getFeaturedArtists, getFeaturedNewReleases, getImageUrl, getTopAlbumsFromTopTracks, getTopArtists, getTopTracks } from "../services/spotify";
+import { formatTrackDuration, getCurrentlyPlayingTrack, getFeaturedArtists, getFeaturedNewReleases, getImageUrl, getTopAlbumsFromTopTracks, getTopArtists, getTopTracks } from "../services/spotify";
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -159,6 +159,10 @@ export default function HomePage() {
   }, [isLoadingSpotify, isSpotifyConnected, spotifyToken, topTracksRange]);
 
   const featuredArtist = topArtists[0] ?? null;
+  const currentlyPlayingTrack = currentlyPlaying?.item ?? null;
+  const currentlyPlayingProgress = currentlyPlayingTrack?.duration_ms
+    ? Math.min(((currentlyPlaying?.progress_ms ?? 0) / currentlyPlayingTrack.duration_ms) * 100, 100)
+    : 0;
   const newReleasesPageSize = 5;
   const newReleasesPageCount = Math.max(Math.ceil(featuredAlbums.length / newReleasesPageSize), 1);
   const visibleAlbums = isSpotifyConnected
@@ -244,13 +248,6 @@ export default function HomePage() {
                   </span>
                 ))}
               </div>
-              {currentlyPlaying?.item ? (
-                <div className="mb-6 rounded-2xl border border-white/15 bg-black/30 px-4 py-3 text-white/90 backdrop-blur-md">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/65">Escuchando ahora</p>
-                  <p className="mt-1 truncate text-base font-semibold">{currentlyPlaying.item.name}</p>
-                  <p className="truncate text-sm text-white/75">{currentlyPlaying.item.artists?.map((artist) => artist.name).join(", ")}</p>
-                </div>
-              ) : null}
               <Link
                 to={`/artist/${featuredArtist.id}`}
                 className="inline-flex items-center rounded-full bg-primary px-6 py-3 text-lg font-semibold text-primary-foreground shadow-lg shadow-primary/25 transition hover:scale-105 hover:bg-primary/90"
@@ -264,6 +261,42 @@ export default function HomePage() {
           <div className="h-full min-h-[400px] w-full animate-pulse rounded-3xl bg-secondary" />
         )}
       </section>
+
+      {currentlyPlayingTrack ? (
+        <section className="mx-4 -mt-8 mb-12 sm:mx-6 lg:mx-8">
+          <div className="relative overflow-hidden rounded-3xl border border-border/60 bg-card/95 p-4 shadow-xl shadow-black/10 backdrop-blur-xl sm:p-5">
+            <div className="flex items-center gap-4">
+              <img
+                src={getImageUrl(currentlyPlayingTrack.album?.images)}
+                alt={currentlyPlayingTrack.album?.name ?? currentlyPlayingTrack.name}
+                className="h-16 w-16 shrink-0 rounded-2xl object-cover sm:h-18 sm:w-18"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-primary">Escuchando ahora</p>
+                <p className="mt-1 truncate text-base font-semibold sm:text-lg">{currentlyPlayingTrack.name}</p>
+                <p className="truncate text-sm text-muted-foreground">
+                  {currentlyPlayingTrack.artists?.map((artist) => artist.name).join(", ")}
+                </p>
+              </div>
+              <div className="hidden shrink-0 text-right sm:block">
+                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Duracion</p>
+                <p className="mt-1 font-semibold">{formatTrackDuration(currentlyPlayingTrack.duration_ms ?? 0)}</p>
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <div className="h-2 overflow-hidden rounded-full bg-secondary">
+                <div className="h-full rounded-full bg-primary transition-[width] duration-500" style={{ width: `${currentlyPlayingProgress}%` }} />
+              </div>
+              <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                <span>{formatTrackDuration(currentlyPlaying?.progress_ms ?? 0)}</span>
+                <span className="sm:hidden">{formatTrackDuration(currentlyPlayingTrack.duration_ms ?? 0)}</span>
+                <span className="hidden sm:inline">{currentlyPlayingTrack.album?.name ?? "Spotify"}</span>
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       <div className="space-y-16 px-4 sm:px-6 lg:px-8">
         {topArtists.length > 0 ? (
