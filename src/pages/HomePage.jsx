@@ -52,14 +52,16 @@ export default function HomePage() {
   const [topTracksRange, setTopTracksRange] = useState("medium_term");
   const [loadingSections, setLoadingSections] = useState(false);
   const [currentlyPlaying, setCurrentlyPlaying] = useState(null);
+  const [displayedProgressMs, setDisplayedProgressMs] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
-    let intervalId = null;
+    let pollIntervalId = null;
 
     async function loadCurrentlyPlaying() {
       if (!isSpotifyConnected || !spotifyToken) {
         setCurrentlyPlaying(null);
+        setDisplayedProgressMs(0);
         return;
       }
 
@@ -67,25 +69,42 @@ export default function HomePage() {
         const playback = await getCurrentlyPlayingTrack(spotifyToken);
 
         if (!cancelled) {
-          setCurrentlyPlaying(playback?.is_playing && playback?.item ? playback : null);
+          const nextPlayback = playback?.is_playing && playback?.item ? playback : null;
+          setCurrentlyPlaying(nextPlayback);
+          setDisplayedProgressMs(nextPlayback?.progress_ms ?? 0);
         }
       } catch {
         if (!cancelled) {
           setCurrentlyPlaying(null);
+          setDisplayedProgressMs(0);
         }
       }
     }
 
     loadCurrentlyPlaying();
-    intervalId = window.setInterval(loadCurrentlyPlaying, 20000);
+    pollIntervalId = window.setInterval(loadCurrentlyPlaying, 5000);
 
     return () => {
       cancelled = true;
-      if (intervalId) {
-        window.clearInterval(intervalId);
+      if (pollIntervalId) {
+        window.clearInterval(pollIntervalId);
       }
     };
   }, [isSpotifyConnected, spotifyToken]);
+
+  useEffect(() => {
+    if (!currentlyPlaying?.is_playing || !currentlyPlaying?.item?.duration_ms) {
+      return undefined;
+    }
+
+    const progressIntervalId = window.setInterval(() => {
+      setDisplayedProgressMs((current) => Math.min(current + 1000, currentlyPlaying.item.duration_ms));
+    }, 1000);
+
+    return () => {
+      window.clearInterval(progressIntervalId);
+    };
+  }, [currentlyPlaying]);
 
   useEffect(() => {
     async function loadHome() {
@@ -161,7 +180,7 @@ export default function HomePage() {
   const featuredArtist = topArtists[0] ?? null;
   const currentlyPlayingTrack = currentlyPlaying?.item ?? null;
   const currentlyPlayingProgress = currentlyPlayingTrack?.duration_ms
-    ? Math.min(((currentlyPlaying?.progress_ms ?? 0) / currentlyPlayingTrack.duration_ms) * 100, 100)
+    ? Math.min((displayedProgressMs / currentlyPlayingTrack.duration_ms) * 100, 100)
     : 0;
   const newReleasesPageSize = 5;
   const newReleasesPageCount = Math.max(Math.ceil(featuredAlbums.length / newReleasesPageSize), 1);
@@ -289,7 +308,7 @@ export default function HomePage() {
                 <div className="h-full rounded-full bg-primary transition-[width] duration-500" style={{ width: `${currentlyPlayingProgress}%` }} />
               </div>
               <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-                <span>{formatTrackDuration(currentlyPlaying?.progress_ms ?? 0)}</span>
+                <span>{formatTrackDuration(displayedProgressMs)}</span>
                 <span className="sm:hidden">{formatTrackDuration(currentlyPlayingTrack.duration_ms ?? 0)}</span>
                 <span className="hidden sm:inline">{currentlyPlayingTrack.album?.name ?? "Spotify"}</span>
               </div>
