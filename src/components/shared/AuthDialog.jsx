@@ -134,7 +134,7 @@ export default function AuthDialog({
 
   const connectedName = spotifyUser?.name ?? "tu cuenta de Spotify";
   const neonButtonClass =
-    "group relative w-full justify-center overflow-hidden border border-violet-400/90 !bg-transparent text-white shadow-[0_0_0_1px_rgba(168,85,247,0.4),0_0_16px_rgba(168,85,247,0.24)] transition-all duration-300 hover:-translate-y-0.5 hover:border-violet-300 hover:shadow-[0_0_0_1px_rgba(196,181,253,0.6),0_0_28px_rgba(168,85,247,0.48)] before:absolute before:inset-[1px] before:rounded-full before:bg-[rgba(12,12,14,0.84)] before:content-[''] before:transition before:duration-300 hover:before:bg-[rgba(18,18,22,0.92)] after:absolute after:inset-y-0 after:left-[-45%] after:w-1/3 after:skew-x-[-22deg] after:bg-linear-to-r after:from-transparent after:via-white/45 after:to-transparent after:opacity-0 after:blur-md after:transition after:duration-500 hover:after:left-[120%] hover:after:opacity-100";
+    "group relative w-full justify-center overflow-hidden border border-transparent !bg-transparent text-white [background:linear-gradient(rgba(10,10,12,0.62),rgba(10,10,12,0.62))_padding-box,linear-gradient(135deg,rgba(120,119,198,0.9),rgba(168,85,247,1),rgba(232,121,249,0.92),rgba(120,119,198,0.9))_border-box] shadow-[0_0_14px_rgba(168,85,247,0.2)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_0_24px_rgba(168,85,247,0.42)] before:absolute before:-inset-[140%] before:rounded-[999px] before:bg-[conic-gradient(from_0deg,transparent_0deg,transparent_300deg,rgba(255,255,255,0.95)_325deg,rgba(196,181,253,0.95)_345deg,transparent_360deg)] before:opacity-0 before:transition before:duration-150 group-hover:before:animate-[spin_0.9s_linear_infinite] group-hover:before:opacity-100 after:absolute after:inset-[1.5px] after:rounded-full after:bg-[rgba(14,14,16,0.86)] after:content-[''] [&>*]:relative [&>*]:z-10 [&>*]:text-white";
 
   return (
     <>
@@ -183,7 +183,7 @@ export default function AuthDialog({
                     </div>
                   </div>
 
-                  <div className="bg-white/6 p-8 backdrop-blur-2xl">
+                  <div className="bg-white/4 p-8 backdrop-blur-2xl">
                     <div className="relative flex rounded-full border border-white/10 bg-black/18 p-1 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur-xl">
                       <div
                         className={`pointer-events-none absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-full bg-white/12 shadow-[0_10px_30px_rgba(0,0,0,0.22)] transition-transform duration-300 ease-out ${
