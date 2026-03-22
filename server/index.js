@@ -21,20 +21,30 @@ const ALLOWED_ORIGINS = new Set([
   "http://127.0.0.1:5173",
   "http://127.0.0.1:5174",
 ]);
+const VERCEL_APP_ORIGIN_PATTERN = /^https:\/\/[a-z0-9-]+\.vercel\.app$/i;
 
 let cachedAppToken = null;
 let supabaseAdmin = null;
 
+function isAllowedOrigin(origin) {
+  if (!origin) {
+    return true;
+  }
+
+  return ALLOWED_ORIGINS.has(origin) || VERCEL_APP_ORIGIN_PATTERN.test(origin);
+}
+
 app.use(
   cors({
     origin(origin, callback) {
-      if (!origin || ALLOWED_ORIGINS.has(origin)) {
+      if (isAllowedOrigin(origin)) {
         callback(null, true);
         return;
       }
 
       callback(new Error("CORS_NOT_ALLOWED"));
     },
+    credentials: true,
   }),
 );
 
