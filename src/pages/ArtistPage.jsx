@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { ChevronDown, ChevronUp, Disc3, ExternalLink, Heart, MessageSquareText, Music4, Star, Trash2, Users } from "lucide-react";
+import { ChevronDown, ChevronUp, Disc3, ExternalLink, Flame, Gem, Heart, MessageSquareText, Music4, Star, Trash2, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
@@ -12,7 +12,7 @@ import Button from "../components/ui/Button";
 import { useAuth } from "../hooks/useAuth";
 import { useSpotifyAuth } from "../hooks/useSpotifyAuth";
 import { getMockArtist, getMockArtistAlbums } from "../services/catalog";
-import { DEFAULT_RATINGS_SUMMARY, getRatings, getUserRating, submitRating } from "../services/ratingHistory";
+import { DEFAULT_RATINGS_SUMMARY, getRankings, getRatings, getUserRating, submitRating } from "../services/ratingHistory";
 import { createReview, deleteReview, getReviews } from "../services/reviewHistory";
 import { formatTrackDuration, getArtistAlbums, getArtistById, getImageUrl, getLikedTracksByArtist } from "../services/spotify";
 
@@ -47,6 +47,41 @@ function formatReviewDate(value) {
   }).format(new Date(value));
 }
 
+const ARTIST_RANKING_LIMIT = 10;
+
+function getArtistRankingBadge(position) {
+  if (position === 1) {
+    return {
+      wrapperClass:
+        "border-cyan-200/60 bg-[linear-gradient(135deg,rgba(190,244,255,0.32),rgba(188,126,255,0.22),rgba(255,255,255,0.08))] shadow-[0_0_24px_rgba(163,230,255,0.28)]",
+      numberClass: "ranking-diamond-text",
+      iconClass: "text-cyan-100 drop-shadow-[0_0_10px_rgba(190,244,255,0.65)]",
+    };
+  }
+
+  if (position === 2) {
+    return {
+      wrapperClass: "border-slate-200/45 bg-[linear-gradient(135deg,rgba(226,232,240,0.24),rgba(148,163,184,0.16),rgba(255,255,255,0.06))]",
+      numberClass: "text-slate-100 drop-shadow-[0_0_10px_rgba(226,232,240,0.35)]",
+      iconClass: "text-slate-200",
+    };
+  }
+
+  if (position === 3) {
+    return {
+      wrapperClass: "border-amber-700/55 bg-[linear-gradient(135deg,rgba(180,83,9,0.28),rgba(217,119,6,0.18),rgba(255,255,255,0.05))]",
+      numberClass: "text-amber-300 drop-shadow-[0_0_10px_rgba(245,158,11,0.3)]",
+      iconClass: "text-amber-300",
+    };
+  }
+
+  return {
+    wrapperClass: "border-white/10 bg-black/30",
+    numberClass: "text-white",
+    iconClass: "text-orange-300",
+  };
+}
+
 export default function ArtistPage() {
   const { id } = useParams();
   const { isLoggedIn, user } = useAuth();
@@ -72,6 +107,7 @@ export default function ArtistPage() {
   const [reviewError, setReviewError] = useState("");
   const [deletingReviewId, setDeletingReviewId] = useState(null);
   const [releaseFilter, setReleaseFilter] = useState("all");
+  const [artistRankingPosition, setArtistRankingPosition] = useState(null);
   const canInteract = isLoggedIn || isSpotifyConnected;
   const currentUserId = user?.id ?? null;
 
@@ -173,6 +209,36 @@ export default function ArtistPage() {
       cancelled = true;
     };
   }, [artist]);
+
+  useEffect(() => {
+    if (!artist || isLocal) {
+      setArtistRankingPosition(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadArtistRanking() {
+      try {
+        const rankings = await getRankings("artist", ARTIST_RANKING_LIMIT);
+        const position = rankings.findIndex((entry) => String(entry.entity_id) === String(artist.id));
+
+        if (!cancelled) {
+          setArtistRankingPosition(position >= 0 ? position + 1 : null);
+        }
+      } catch {
+        if (!cancelled) {
+          setArtistRankingPosition(null);
+        }
+      }
+    }
+
+    loadArtistRanking();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [artist, isLocal]);
 
   useEffect(() => {
     if (!artist || !currentUserId) {
@@ -280,6 +346,7 @@ export default function ArtistPage() {
   const popularity = artist.popularity ?? 0;
   const filteredAlbums = albums.filter((album) => releaseFilter === "all" || getReleaseType(album) === releaseFilter);
   const likedSongsCount = likedTracks.length;
+  const rankingBadge = artistRankingPosition ? getArtistRankingBadge(artistRankingPosition) : null;
 
   async function handleRateArtist(nextRating) {
     if (!artist || !currentUserId || !spotifyToken) {
@@ -379,7 +446,7 @@ export default function ArtistPage() {
             <h1 className="text-5xl font-black leading-tight text-white md:text-7xl">{artist.name}</h1>
           </div>
 
-          <div className="flex gap-4 text-white/90">
+          <div className="flex flex-wrap gap-4 text-white/90">
             <div className="rounded-xl border border-white/10 bg-black/30 p-4 backdrop-blur-md">
               <Users className="mb-1 h-6 w-6 text-primary" />
               <span className="block text-xl font-bold">{(followers / 1e6).toFixed(1)}M</span>
@@ -390,6 +457,16 @@ export default function ArtistPage() {
               <span className="block text-xl font-bold">{popularity}</span>
               <span className="text-xs uppercase tracking-wider text-white/60">Popular.</span>
             </div>
+            {artistRankingPosition ? (
+              <div className={`rounded-xl border p-4 backdrop-blur-md ${rankingBadge.wrapperClass}`}>
+                <Flame className={`mb-1 h-6 w-6 ${rankingBadge.iconClass}`} />
+                <span className={`block text-xl font-black ${rankingBadge.numberClass}`}>#{artistRankingPosition}</span>
+                <span className="flex items-center gap-1 text-xs uppercase tracking-wider text-white/70">
+                  {artistRankingPosition === 1 ? <Gem className="h-3.5 w-3.5" /> : null}
+                  DBRanking
+                </span>
+              </div>
+            ) : null}
           </div>
         </div>
       </div>

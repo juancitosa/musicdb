@@ -5,6 +5,8 @@ import { Link } from "react-router-dom";
 import { getRankings } from "../services/ratingHistory";
 import { getAlbumById, getArtistById } from "../services/spotify";
 
+const RANKING_LIMIT = 10;
+
 const filters = [
   { key: "album", label: "Album", icon: Disc3 },
   { key: "artist", label: "Artista", icon: Mic2 },
@@ -56,7 +58,7 @@ function RankingSection({ filter }) {
       setError("");
 
       try {
-        const rankings = await getRankings(filter.key);
+        const rankings = await getRankings(filter.key, RANKING_LIMIT);
         const hydratedEntries = await Promise.all(
           rankings.map(async (ranking) => {
             const entity =
@@ -69,7 +71,7 @@ function RankingSection({ filter }) {
         );
 
         if (!cancelled) {
-          setEntries(hydratedEntries);
+          setEntries(hydratedEntries.slice(0, RANKING_LIMIT));
         }
       } catch {
         if (!cancelled) {
@@ -99,7 +101,7 @@ function RankingSection({ filter }) {
           </div>
           <div>
             <h2 className="text-2xl font-bold">{filter.label}</h2>
-            <p className="text-sm text-muted-foreground">Top 20 por promedio de usuarios</p>
+            <p className="text-sm text-muted-foreground">Top 10 por promedio de usuarios</p>
           </div>
         </div>
       </div>
@@ -144,7 +146,9 @@ function RankingSection({ filter }) {
               </div>
 
               <div className="shrink-0 text-right">
-                <p className="text-2xl font-black">{entry.average.toFixed(1)}</p>
+                <p className={`text-2xl font-black ${entry.average >= 10 ? "text-yellow-300 drop-shadow-[0_0_10px_rgba(255,215,90,0.5)]" : ""}`}>
+                  {entry.average.toFixed(1)}
+                </p>
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">/10 · {entry.count} ratings</p>
               </div>
             </Link>
@@ -174,7 +178,7 @@ export default function DBRankingPage() {
         </div>
 
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Ranking global basado en el promedio real de ratings de usuarios de MusicDB. Mostramos hasta 20 posiciones para artistas y albumes.
+          Ranking global basado en el promedio real de ratings de usuarios de MusicDB. Mostramos 10 posiciones para artistas y albumes.
         </p>
       </div>
 

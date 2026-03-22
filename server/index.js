@@ -394,7 +394,7 @@ async function getRatingsHistoryForUser(supabase, userId) {
   }));
 }
 
-async function getRankingsFallback(supabase, entityType) {
+async function getRankingsFallback(supabase, entityType, limit = 10) {
   const { data, error } = await supabase
     .from("ratings")
     .select("entity_id, rating_value")
@@ -436,17 +436,17 @@ async function getRankingsFallback(supabase, entityType) {
 
       return right.ratings_count - left.ratings_count;
     })
-    .slice(0, 20);
+    .slice(0, limit);
 }
 
-async function getRankingsSummary(supabase, entityType) {
+async function getRankingsSummary(supabase, entityType, limit = 10) {
   const { data, error } = await supabase
     .from("ratings")
     .select("entity_id, average_rating:rating_value.avg(), ratings_count:count()")
     .eq("entity_type", entityType);
 
   if (error && isAggregatesDisabledError(error)) {
-    return getRankingsFallback(supabase, entityType);
+    return getRankingsFallback(supabase, entityType, limit);
   }
 
   handleSupabaseError(error, "Failed to fetch rankings summary");
@@ -464,7 +464,7 @@ async function getRankingsSummary(supabase, entityType) {
 
       return right.ratings_count - left.ratings_count;
     })
-    .slice(0, 20);
+    .slice(0, limit);
 }
 
 async function getExistingReview(supabase, { userId, entityType, entityId }) {
@@ -1057,21 +1057,23 @@ app.get(
   }),
 );
 
-app.get(
-  "/api/rankings/:entity_type",
-  asyncRoute(async (req, res) => {
-    const entityType = normalizeEntityType(req.params.entity_type);
+  app.get(
+    "/api/rankings/:entity_type",
+    asyncRoute(async (req, res) => {
+      const entityType = normalizeEntityType(req.params.entity_type);
+      const requestedLimit = Number(req.query.limit);
+      const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(Math.trunc(requestedLimit), 1), 50) : 10;
 
-    if (!entityType) {
-      throw createHttpError(400, "INVALID_RANKING_QUERY", "entity_type must be artist or album");
-    }
+      if (!entityType) {
+        throw createHttpError(400, "INVALID_RANKING_QUERY", "entity_type must be artist or album");
+      }
 
-    const supabase = getSupabaseAdmin();
-    const rankings = await getRankingsSummary(supabase, entityType);
+      const supabase = getSupabaseAdmin();
+      const rankings = await getRankingsSummary(supabase, entityType, limit);
 
-    res.json(rankings);
-  }),
-);
+      res.json(rankings);
+    }),
+  );
 
 app.post(
   "/api/reviews",

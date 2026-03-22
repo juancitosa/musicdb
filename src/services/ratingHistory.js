@@ -116,11 +116,13 @@ export async function getMyRatings(spotify_token) {
     : [];
 }
 
-export async function getRankings(entity_type) {
+export async function getRankings(entity_type, limit = 10) {
   let response;
 
   try {
-    response = await fetch(`${import.meta.env.VITE_API_URL}/rankings/${encodeURIComponent(entity_type)}`);
+    response = await fetch(
+      `${import.meta.env.VITE_API_URL}/rankings/${encodeURIComponent(entity_type)}?limit=${encodeURIComponent(limit)}`,
+    );
   } catch {
     throw new Error("RATINGS_BACKEND_UNAVAILABLE");
   }

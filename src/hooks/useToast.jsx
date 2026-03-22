@@ -12,7 +12,7 @@ export function ToastProvider({ children }) {
       toast({ title, description, variant = "default", duration = 3200 }) {
         const id = crypto.randomUUID();
         const effectiveVariant = variant === "default" && title === "Spotify conectado" ? "spotify" : variant;
-        const effectiveDuration = title === "Spotify conectado" ? 3000 : duration;
+        const effectiveDuration = Math.min(duration ?? 3200, 3500);
 
         setToasts((currentToasts) => [...currentToasts, { id, title, description, variant: effectiveVariant, duration: effectiveDuration }]);
         window.setTimeout(() => {
