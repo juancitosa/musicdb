@@ -1,0 +1,211 @@
+BASE DE DATOS RECOMENDADA PARA MUSICDB
+
+OBJETIVO
+- Persistir usuarios reales
+- Guardar vinculacion con Spotify
+- Guardar ratings de artistas y albumes
+- Guardar reseñas reales
+- Guardar favoritos
+- Poder calcular rankings DBRanking por promedio de usuarios
+
+TABLAS MINIMAS
+
+1. users
+- id: uuid, primary key
+- email: varchar unique, nullable si solo entra con Spotify
+- username: varchar unique
+- password_hash: varchar, nullable si solo entra con Spotify
+- display_name: varchar
+- avatar_url: text
+- auth_provider: varchar
+  valores sugeridos: local, spotify, hybrid
+- is_verified: boolean default false
+- created_at: timestamp
+- updated_at: timestamp
+
+USO
+- usuario base de la app
+- soporta login local o Spotify
+
+2. spotify_accounts
+- id: uuid, primary key
+- user_id: uuid, foreign key -> users.id, unique
+- spotify_user_id: varchar unique
+- spotify_email: varchar
+- spotify_display_name: varchar
+- spotify_avatar_url: text
+- access_token: text
+- refresh_token: text
+- token_expires_at: timestamp
+- created_at: timestamp
+- updated_at: timestamp
+
+USO
+- vincular una cuenta local con Spotify
+- guardar refresh token y renovacion segura del access token
+- si no queres guardar access token fijo, al menos guardar refresh_token
+
+3. ratings
+- id: uuid, primary key
+- user_id: uuid, foreign key -> users.id
+- entity_type: varchar
+  valores: artist, album
+- entity_id: varchar
+  guardar el id real de Spotify
+- rating_value: numeric(4,2)
+  escala actual recomendada: 1 a 10
+- created_at: timestamp
+- updated_at: timestamp
+
+RESTRICCION IMPORTANTE
+- unique(user_id, entity_type, entity_id)
+
+USO
+- un usuario solo puede tener un rating por artista o album
+- sirve para calcular promedio de MusicDB
+
+4. reviews
+- id: uuid, primary key
+- user_id: uuid, foreign key -> users.id
+- entity_type: varchar
+  valores: artist, album
+- entity_id: varchar
+- review_text: text
+- rating_value: numeric(4,2)
+  opcional pero recomendado para congelar la nota usada al reseñar
+- created_at: timestamp
+- updated_at: timestamp
+
+USO
+- reseñas reales de usuarios
+- pueden convivir varias reseñas por entidad, una por usuario
+
+RESTRICCION RECOMENDADA
+- unique(user_id, entity_type, entity_id)
+  si queres solo una reseña por usuario para cada artista o album
+
+5. favorites
+- id: uuid, primary key
+- user_id: uuid, foreign key -> users.id
+- entity_type: varchar
+  valores: artist, album, track
+- entity_id: varchar
+- created_at: timestamp
+
+RESTRICCION IMPORTANTE
+- unique(user_id, entity_type, entity_id)
+
+USO
+- favoritos de la app
+
+TABLAS OPCIONALES PERO MUY UTILES
+
+6. entity_cache
+- id: uuid, primary key
+- entity_type: varchar
+  valores: artist, album, track
+- entity_id: varchar unique
+- source: varchar
+  valor sugerido: spotify
+- payload_json: jsonb
+- image_url: text
+- name: varchar
+- subtitle: varchar
+- popularity: integer
+- release_date: date, nullable
+- updated_at: timestamp
+
+USO
+- cachear datos de Spotify
+- evitar depender de Spotify en cada render
+- acelerar rankings y vistas
+
+7. user_sessions
+- id: uuid, primary key
+- user_id: uuid, foreign key -> users.id
+- refresh_token_hash: varchar
+- user_agent: text
+- ip_address: varchar
+- expires_at: timestamp
+- created_at: timestamp
+
+USO
+- manejo de sesiones reales de tu app
+
+CONSULTAS CLAVE QUE LA BASE DE DATOS DEBE SOPORTAR
+
+1. Promedio MusicDB de artistas
+- agrupar ratings donde entity_type = 'artist'
+- promedio de rating_value por entity_id
+
+2. Promedio MusicDB de albumes
+- agrupar ratings donde entity_type = 'album'
+- promedio de rating_value por entity_id
+
+3. DBRanking top 10 artistas
+- order by promedio desc, cantidad de ratings desc
+
+4. DBRanking top 10 albumes
+- order by promedio desc, cantidad de ratings desc
+
+5. Historial de ratings del usuario
+- filtrar ratings por user_id
+- opcionalmente por entity_type
+- búsqueda por nombre si usas entity_cache o joins
+
+6. Reseñas de artista o album
+- obtener reviews por entity_type + entity_id
+- order by created_at desc
+
+INDICES RECOMENDADOS
+
+- index ratings(entity_type, entity_id)
+- index ratings(user_id)
+- unique index ratings(user_id, entity_type, entity_id)
+- index reviews(entity_type, entity_id)
+- index reviews(user_id)
+- unique index reviews(user_id, entity_type, entity_id)
+- index favorites(user_id)
+- unique index favorites(user_id, entity_type, entity_id)
+- unique index spotify_accounts(user_id)
+- unique index spotify_accounts(spotify_user_id)
+- unique index entity_cache(entity_type, entity_id)
+
+REGLAS DE NEGOCIO RECOMENDADAS
+
+- artistas y albumes se puntuan de 1 a 10
+- un usuario no puede duplicar rating para la misma entidad
+- un usuario no puede duplicar favorito para la misma entidad
+- una reseña puede editarse, no hace falta duplicarla
+- DBRanking debe exigir minimo 2 o 3 ratings si queres evitar tops vacios o manipulables
+
+VERSION MINIMA SI QUERES EMPEZAR RAPIDO
+
+Crear solo:
+- users
+- spotify_accounts
+- ratings
+- reviews
+- favorites
+
+Si despues queres escalar:
+- sumar entity_cache
+- sumar user_sessions
+
+EJEMPLO DE TIPOS PARA POSTGRESQL
+
+- uuid
+- varchar
+- text
+- boolean
+- numeric(4,2)
+- timestamp with time zone
+- jsonb
+
+RECOMENDACION FINAL
+
+Si lo vas a implementar con backend Node + Express + Postgres:
+- usar PostgreSQL
+- Prisma o Drizzle como ORM
+- guardar Spotify refresh_token en backend
+- no guardar client_secret ni tokens sensibles en frontend
