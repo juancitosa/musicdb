@@ -53,7 +53,7 @@ const benefitCards = [
 ];
 
 const pricingPlans = [
-  { id: "1m", label: "1 Mes", price: 2500, months: 1, isRecommended: false },
+  { id: "1m", label: "1 Mes", price: 10, months: 1, isRecommended: false },
   { id: "3m", label: "3 Meses", price: 6500, months: 3, isRecommended: false },
   { id: "6m", label: "6 Meses", price: 12000, months: 6, isRecommended: true },
   { id: "12m", label: "12 Meses", price: 20000, months: 12, isRecommended: false },
