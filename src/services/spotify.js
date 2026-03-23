@@ -106,12 +106,12 @@ export function getCurrentUser(token) {
   return apiFetch("/me", { token });
 }
 
-export function getTopArtists(token, limit = 10) {
+export function getTopArtists(token, limit = 10, timeRange = "medium_term") {
   return apiFetch("/me/top-artists", {
     token,
     query: {
       limit,
-      time_range: "medium_term",
+      time_range: timeRange,
     },
   });
 }
@@ -273,8 +273,8 @@ export async function getFeaturedNewReleases(_token, maxPoolSize = 50) {
   return Array.from(uniqueAlbums.values()).sort(sortAlbumsByNewest).slice(0, limit);
 }
 
-export async function getTopAlbumsFromTopTracks(token, maxAlbums = 30, trackLimit = 50) {
-  const response = await getTopTracks(token, trackLimit);
+export async function getTopAlbumsFromTopTracks(token, maxAlbums = 30, trackLimit = 50, timeRange = "medium_term") {
+  const response = await getTopTracks(token, trackLimit, timeRange);
   const tracks = response.items ?? [];
   const albumMap = new Map();
 
