@@ -24,10 +24,10 @@ const MERCADO_PAGO_ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN || process.env.MER
 const PUBLIC_APP_URL = process.env.PUBLIC_APP_URL || "https://musicdb.online";
 const PUBLIC_API_URL = process.env.PUBLIC_API_URL || process.env.BACKEND_PUBLIC_URL || "https://musicdb-backend.onrender.com";
 const PRO_SUBSCRIPTION_PLANS = {
-  "1m": { price: 10, months: 1, title: "MusicDB PRO - 1 mes" },
-  "3m": { price: 6500, months: 3, title: "MusicDB PRO - 3 meses" },
-  "6m": { price: 12000, months: 6, title: "MusicDB PRO - 6 meses" },
-  "12m": { price: 20000, months: 12, title: "MusicDB PRO - 12 meses" },
+  "1m": { price: 3500, months: 1, title: "MusicDB PRO - 1 mes" },
+  "3m": { price: 9000, months: 3, title: "MusicDB PRO - 3 meses" },
+  "6m": { price: 15000, months: 6, title: "MusicDB PRO - 6 meses" },
+  "12m": { price: 24000, months: 12, title: "MusicDB PRO - 12 meses" },
 };
 const ALLOWED_ORIGINS = new Set([
   "http://localhost:5173",

@@ -105,6 +105,9 @@ export default function PricingModal({
                   <p className="text-sm font-semibold uppercase tracking-[0.22em] text-white/46">{plan.label}</p>
                   <h3 className="mt-3 text-3xl font-black text-white">{formatCurrency(plan.price)}</h3>
                   <p className="mt-2 text-sm text-white/64">{formatMonthlyEquivalent(plan.price, plan.months)} por mes</p>
+                  <p className="mt-2 text-xs font-semibold uppercase tracking-[0.18em] text-amber-200/88">
+                    {plan.discountLabel === "-" ? "Sin descuento" : plan.discountLabel}
+                  </p>
                 </div>
 
                 <div className="mt-6 space-y-3">
