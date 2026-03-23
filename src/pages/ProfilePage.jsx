@@ -269,7 +269,15 @@ function LocalProfileSettings({
 }) {
   if (isSpotifyUser) {
     return (
-      <section className="rounded-2xl border border-border bg-card p-6">
+      <section className="relative w-full max-w-2xl overflow-hidden rounded-[2rem] border border-white/14 bg-[linear-gradient(135deg,rgba(255,255,255,0.18),rgba(255,255,255,0.06))] p-6 pr-16 shadow-[0_30px_120px_rgba(0,0,0,0.4)] ring-1 ring-white/10 backdrop-blur-3xl sm:p-7 sm:pr-18">
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute top-5 right-5 inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-black/20 text-muted-foreground transition hover:bg-white/12 hover:text-foreground"
+          aria-label="Cerrar editor de perfil"
+        >
+          <X className="h-4 w-4" />
+        </button>
         <h2 className="text-xl font-bold">Datos de acceso</h2>
         <p className="mt-3 text-sm text-muted-foreground">
           Esta cuenta se autentica con Spotify, por eso no puede cambiar nombre de usuario, contrasena ni telefono desde MusicDB.
@@ -279,28 +287,29 @@ function LocalProfileSettings({
   }
 
   return (
-    <section className="w-full max-w-2xl rounded-[2rem] border border-white/14 bg-[linear-gradient(135deg,rgba(255,255,255,0.18),rgba(255,255,255,0.06))] p-6 shadow-[0_30px_120px_rgba(0,0,0,0.4)] ring-1 ring-white/10 backdrop-blur-3xl sm:p-7">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+    <section className="relative w-full max-w-2xl overflow-hidden rounded-[2rem] border border-white/14 bg-[linear-gradient(135deg,rgba(255,255,255,0.18),rgba(255,255,255,0.06))] p-5 shadow-[0_30px_120px_rgba(0,0,0,0.4)] ring-1 ring-white/10 backdrop-blur-3xl sm:p-7">
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute top-5 right-5 inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-black/20 text-muted-foreground transition hover:bg-white/12 hover:text-foreground"
+        aria-label="Cerrar editor de perfil"
+      >
+        <X className="h-4 w-4" />
+      </button>
+
+      <div className="pr-14">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-primary/80">Editar perfil</p>
-          <h2 className="mt-2 text-2xl font-black text-foreground">Datos de acceso</h2>
+          <h2 className="mt-2 text-2xl font-black text-foreground sm:text-[2rem]">Datos de acceso</h2>
           <p className="mt-2 text-sm text-muted-foreground">Puedes cambiar tu nombre de usuario, agregar o editar tu telefono y actualizar la contrasena.</p>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Solo cuenta local</span>
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/8 text-muted-foreground transition hover:bg-white/12 hover:text-foreground"
-            aria-label="Cerrar editor de perfil"
-          >
-            <X className="h-4 w-4" />
-          </button>
+        <div className="mt-4">
+          <span className="inline-flex rounded-full bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Solo cuenta local</span>
         </div>
       </div>
 
       <div className="mt-6 flex flex-col gap-4 rounded-[1.6rem] border border-white/10 bg-black/18 p-4 sm:flex-row sm:items-center">
-        <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-secondary/80">
+        <div className="mx-auto flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-secondary/80 sm:mx-0">
           {avatarUrl ? (
             <img src={avatarUrl} alt="Avatar del perfil" className="h-full w-full object-cover" />
           ) : (
@@ -309,11 +318,11 @@ function LocalProfileSettings({
         </div>
 
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-foreground">Foto de perfil</p>
-          <p className="mt-1 text-xs text-muted-foreground">Sube una imagen JPG o PNG. Se guarda en Supabase Storage y reemplaza la anterior.</p>
+          <p className="text-center text-sm font-semibold text-foreground sm:text-left">Foto de perfil</p>
+          <p className="mt-1 text-center text-xs leading-relaxed text-muted-foreground sm:text-left">Sube una imagen JPG o PNG. Se guarda en Supabase Storage y reemplaza la anterior.</p>
         </div>
 
-        <label className="inline-flex cursor-pointer items-center justify-center rounded-full border border-white/10 bg-white/10 px-4 py-2.5 text-sm font-semibold text-foreground transition hover:bg-white/16">
+        <label className="inline-flex w-full cursor-pointer items-center justify-center rounded-full border border-white/10 bg-white/10 px-4 py-2.5 text-sm font-semibold text-foreground transition hover:bg-white/16 sm:w-auto">
           {isUploadingAvatar ? (
             <span className="inline-flex items-center gap-2">
               <LoaderCircle className="h-4 w-4 animate-spin" />
@@ -367,11 +376,11 @@ function LocalProfileSettings({
 
         {saveError ? <p className="md:col-span-2 rounded-2xl border border-destructive/25 bg-destructive/8 px-4 py-3 text-sm text-destructive">{saveError}</p> : null}
 
-        <div className="md:col-span-2 flex flex-wrap justify-end gap-3">
-          <Button type="button" variant="ghost" size="lg" className="border border-white/10 bg-white/6 text-foreground hover:bg-white/10" onClick={onClose}>
+        <div className="md:col-span-2 flex flex-col-reverse gap-3 pt-1 sm:flex-row sm:justify-end">
+          <Button type="button" variant="ghost" size="lg" className="w-full border border-white/10 bg-white/6 text-foreground hover:bg-white/10 sm:w-auto" onClick={onClose}>
             Cancelar
           </Button>
-          <Button type="submit" size="lg" className="justify-center rounded-full px-6" disabled={isSaving}>
+          <Button type="submit" size="lg" className="w-full justify-center rounded-full px-6 sm:w-auto" disabled={isSaving}>
             {isSaving ? (
               <span className="inline-flex items-center gap-2">
                 <LoaderCircle className="h-4 w-4 animate-spin" />
@@ -1025,7 +1034,7 @@ export default function ProfilePage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[220] flex items-center justify-center bg-[rgba(3,4,10,0.42)] px-4 py-6 backdrop-blur-md"
+            className="fixed inset-0 z-[220] overflow-y-auto bg-[rgba(3,4,10,0.42)] px-3 py-3 backdrop-blur-md sm:px-4 sm:py-6"
             onClick={() => setIsEditProfileOpen(false)}
           >
             <motion.div
@@ -1033,21 +1042,23 @@ export default function ProfilePage() {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 16, scale: 0.98 }}
               transition={{ duration: 0.22, ease: "easeOut" }}
-              className="w-full max-w-2xl"
+              className="mx-auto flex min-h-full w-full max-w-2xl items-center"
               onClick={(event) => event.stopPropagation()}
             >
-              <LocalProfileSettings
-                avatarUrl={user?.avatar}
-                form={profileForm}
-                onAvatarChange={handleAvatarFileChange}
-                onChange={setProfileFormField}
-                onClose={() => setIsEditProfileOpen(false)}
-                onSubmit={handleSubmitProfile}
-                saveError={profileSaveError}
-                isUploadingAvatar={isUploadingAvatar}
-                isSaving={isSavingProfile}
-                isSpotifyUser={isSpotifyUser}
-              />
+              <div className="max-h-[calc(100vh-1.5rem)] w-full overflow-y-auto sm:max-h-[calc(100vh-3rem)]">
+                <LocalProfileSettings
+                  avatarUrl={user?.avatar}
+                  form={profileForm}
+                  onAvatarChange={handleAvatarFileChange}
+                  onChange={setProfileFormField}
+                  onClose={() => setIsEditProfileOpen(false)}
+                  onSubmit={handleSubmitProfile}
+                  saveError={profileSaveError}
+                  isUploadingAvatar={isUploadingAvatar}
+                  isSaving={isSavingProfile}
+                  isSpotifyUser={isSpotifyUser}
+                />
+              </div>
             </motion.div>
           </motion.div>
         ) : null}
