@@ -874,9 +874,9 @@ export default function ProfilePage() {
     });
   }
 
-  function handleAvatarFileChange(event) {
-    const file = event.target.files?.[0];
-    event.target.value = "";
+  function handleAvatarFileChange(e) {
+    const file = e.target.files[0];
+    e.target.value = "";
 
     if (!file || !user) {
       return;
@@ -887,13 +887,7 @@ export default function ProfilePage() {
       return;
     }
 
-    const fileExt = String(file.name || "")
-      .split(".")
-      .pop()
-      ?.trim()
-      .toLowerCase();
-
-    if (!["image/jpeg", "image/png"].includes(file.type) || !["jpg", "png"].includes(fileExt)) {
+    if (!file.type?.startsWith("image/")) {
       setProfileSaveError("Solo puedes subir imagenes JPG o PNG.");
       return;
     }

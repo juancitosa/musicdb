@@ -258,22 +258,21 @@ export async function updateSupabaseProfile(userId, payload) {
 
 export async function uploadProfileAvatar(userId, file) {
   const supabase = getSupabaseClient();
-  const allowedTypes = ["image/jpeg", "image/png"];
-  const fileExt = String(file?.name || "")
-    .split(".")
-    .pop()
-    ?.trim()
-    .toLowerCase();
+  if (!file) {
+    return null;
+  }
 
-  if (!allowedTypes.includes(file?.type) || !["jpg", "png"].includes(fileExt)) {
+  if (!file.type?.startsWith("image/")) {
     throw new Error("INVALID_AVATAR_TYPE");
   }
 
+  const fileExt = file.name.split(".").pop();
   const filePath = `${userId}/avatar.${fileExt}`;
   const { error: uploadError } = await supabase.storage
     .from("avatars")
     .upload(filePath, file, {
       upsert: true,
+      contentType: file.type,
     });
 
   if (uploadError) {
