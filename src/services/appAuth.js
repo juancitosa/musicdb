@@ -1,3 +1,5 @@
+import { getSupabaseClient } from "../lib/supabase";
+
 async function parseJsonResponse(response) {
   try {
     return await response.json();
@@ -28,6 +30,31 @@ async function postAuthRequest(path, payload) {
   }
 
   return data;
+}
+
+function mapSupabaseUser(user) {
+  if (!user) {
+    return null;
+  }
+
+  const username =
+    user.user_metadata?.username ??
+    user.user_metadata?.user_name ??
+    user.email?.split("@")[0] ??
+    "";
+
+  return {
+    id: user.id,
+    email: user.email ?? "",
+    username,
+    phone: user.phone ?? "",
+    display_name: user.user_metadata?.display_name ?? username ?? "MusicDB User",
+    auth_provider: "local",
+    avatar_url: user.user_metadata?.avatar_url ?? "",
+    is_verified: Boolean(user.email_confirmed_at),
+    verified_at: user.email_confirmed_at ?? null,
+    name: user.user_metadata?.display_name ?? username ?? "MusicDB User",
+  };
 }
 
 export async function fetchSpotifyProfile(accessToken) {
@@ -63,12 +90,42 @@ export function syncSpotifyUser(payload) {
   return postAuthRequest("/auth/spotify", payload);
 }
 
-export function registerLocalUser(payload) {
-  return postAuthRequest("/auth/register", payload);
+export async function registerLocalUser(payload) {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.auth.signUp({
+    email: payload.email,
+    password: payload.password,
+  });
+
+  if (error) {
+    throw new Error(error.message || "APP_AUTH_ERROR");
+  }
+
+  return data;
 }
 
-export function loginLocalUser(payload) {
-  return postAuthRequest("/auth/login", payload);
+export async function loginLocalUser(payload) {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: payload.email,
+    password: payload.password,
+  });
+
+  if (error) {
+    const message = (error.message || "").toLowerCase();
+    const code = (error.code || "").toLowerCase();
+
+    if (message.includes("email not confirmed") || code === "email_not_confirmed") {
+      throw new Error("EMAIL_NOT_VERIFIED");
+    }
+
+    throw new Error("LOCAL_LOGIN_INVALID");
+  }
+
+  return {
+    token: data.session?.access_token ?? null,
+    user: mapSupabaseUser(data.user),
+  };
 }
 
 export function resendVerificationEmail(payload) {

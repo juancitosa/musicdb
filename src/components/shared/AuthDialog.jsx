@@ -32,13 +32,15 @@ function mapAuthError(errorCode) {
     case "LOCAL_LOGIN_INVALID":
       return "Email o contrasena incorrectos.";
     case "EMAIL_NOT_VERIFIED":
-      return "Primero verifica tu email. Si no te llego el mail, puedes reenviarlo desde aqui.";
+      return "Revisá tu email para verificar tu cuenta";
     case "INVALID_EMAIL_VERIFICATION_RESEND_PAYLOAD":
       return "Necesitamos un email valido para reenviar la verificacion.";
     case "EMAIL_VERIFICATION_SCHEMA_MISSING":
       return "Falta configurar la base de datos para verificar emails.";
     case "APP_BACKEND_UNAVAILABLE":
       return "No pudimos conectar con el backend de la app.";
+    case "SUPABASE_CLIENT_CONFIG_MISSING":
+      return "Falta configurar Supabase en el frontend.";
     default:
       return "No pudimos completar la autenticacion. Intenta nuevamente.";
   }
@@ -152,22 +154,23 @@ export default function AuthDialog({
 
     try {
       if (mode === "register") {
-        const response = await registerLocalUser({
+        await registerLocalUser({
           email: form.email,
           username: form.username,
           password: form.password,
           phone: form.phone || undefined,
         });
 
-        setPendingVerificationEmail(form.email);
-        setMode("verify-pending");
+        setPendingVerificationEmail("");
+        setMode("login");
+        setForm((current) => ({
+          ...current,
+          password: "",
+        }));
 
         toast({
-          title: "Verifica tu email",
-          description:
-            response?.verification_delivery === "logged"
-              ? "Tu cuenta quedo creada. Como no hay SMTP configurado, el link de verificacion quedo expuesto solo en la respuesta del backend y en logs."
-              : "Te mandamos un link para activar la cuenta antes del primer login.",
+          title: "Registro completado",
+          description: "Revisá tu email para verificar tu cuenta",
           duration: 3500,
         });
 
