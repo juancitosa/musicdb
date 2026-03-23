@@ -212,7 +212,7 @@ function ThemeToggle() {
 }
 
 function UserActions() {
-  const { isLoggedIn, user, clearAuthenticatedUser, isSpotifyUser } = useAuth();
+  const { isLoggedIn, user, currentUser, isCurrentUserLoading, clearAuthenticatedUser, isSpotifyUser } = useAuth();
   const { isSpotifyConnected, spotifyToken, spotifyUser, connectSpotify, disconnectSpotify } = useSpotifyAuth();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -337,13 +337,20 @@ function UserActions() {
             >
               <button
                 type="button"
-                onClick={() => setShowProfileMenu((current) => !current)}
+                onClick={() => {
+                  if (isCurrentUserLoading) {
+                    return;
+                  }
+
+                  setShowProfileMenu((current) => !current);
+                }}
                 className={`relative flex items-center rounded-full border border-white/5 bg-zinc-900 py-1.5 pr-10 pl-3 text-sm font-medium text-foreground transition hover:bg-zinc-800 ${
                   activeTrack ? "min-w-[220px] border-white/10 bg-zinc-950/95" : ""
                 }`}
                 title={profileUser?.name ?? "Perfil"}
                 aria-haspopup="menu"
                 aria-expanded={showProfileMenu}
+                aria-busy={isCurrentUserLoading}
               >
                 <AnimatePresence mode="wait" initial={false}>
                   {showNowPlaying && activeTrack ? (
@@ -418,7 +425,7 @@ function UserActions() {
               </AnimatePresence>
             </div>
 
-            {showProfileMenu ? (
+            {showProfileMenu && !isCurrentUserLoading ? (
               <div className="absolute right-0 z-50 mt-2 w-56 overflow-hidden rounded-2xl border border-border bg-card p-2 shadow-2xl shadow-black/25">
                 <Link
                   to="/profile"
@@ -440,7 +447,7 @@ function UserActions() {
                     <p className="text-xs text-muted-foreground">Tus tops personales de Spotify</p>
                   </div>
                 </Link>
-                {user?.isAdmin ? (
+                {currentUser?.is_admin === true ? (
                   <Link
                     to="/admin"
                     className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm transition hover:bg-secondary"

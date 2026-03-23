@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
-import { fetchAuthenticatedUser, fetchLocalSupabaseUser, fetchSupabaseProfile } from "../services/appAuth";
+import { fetchAuthenticatedUser, fetchCurrentUserByEmail, fetchLocalSupabaseUser, fetchSupabaseProfile } from "../services/appAuth";
 
 const SESSION_KEY = "musicdb_app_session";
 
@@ -136,8 +136,10 @@ function persistSession(session) {
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
   const [appToken, setAppToken] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isCurrentUserLoading, setIsCurrentUserLoading] = useState(true);
 
   useEffect(() => {
     const session = normalizeSession(readStoredSession());
@@ -236,6 +238,46 @@ export function AuthProvider({ children }) {
     };
   }, [appToken, user]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function hydrateCurrentUser() {
+      if (!user?.email) {
+        if (!cancelled) {
+          setCurrentUser(null);
+          setIsCurrentUserLoading(false);
+        }
+        return;
+      }
+
+      if (!cancelled) {
+        setIsCurrentUserLoading(true);
+      }
+
+      try {
+        const nextCurrentUser = await fetchCurrentUserByEmail(user.email);
+
+        if (!cancelled) {
+          setCurrentUser(nextCurrentUser);
+        }
+      } catch {
+        if (!cancelled) {
+          setCurrentUser(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsCurrentUserLoading(false);
+        }
+      }
+    }
+
+    hydrateCurrentUser();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.email]);
+
   const setAuthenticatedSession = useCallback((session) => {
     const normalizedSession = normalizeSession(session);
     setUser(normalizedSession?.user ?? null);
@@ -266,15 +308,19 @@ export function AuthProvider({ children }) {
 
   const clearAuthenticatedUser = useCallback(() => {
     setUser(null);
+    setCurrentUser(null);
     setAppToken(null);
+    setIsCurrentUserLoading(false);
     persistSession(null);
   }, []);
 
   const value = useMemo(
     () => ({
       user,
+      currentUser,
       appToken,
       isLoading,
+      isCurrentUserLoading,
       isLoggedIn: Boolean(user),
       isSpotifyUser: user?.authProvider === "spotify",
       isLocalUser: user?.authProvider === "local",
@@ -282,7 +328,7 @@ export function AuthProvider({ children }) {
       setAuthenticatedUser,
       clearAuthenticatedUser,
     }),
-    [appToken, clearAuthenticatedUser, isLoading, setAuthenticatedSession, setAuthenticatedUser, user],
+    [appToken, clearAuthenticatedUser, currentUser, isCurrentUserLoading, isLoading, setAuthenticatedSession, setAuthenticatedUser, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

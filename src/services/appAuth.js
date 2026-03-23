@@ -220,6 +220,21 @@ export async function fetchSupabaseProfile(userId) {
   return data ?? null;
 }
 
+export async function fetchCurrentUserByEmail(email) {
+  if (!email) {
+    return null;
+  }
+
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.from("users").select("*").eq("email", email).single();
+
+  if (error) {
+    throw new Error(error.message || "APP_AUTH_ERROR");
+  }
+
+  return data ?? null;
+}
+
 export async function updateSupabaseProfile(userId, payload) {
   const supabase = getSupabaseClient();
   const updatePayload = {
