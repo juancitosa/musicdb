@@ -259,9 +259,11 @@ function LocalProfileSettings({
   avatarUrl,
   form,
   onAvatarChange,
+  onAvatarUpload,
   onChange,
   onClose,
   onSubmit,
+  pendingAvatarName,
   saveError,
   isUploadingAvatar,
   isSaving,
@@ -319,20 +321,31 @@ function LocalProfileSettings({
 
         <div className="min-w-0 flex-1">
           <p className="text-center text-sm font-semibold text-foreground sm:text-left">Foto de perfil</p>
-          <p className="mt-1 text-center text-xs leading-relaxed text-muted-foreground sm:text-left">Sube una imagen JPG o PNG. Se guarda en Supabase Storage y reemplaza la anterior.</p>
+          <p className="mt-1 text-center text-xs leading-relaxed text-muted-foreground sm:text-left">Sube una imagen JPG o PNG. Primero veras la preview y despues podras guardarla en Supabase Storage.</p>
+          {pendingAvatarName ? <p className="mt-2 text-center text-xs font-medium text-primary sm:text-left">Preview lista: {pendingAvatarName}</p> : null}
         </div>
 
         <label className="inline-flex w-full cursor-pointer items-center justify-center rounded-full border border-white/10 bg-white/10 px-4 py-2.5 text-sm font-semibold text-foreground transition hover:bg-white/16 sm:w-auto">
+          Elegir foto
+          <input type="file" accept="image/png,image/jpeg" className="hidden" onChange={onAvatarChange} disabled={isUploadingAvatar} />
+        </label>
+
+        <Button
+          type="button"
+          size="lg"
+          onClick={onAvatarUpload}
+          className="w-full justify-center rounded-full px-5 sm:w-auto"
+          disabled={!pendingAvatarName || isUploadingAvatar}
+        >
           {isUploadingAvatar ? (
             <span className="inline-flex items-center gap-2">
               <LoaderCircle className="h-4 w-4 animate-spin" />
               Subiendo...
             </span>
           ) : (
-            "Cambiar foto"
+            "Guardar foto"
           )}
-          <input type="file" accept="image/png,image/jpeg" className="hidden" onChange={onAvatarChange} disabled={isUploadingAvatar} />
-        </label>
+        </Button>
       </div>
 
       <form onSubmit={onSubmit} className="mt-6 grid gap-4 md:grid-cols-2">
@@ -657,7 +670,17 @@ export default function ProfilePage() {
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
   const [profileSaveError, setProfileSaveError] = useState("");
+  const [pendingAvatarFile, setPendingAvatarFile] = useState(null);
+  const [pendingAvatarPreview, setPendingAvatarPreview] = useState("");
   const proUntilLabel = user?.isPro ? formatProUntil(user?.proUntil) : "";
+
+  useEffect(() => {
+    return () => {
+      if (pendingAvatarPreview) {
+        URL.revokeObjectURL(pendingAvatarPreview);
+      }
+    };
+  }, [pendingAvatarPreview]);
 
   useEffect(() => {
     setProfileForm((current) => ({
@@ -840,7 +863,18 @@ export default function ProfilePage() {
     }));
   }
 
-  async function handleAvatarFileChange(event) {
+  function clearPendingAvatarSelection() {
+    setPendingAvatarFile(null);
+    setPendingAvatarPreview((current) => {
+      if (current) {
+        URL.revokeObjectURL(current);
+      }
+
+      return "";
+    });
+  }
+
+  function handleAvatarFileChange(event) {
     const file = event.target.files?.[0];
     event.target.value = "";
 
@@ -853,8 +887,30 @@ export default function ProfilePage() {
       return;
     }
 
-    if (!["image/jpeg", "image/png"].includes(file.type)) {
+    const fileExt = String(file.name || "")
+      .split(".")
+      .pop()
+      ?.trim()
+      .toLowerCase();
+
+    if (!["image/jpeg", "image/png"].includes(file.type) || !["jpg", "png"].includes(fileExt)) {
       setProfileSaveError("Solo puedes subir imagenes JPG o PNG.");
+      return;
+    }
+
+    setProfileSaveError("");
+    setPendingAvatarPreview((current) => {
+      if (current) {
+        URL.revokeObjectURL(current);
+      }
+
+      return URL.createObjectURL(file);
+    });
+    setPendingAvatarFile(file);
+  }
+
+  async function handleAvatarUpload() {
+    if (!pendingAvatarFile || !user) {
       return;
     }
 
@@ -862,7 +918,7 @@ export default function ProfilePage() {
     setProfileSaveError("");
 
     try {
-      const response = await uploadProfileAvatar(user.id, file);
+      const response = await uploadProfileAvatar(user.id, pendingAvatarFile);
       const nextAvatar = response?.profile?.avatar_url ?? response?.publicUrl ?? "";
 
       setAuthenticatedUser({
@@ -870,6 +926,7 @@ export default function ProfilePage() {
         avatar_url: nextAvatar,
         avatar: nextAvatar,
       });
+      clearPendingAvatarSelection();
 
       toast({
         title: "Foto actualizada",
@@ -950,6 +1007,7 @@ export default function ProfilePage() {
           ? "Guardamos tu usuario, telefono y nueva contrasena."
           : "Tus datos de perfil ya fueron actualizados.",
       });
+      clearPendingAvatarSelection();
       setIsEditProfileOpen(false);
     } catch (error) {
       setProfileSaveError(mapProfileUpdateError(error?.message));
@@ -1047,12 +1105,17 @@ export default function ProfilePage() {
             >
               <div className="max-h-[calc(100vh-1.5rem)] w-full overflow-y-auto sm:max-h-[calc(100vh-3rem)]">
                 <LocalProfileSettings
-                  avatarUrl={user?.avatar}
+                  avatarUrl={pendingAvatarPreview || user?.avatar}
                   form={profileForm}
                   onAvatarChange={handleAvatarFileChange}
+                  onAvatarUpload={handleAvatarUpload}
                   onChange={setProfileFormField}
-                  onClose={() => setIsEditProfileOpen(false)}
+                  onClose={() => {
+                    clearPendingAvatarSelection();
+                    setIsEditProfileOpen(false);
+                  }}
                   onSubmit={handleSubmitProfile}
+                  pendingAvatarName={pendingAvatarFile?.name ?? ""}
                   saveError={profileSaveError}
                   isUploadingAvatar={isUploadingAvatar}
                   isSaving={isSavingProfile}

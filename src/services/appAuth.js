@@ -264,19 +264,16 @@ export async function uploadProfileAvatar(userId, file) {
     .pop()
     ?.trim()
     .toLowerCase();
-  const normalizedExt = fileExt === "jpeg" ? "jpg" : fileExt;
-  const allowedExtensions = ["jpg", "png"];
 
-  if (!allowedTypes.includes(file?.type) || !allowedExtensions.includes(normalizedExt)) {
+  if (!allowedTypes.includes(file?.type) || !["jpg", "png"].includes(fileExt)) {
     throw new Error("INVALID_AVATAR_TYPE");
   }
 
-  const filePath = `${userId}/avatar.${normalizedExt}`;
+  const filePath = `${userId}/avatar.${fileExt}`;
   const { error: uploadError } = await supabase.storage
     .from("avatars")
     .upload(filePath, file, {
       upsert: true,
-      contentType: file.type,
     });
 
   if (uploadError) {
