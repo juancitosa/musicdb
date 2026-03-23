@@ -640,7 +640,7 @@ async function sendVerificationEmail({ email, username, token, expiresAt }) {
   try {
     console.log("Enviando email...");
     const resendResult = await resend.emails.send({
-      from: "MusicDB <onboarding@resend.dev>",
+      from: "MusicDB [onboarding@resend.dev](mailto:onboarding@resend.dev)",
       to: email,
       subject: "Verificá tu cuenta",
       html: `<p>Hola ${username || "MusicDB User"},</p>
