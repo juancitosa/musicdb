@@ -240,6 +240,54 @@ function UsersTable({ users, openUserId, onToggleUser, onViewProfile, onViewRank
   );
 }
 
+function DeleteUserModal({ user, isDeleting, onCancel, onConfirm }) {
+  if (!user) {
+    return null;
+  }
+
+  return (
+    <div className="fixed inset-0 z-[240] flex items-center justify-center bg-black/45 px-4 backdrop-blur-md">
+      <div className="w-full max-w-md rounded-[2rem] border border-white/12 bg-[linear-gradient(135deg,rgba(255,255,255,0.16),rgba(255,255,255,0.06))] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.45)] ring-1 ring-white/10 backdrop-blur-2xl">
+        <div className="inline-flex items-center gap-2 rounded-full border border-red-500/20 bg-red-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-red-200">
+          <Trash2 className="h-3.5 w-3.5" />
+          Confirmar eliminacion
+        </div>
+        <h2 className="mt-4 text-2xl font-black text-foreground">Eliminar usuario</h2>
+        <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+          Vas a eliminar a <span className="font-semibold text-foreground">{user.username || user.email || "este usuario"}</span> de la tabla `users`.
+          Esta accion no se puede deshacer.
+        </p>
+
+        <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={isDeleting}
+            className="rounded-full border border-white/10 bg-white/6 px-5 py-2.5 text-sm font-medium text-foreground transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={isDeleting}
+            className="rounded-full border border-red-500/80 bg-red-500/10 px-5 py-2.5 text-sm font-semibold text-red-100 shadow-[0_0_28px_rgba(239,68,68,0.45)] transition hover:bg-red-500/16 hover:shadow-[0_0_36px_rgba(239,68,68,0.62)] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isDeleting ? (
+              <span className="inline-flex items-center gap-2">
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+                Eliminando...
+              </span>
+            ) : (
+              "Eliminar"
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminPanel() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -265,6 +313,7 @@ export default function AdminPanel() {
   const [error, setError] = useState("");
   const [openUserId, setOpenUserId] = useState(null);
   const [isDeletingUserId, setIsDeletingUserId] = useState(null);
+  const [pendingDeleteUser, setPendingDeleteUser] = useState(null);
 
   useEffect(() => {
     if (isCurrentUserLoading) {
@@ -372,25 +421,28 @@ export default function AdminPanel() {
     setOpenUserId(null);
   }
 
-  async function handleDeleteUser(user) {
-    const confirmed = window.confirm(`Vas a eliminar a ${user.username || user.email || "este usuario"} de la tabla users. Esta accion no se puede deshacer.`);
+  function handleDeleteRequest(user) {
+    setPendingDeleteUser(user);
+  }
 
-    if (!confirmed) {
+  async function confirmDeleteUser() {
+    if (!pendingDeleteUser) {
       return;
     }
 
-    setIsDeletingUserId(user.id);
+    setIsDeletingUserId(pendingDeleteUser.id);
 
     try {
       const supabase = getSupabaseClient();
-      const { error: deleteError } = await supabase.from("users").delete().eq("id", user.id);
+      const { error: deleteError } = await supabase.from("users").delete().eq("id", pendingDeleteUser.id);
 
       if (deleteError) {
         throw deleteError;
       }
 
-      setUsers((current) => current.filter((entry) => entry.id !== user.id));
-      setOpenUserId((current) => (current === user.id ? null : current));
+      setUsers((current) => current.filter((entry) => entry.id !== pendingDeleteUser.id));
+      setOpenUserId((current) => (current === pendingDeleteUser.id ? null : current));
+      setPendingDeleteUser(null);
       toast({
         title: "Usuario eliminado",
         description: "El usuario ya no aparece en el panel.",
@@ -474,12 +526,25 @@ export default function AdminPanel() {
               onToggleUser={(userId) => setOpenUserId((current) => (current === userId ? null : userId))}
               onViewProfile={(userId) => navigate(`/admin/users/${userId}/profile`)}
               onViewRankings={(userId) => navigate(`/admin/users/${userId}/rankings`)}
-              onDeleteUser={handleDeleteUser}
+              onDeleteUser={handleDeleteRequest}
               isDeletingUserId={isDeletingUserId}
             />
           )}
         </div>
       </section>
+
+      <DeleteUserModal
+        user={pendingDeleteUser}
+        isDeleting={isDeletingUserId === pendingDeleteUser?.id}
+        onCancel={() => {
+          if (isDeletingUserId) {
+            return;
+          }
+
+          setPendingDeleteUser(null);
+        }}
+        onConfirm={confirmDeleteUser}
+      />
     </div>
   );
 }
