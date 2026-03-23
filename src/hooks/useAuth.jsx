@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
-import { fetchAuthenticatedUser } from "../services/appAuth";
+import { fetchAuthenticatedUser, fetchSupabaseProfile } from "../services/appAuth";
 
 const SESSION_KEY = "musicdb_app_session";
 
@@ -34,6 +34,28 @@ function normalizeUser(user) {
     isPro: Boolean(user.is_pro ?? user.isPro),
     proUntil: user.pro_until ?? user.proUntil ?? null,
   };
+}
+
+function mergeProfileIntoUser(user, profile) {
+  if (!user || !profile) {
+    return user;
+  }
+
+  const username = profile.username ?? user.username ?? "";
+  const phone = profile.phone ?? user.phone ?? "";
+  const avatar = profile.avatar_url ?? user.avatar ?? "";
+  const displayName = username || user.displayName || user.name || "MusicDB User";
+
+  return normalizeUser({
+    ...user,
+    username,
+    phone,
+    avatar_url: avatar,
+    avatar,
+    display_name: displayName,
+    displayName,
+    name: displayName,
+  });
 }
 
 function normalizeSession(session) {
@@ -106,7 +128,13 @@ export function AuthProvider({ children }) {
         const backendUser = await fetchAuthenticatedUser(session.token);
 
         if (!cancelled && backendUser) {
-          const normalizedUser = normalizeUser(backendUser);
+          let normalizedUser = normalizeUser(backendUser);
+
+          if (normalizedUser?.authProvider === "local" && normalizedUser?.id) {
+            const profile = await fetchSupabaseProfile(normalizedUser.id).catch(() => null);
+            normalizedUser = mergeProfileIntoUser(normalizedUser, profile);
+          }
+
           setUser(normalizedUser);
           persistSession({
             token: session.token,
@@ -130,6 +158,49 @@ export function AuthProvider({ children }) {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function hydrateLocalProfile() {
+      if (!appToken || user?.authProvider !== "local" || !user?.id) {
+        return;
+      }
+
+      try {
+        const profile = await fetchSupabaseProfile(user.id);
+
+        if (cancelled || !profile) {
+          return;
+        }
+
+        const mergedUser = mergeProfileIntoUser(user, profile);
+
+        if (
+          mergedUser?.username === user.username &&
+          mergedUser?.phone === user.phone &&
+          mergedUser?.avatar === user.avatar &&
+          mergedUser?.displayName === user.displayName
+        ) {
+          return;
+        }
+
+        setUser(mergedUser);
+        persistSession({
+          token: appToken,
+          user: mergedUser,
+        });
+      } catch {
+        // Keep current session state if profiles cannot be read.
+      }
+    }
+
+    hydrateLocalProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [appToken, user]);
 
   const setAuthenticatedSession = useCallback((session) => {
     const normalizedSession = normalizeSession(session);

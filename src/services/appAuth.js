@@ -37,23 +37,19 @@ function mapSupabaseUser(user) {
     return null;
   }
 
-  const username =
-    user.user_metadata?.username ??
-    user.user_metadata?.user_name ??
-    user.email?.split("@")[0] ??
-    "";
+  const fallbackUsername = user.email?.split("@")[0] ?? "";
 
   return {
     id: user.id,
     email: user.email ?? "",
-    username,
+    username: "",
     phone: user.phone ?? "",
-    display_name: user.user_metadata?.display_name ?? username ?? "MusicDB User",
+    display_name: fallbackUsername || "MusicDB User",
     auth_provider: "local",
     avatar_url: user.user_metadata?.avatar_url ?? "",
     is_verified: Boolean(user.email_confirmed_at),
     verified_at: user.email_confirmed_at ?? null,
-    name: user.user_metadata?.display_name ?? username ?? "MusicDB User",
+    name: fallbackUsername || "MusicDB User",
   };
 }
 
@@ -122,9 +118,21 @@ export async function loginLocalUser(payload) {
     throw new Error("LOCAL_LOGIN_INVALID");
   }
 
+  const authUser = mapSupabaseUser(data.user);
+  const profile = authUser?.id ? await fetchSupabaseProfile(authUser.id).catch(() => null) : null;
+  const resolvedUsername = profile?.username ?? authUser?.username ?? "";
+  const resolvedAvatar = profile?.avatar_url ?? authUser?.avatar_url ?? "";
+
   return {
     token: data.session?.access_token ?? null,
-    user: mapSupabaseUser(data.user),
+    user: {
+      ...authUser,
+      username: resolvedUsername,
+      phone: profile?.phone ?? authUser?.phone ?? "",
+      avatar_url: resolvedAvatar,
+      display_name: resolvedUsername || authUser?.display_name || "MusicDB User",
+      name: resolvedUsername || authUser?.name || "MusicDB User",
+    },
   };
 }
 
