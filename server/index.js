@@ -1,4 +1,4 @@
-import cors from "cors";
+﻿import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
 import bcrypt from "bcryptjs";
@@ -655,7 +655,7 @@ async function sendVerificationEmail({ email, username, token, expiresAt }) {
     const resendResult = await resend.emails.send({
       from: "[onboarding@resend.dev](mailto:onboarding@resend.dev)",
       to: email,
-      subject: "Verific� tu cuenta",
+      subject: "Verifica tu cuenta",
       html: `<a href="${verificationLink}">Verificar cuenta</a>`,
     });
     console.log("Email enviado");
@@ -906,6 +906,30 @@ async function resolveAuthenticatedUserFromToken(token) {
 
     return { userId, provider: "app" };
   } catch (jwtError) {
+    try {
+      const supabase = getSupabaseAdmin();
+      const {
+        data: { user: supabaseUser } = {},
+        error: supabaseAuthError,
+      } = await supabase.auth.getUser(token);
+
+      if (supabaseAuthError) {
+        throw supabaseAuthError;
+      }
+
+      const email = normalizeEmail(supabaseUser?.email);
+
+      if (email) {
+        const localUser = await getUserByEmail(supabase, email);
+
+        if (localUser?.id) {
+          return { userId: localUser.id, provider: "local" };
+        }
+      }
+    } catch (supabaseError) {
+      // Ignore and continue with Spotify fallback below.
+    }
+
     try {
       const spotifyProfile = await spotifyRequest("/me", { token });
       const spotifyUserId = normalizeEntityId(spotifyProfile?.id);
@@ -1205,7 +1229,7 @@ async function enforceDailyUsageLimit(supabase, user, type, options = {}) {
       throw createHttpError(
         429,
         "DAILY_REVIEW_LIMIT_REACHED",
-        "Alcanzaste el límite de 10 reseñas en 24 horas. Vuelve a intentarlo más tarde o hazte PRO.",
+        "Alcanzaste el limite de 10 resenas en 24 horas. Vuelve a intentarlo mas tarde o hazte PRO.",
       );
     }
 
@@ -1223,7 +1247,7 @@ async function enforceDailyUsageLimit(supabase, user, type, options = {}) {
       throw createHttpError(
         429,
         "DAILY_RATING_LIMIT_REACHED",
-        "Alcanzaste el límite de 10 puntuaciones en 24 horas. Vuelve a intentarlo más tarde o hazte PRO.",
+        "Alcanzaste el limite de 10 puntuaciones en 24 horas. Vuelve a intentarlo mas tarde o hazte PRO.",
       );
     }
   }
@@ -2791,4 +2815,6 @@ app.use((error, _req, res, _next) => {
 app.listen(PORT, () => {
   console.log(`Spotify backend listening on http://localhost:${PORT}`);
 });
+
+
 

@@ -1,5 +1,5 @@
-﻿import { AnimatePresence, motion } from "framer-motion";
-import { AudioLines, Disc3, Flame, Search, Star, UserRound, X } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { AudioLines, Disc3, Flame, LoaderCircle, Search, Star, UserRound, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate, NavLink, useLocation, useNavigate } from "react-router-dom";
 
@@ -7,7 +7,9 @@ import SectionHeader from "../components/shared/SectionHeader";
 import Button from "../components/ui/Button";
 import { useAuth } from "../hooks/useAuth";
 import { useSpotifyAuth } from "../hooks/useSpotifyAuth";
+import { useToast } from "../hooks/useToast";
 import { getMockAlbum, getMockArtist } from "../services/catalog";
+import { fetchSupabaseProfile, updateAuthenticatedPassword, updateSupabaseProfile } from "../services/appAuth";
 import { getMyRatings } from "../services/ratingHistory";
 import {
   formatTrackDuration,
@@ -244,6 +246,102 @@ function ProfileSectionTabs() {
   );
 }
 
+function mapProfileUpdateError(errorCode) {
+  switch (errorCode) {
+    case "USERNAME_ALREADY_EXISTS":
+      return "Ese nombre de usuario ya esta en uso.";
+    default:
+      return "No pudimos guardar los cambios del perfil.";
+  }
+}
+
+function LocalProfileSettings({
+  form,
+  onChange,
+  onSubmit,
+  saveError,
+  isSaving,
+  isSpotifyUser,
+}) {
+  if (isSpotifyUser) {
+    return (
+      <section className="rounded-2xl border border-border bg-card p-6">
+        <h2 className="text-xl font-bold">Datos de acceso</h2>
+        <p className="mt-3 text-sm text-muted-foreground">
+          Esta cuenta se autentica con Spotify, por eso no puede cambiar nombre de usuario, contrasena ni telefono desde MusicDB.
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="rounded-2xl border border-border bg-card p-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-bold">Datos de acceso</h2>
+          <p className="mt-2 text-sm text-muted-foreground">Puedes cambiar tu nombre de usuario, agregar o editar tu telefono y actualizar la contrasena.</p>
+        </div>
+        <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Solo cuenta local</span>
+      </div>
+
+      <form onSubmit={onSubmit} className="mt-6 grid gap-4 md:grid-cols-2">
+        <div>
+          <label className="mb-2 block text-sm font-medium text-foreground">Nombre de usuario</label>
+          <input
+            type="text"
+            value={form.username}
+            onChange={(event) => onChange("username", event.target.value)}
+            autoComplete="username"
+            className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none transition focus:border-primary"
+            placeholder="Tu nombre en MusicDB"
+            required
+          />
+        </div>
+
+        <div>
+          <label className="mb-2 block text-sm font-medium text-foreground">Telefono</label>
+          <input
+            type="tel"
+            value={form.phone}
+            onChange={(event) => onChange("phone", event.target.value)}
+            autoComplete="tel"
+            className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none transition focus:border-primary"
+            placeholder="+54 11 1234 5678"
+          />
+        </div>
+
+        <div className="md:col-span-2">
+          <label className="mb-2 block text-sm font-medium text-foreground">Nueva contrasena</label>
+          <input
+            type="password"
+            value={form.password}
+            onChange={(event) => onChange("password", event.target.value)}
+            autoComplete="new-password"
+            className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none transition focus:border-primary"
+            placeholder="Deja este campo vacio si no quieres cambiarla"
+          />
+          <p className="mt-2 text-xs text-muted-foreground">Si escribes una nueva contrasena, debe tener al menos 6 caracteres.</p>
+        </div>
+
+        {saveError ? <p className="md:col-span-2 rounded-2xl border border-destructive/25 bg-destructive/8 px-4 py-3 text-sm text-destructive">{saveError}</p> : null}
+
+        <div className="md:col-span-2">
+          <Button type="submit" size="lg" className="w-full justify-center sm:w-auto" disabled={isSaving}>
+            {isSaving ? (
+              <span className="inline-flex items-center gap-2">
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+                Guardando cambios...
+              </span>
+            ) : (
+              "Guardar cambios"
+            )}
+          </Button>
+        </div>
+      </form>
+    </section>
+  );
+}
+
 function ProfileOverview({
   filteredEntries,
   hasSpotifyFeatures,
@@ -251,14 +349,20 @@ function ProfileOverview({
   historyError,
   historyFilter,
   isLoadingHistory,
+  isSavingProfile,
+  isSpotifyUser,
   proUntilLabel,
+  profileForm,
+  profileSaveError,
   searchOpen,
   searchTerm,
   setHistoryFilter,
+  setProfileFormField,
   setSearchOpen,
   setSearchTerm,
   spotifyUser,
   user,
+  onSubmitProfile,
 }) {
   return (
     <>
@@ -344,6 +448,17 @@ function ProfileOverview({
             ))}
           </div>
         </section>
+      </div>
+
+      <div className="mb-6">
+        <LocalProfileSettings
+          form={profileForm}
+          onChange={setProfileFormField}
+          onSubmit={onSubmitProfile}
+          saveError={profileSaveError}
+          isSaving={isSavingProfile}
+          isSpotifyUser={isSpotifyUser}
+        />
       </div>
 
       <section className="rounded-3xl border border-border bg-card p-6 shadow-lg shadow-black/5">
@@ -476,9 +591,10 @@ function ProfileStats({
 }
 
 export default function ProfilePage() {
-  const { isLoggedIn, user, appToken, isSpotifyUser } = useAuth();
+  const { isLoggedIn, user, appToken, isSpotifyUser, setAuthenticatedUser } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const { toast } = useToast();
   const { isSpotifyConnected, isLoadingSpotify, spotifyToken, spotifyUser } = useSpotifyAuth();
   const profileUser = spotifyUser ?? user;
   const hasSpotifyFeatures = isSpotifyUser && isSpotifyConnected;
@@ -495,7 +611,62 @@ export default function ProfilePage() {
   const [spotifyTopTracks, setSpotifyTopTracks] = useState([]);
   const [statsRange, setStatsRange] = useState("medium_term");
   const [isLoadingSpotifyStats, setIsLoadingSpotifyStats] = useState(false);
+  const [profileForm, setProfileForm] = useState({
+    username: user?.username ?? "",
+    phone: user?.phone ?? "",
+    password: "",
+  });
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [profileSaveError, setProfileSaveError] = useState("");
   const proUntilLabel = user?.isPro ? formatProUntil(user?.proUntil) : "";
+
+  useEffect(() => {
+    setProfileForm((current) => ({
+      username: user?.username ?? current.username ?? "",
+      phone: user?.phone ?? "",
+      password: "",
+    }));
+  }, [user?.phone, user?.username]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSupabaseProfile() {
+      if (!user?.id || isSpotifyUser) {
+        return;
+      }
+
+      try {
+        const profile = await fetchSupabaseProfile(user.id);
+
+        if (cancelled || !profile) {
+          return;
+        }
+
+        const nextUsername = profile.username ?? user.username ?? "";
+        const nextPhone = profile.phone ?? "";
+
+        setAuthenticatedUser({
+          ...user,
+          username: nextUsername,
+          phone: nextPhone,
+          display_name: nextUsername,
+          displayName: nextUsername,
+          name: nextUsername,
+        });
+      } catch {
+        if (!cancelled) {
+          setProfileSaveError("No pudimos cargar tu perfil desde Supabase.");
+        }
+      }
+    }
+
+    loadSupabaseProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isSpotifyUser, setAuthenticatedUser, user]);
 
   useEffect(() => {
     let cancelled = false;
@@ -603,6 +774,82 @@ export default function ProfilePage() {
     });
   }, [historyEntries, historyFilter, searchTerm]);
 
+  function setProfileFormField(field, value) {
+    setProfileForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  }
+
+  async function handleSubmitProfile(event) {
+    event.preventDefault();
+
+    if (!user) {
+      return;
+    }
+
+    if (isSpotifyUser) {
+      setProfileSaveError("Las cuentas iniciadas con Spotify no pueden editar estos datos.");
+      return;
+    }
+
+    setIsSavingProfile(true);
+    setProfileSaveError("");
+
+    const trimmedUsername = profileForm.username.trim();
+    const trimmedPhone = profileForm.phone.trim();
+    const trimmedPassword = profileForm.password.trim();
+
+    if (!trimmedUsername) {
+      setProfileSaveError("El nombre de usuario no puede quedar vacio.");
+      setIsSavingProfile(false);
+      return;
+    }
+
+    if (trimmedPassword && trimmedPassword.length < 6) {
+      setProfileSaveError("La contrasena nueva debe tener al menos 6 caracteres.");
+      setIsSavingProfile(false);
+      return;
+    }
+
+    try {
+      const profile = await updateSupabaseProfile(user.id, {
+        username: trimmedUsername,
+        phone: trimmedPhone,
+      });
+
+      if (trimmedPassword) {
+        await updateAuthenticatedPassword(trimmedPassword);
+      }
+
+      setAuthenticatedUser({
+        ...user,
+        username: profile?.username ?? trimmedUsername,
+        phone: profile?.phone ?? trimmedPhone,
+        display_name: profile?.username ?? trimmedUsername,
+        displayName: profile?.username ?? trimmedUsername,
+        name: profile?.username ?? trimmedUsername,
+      });
+      setProfileForm((current) => ({
+        ...current,
+        username: profile?.username ?? trimmedUsername,
+        phone: profile?.phone ?? trimmedPhone,
+        password: "",
+      }));
+
+      toast({
+        title: "Perfil actualizado",
+        description: trimmedPassword
+          ? "Guardamos tu usuario, telefono y nueva contrasena."
+          : "Tus datos de perfil ya fueron actualizados.",
+      });
+    } catch (error) {
+      setProfileSaveError(mapProfileUpdateError(error?.message));
+    } finally {
+      setIsSavingProfile(false);
+    }
+  }
+
   if (isLoadingSpotify && !profileUser) {
     return (
       <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
@@ -679,14 +926,20 @@ export default function ProfilePage() {
           historyError={historyError}
           historyFilter={historyFilter}
           isLoadingHistory={isLoadingHistory}
+          isSavingProfile={isSavingProfile}
+          isSpotifyUser={isSpotifyUser}
           proUntilLabel={proUntilLabel}
+          profileForm={profileForm}
+          profileSaveError={profileSaveError}
           searchOpen={searchOpen}
           searchTerm={searchTerm}
           setHistoryFilter={setHistoryFilter}
+          setProfileFormField={setProfileFormField}
           setSearchOpen={setSearchOpen}
           setSearchTerm={setSearchTerm}
           spotifyUser={spotifyUser}
           user={user}
+          onSubmitProfile={handleSubmitProfile}
         />
       )}
     </div>

@@ -171,3 +171,52 @@ export async function fetchAuthenticatedUser(token) {
 
   return data?.user ?? null;
 }
+
+export async function fetchSupabaseProfile(userId) {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
+
+  if (error) {
+    throw new Error(error.message || "APP_AUTH_ERROR");
+  }
+
+  return data ?? null;
+}
+
+export async function updateSupabaseProfile(userId, payload) {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from("profiles")
+    .update({
+      username: payload.username,
+      phone: payload.phone,
+    })
+    .eq("id", userId)
+    .select("*")
+    .single();
+
+  if (error) {
+    const message = (error.message || "").toLowerCase();
+
+    if (message.includes("duplicate") || message.includes("unique")) {
+      throw new Error("USERNAME_ALREADY_EXISTS");
+    }
+
+    throw new Error(error.message || "APP_AUTH_ERROR");
+  }
+
+  return data;
+}
+
+export async function updateAuthenticatedPassword(password) {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.auth.updateUser({
+    password,
+  });
+
+  if (error) {
+    throw new Error(error.message || "APP_AUTH_ERROR");
+  }
+
+  return data;
+}
