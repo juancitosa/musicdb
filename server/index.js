@@ -828,7 +828,7 @@ async function enforceDailyUsageLimit(supabase, user, type, options = {}) {
       throw createHttpError(
         429,
         "DAILY_REVIEW_LIMIT_REACHED",
-        "Alcanzaste el limite de 10 resenas en 24 horas. Vuelve a intentarlo mas tarde o hazte PRO.",
+        "Alcanzaste el límite de 10 reseñas en 24 horas. Vuelve a intentarlo más tarde o hazte PRO.",
       );
     }
 
@@ -846,7 +846,7 @@ async function enforceDailyUsageLimit(supabase, user, type, options = {}) {
       throw createHttpError(
         429,
         "DAILY_RATING_LIMIT_REACHED",
-        "Alcanzaste el limite de 10 puntuaciones en 24 horas. Vuelve a intentarlo mas tarde o hazte PRO.",
+        "Alcanzaste el límite de 10 puntuaciones en 24 horas. Vuelve a intentarlo más tarde o hazte PRO.",
       );
     }
   }

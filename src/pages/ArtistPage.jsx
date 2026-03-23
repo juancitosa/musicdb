@@ -294,7 +294,7 @@ export default function ArtistPage() {
       } catch {
         if (!cancelled) {
           setReviews([]);
-          setReviewError("No pudimos cargar las reseÃ±as.");
+          setReviewError("No pudimos cargar las reseñas.");
         }
       } finally {
         if (!cancelled) {
@@ -371,13 +371,13 @@ export default function ArtistPage() {
       setRatingsSummary(response.summary ?? DEFAULT_RATINGS_SUMMARY);
       if (response?.usage && !response.usage.is_pro && response.usage.remaining?.ratings !== null) {
         toast({
-          title: "Puntuacion guardada",
+          title: "Puntuación guardada",
           description: `Te quedan ${response.usage.remaining.ratings} ranks hoy.`,
         });
       }
     } catch (ratingError) {
       if (ratingError?.message === "DAILY_RATING_LIMIT_REACHED") {
-        setRatingsError("Alcanzaste el limite de 10 ranks en 24 horas. Hazte PRO para desbloquear mas.");
+        setRatingsError("Alcanzaste el límite de 10 ranks en 24 horas. Hazte PRO para desbloquear más.");
       } else {
         setRatingsError("No pudimos guardar tu voto. Intenta nuevamente.");
       }
@@ -411,17 +411,17 @@ export default function ArtistPage() {
       setReviewText("");
       if (response?.usage && !response.usage.is_pro && response.usage.remaining?.reviews !== null) {
         toast({
-          title: "Resena guardada",
-          description: `Te quedan ${response.usage.remaining.reviews} resenas hoy.`,
+          title: "Reseña guardada",
+          description: `Te quedan ${response.usage.remaining.reviews} reseñas hoy.`,
         });
       }
     } catch (reviewRequestError) {
       if (reviewRequestError?.message === "REVIEW_ALREADY_EXISTS") {
-        setReviewError("Ya dejaste una resena para este artista.");
+        setReviewError("Ya dejaste una reseña para este artista.");
       } else if (reviewRequestError?.message === "DAILY_REVIEW_LIMIT_REACHED") {
-        setReviewError("Alcanzaste el limite de 10 resenas en 24 horas. Hazte PRO para desbloquear mas.");
+        setReviewError("Alcanzaste el límite de 10 reseñas en 24 horas. Hazte PRO para desbloquear más.");
       } else {
-        setReviewError("No pudimos guardar la resena. Intenta nuevamente.");
+        setReviewError("No pudimos guardar la reseña. Intenta nuevamente.");
       }
     } finally {
       setIsSubmittingReview(false);
@@ -440,7 +440,7 @@ export default function ArtistPage() {
       await deleteReview(reviewId, appToken);
       setReviews((currentReviews) => currentReviews.filter((review) => review.id !== reviewId));
     } catch {
-      setReviewError("No pudimos eliminar la reseÃ±a.");
+      setReviewError("No pudimos eliminar la reseña.");
     } finally {
       setDeletingReviewId(null);
     }
@@ -603,7 +603,7 @@ export default function ArtistPage() {
                             <p className="truncate font-medium">{item.track?.name}</p>
                             <p className="truncate text-xs text-muted-foreground">
                               {item.track?.album?.name}
-                              {item.added_at ? ` Â· Guardada el ${formatSavedDate(item.added_at)}` : ""}
+                              {item.added_at ? ` · Guardada el ${formatSavedDate(item.added_at)}` : ""}
                             </p>
                           </div>
                           <div className="shrink-0 text-sm text-muted-foreground">{item.track?.duration_ms ? formatTrackDuration(item.track.duration_ms) : ""}</div>
@@ -623,7 +623,7 @@ export default function ArtistPage() {
           <section className="rounded-2xl border border-border bg-card p-6 shadow-lg shadow-black/5">
             <h3 className="mb-6 flex items-center text-xl font-bold">
               <MessageSquareText className="mr-2 h-5 w-5 text-primary" />
-              ReseÃ±as
+              Reseñas
             </h3>
 
             {canInteract ? (
@@ -632,20 +632,20 @@ export default function ArtistPage() {
                   rows={3}
                   value={reviewText}
                   onChange={(event) => setReviewText(event.target.value)}
-                  placeholder="Â¿Que te parece este artista?"
+                  placeholder="¿Qué te parece este artista?"
                   className="w-full resize-none rounded-xl border-2 border-border bg-background p-3 text-sm outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
                 />
                 <Button type="submit" disabled={!reviewText.trim() || isSubmittingReview} className="w-full rounded-lg">
-                  {isSubmittingReview ? "Publicando..." : "Publicar reseÃ±a"}
+                  {isSubmittingReview ? "Publicando..." : "Publicar reseña"}
                 </Button>
                 <p className="text-center text-xs text-muted-foreground">
-                  PodÃ©s enviar la reseÃ±a con o sin rating. Si ya votaste, se guarda junto con tu comentario.
+                  Podés enviar la reseña con o sin rating. Si ya votaste, se guarda junto con tu comentario.
                 </p>
                 {reviewError ? <p className="text-center text-xs text-destructive">{reviewError}</p> : null}
               </form>
             ) : (
               <div className="mb-6 rounded-xl border border-border bg-secondary/50 p-4 text-center">
-                <p className="mb-2 text-sm text-muted-foreground">Inicia sesion para dejar una reseÃ±a y puntuar.</p>
+                <p className="mb-2 text-sm text-muted-foreground">Inicia sesión para dejar una reseña y puntuar.</p>
                 <AuthRestrictionMessage />
               </div>
             )}
@@ -653,7 +653,7 @@ export default function ArtistPage() {
             <div className="space-y-6">
               {isLoadingReviews ? (
                 <div className="rounded-xl border border-dashed border-border bg-secondary/40 p-4 text-sm text-muted-foreground">
-                  Cargando reseÃ±as...
+                  Cargando reseñas...
                 </div>
               ) : reviews.length > 0 ? (
                 reviews.map((review) => (
@@ -672,7 +672,7 @@ export default function ArtistPage() {
                           onClick={() => handleDeleteReview(review.id)}
                           disabled={deletingReviewId === review.id}
                           className="rounded-full p-2 text-muted-foreground transition hover:bg-secondary hover:text-foreground disabled:cursor-wait disabled:opacity-60"
-                          aria-label="Eliminar reseÃ±a"
+                          aria-label="Eliminar reseña"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -688,7 +688,7 @@ export default function ArtistPage() {
                 ))
               ) : (
                 <div className="rounded-xl border border-dashed border-border bg-secondary/40 p-4 text-sm text-muted-foreground">
-                  Todavia no hay reseÃ±as reales para este artista.
+                  Todavía no hay reseñas reales para este artista.
                 </div>
               )}
             </div>

@@ -153,7 +153,7 @@ export default function HomePage() {
             <SectionHeader
               icon={<Flame className="h-6 w-6 text-primary" />}
               title="Artistas Populares"
-              subtitle="Descubri artistas populares del catalogo de Spotify"
+              subtitle="Descubrí artistas populares del catálogo de Spotify"
             />
             {loadingSections ? (
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 sm:gap-6">
@@ -182,7 +182,7 @@ export default function HomePage() {
 
         <section>
           <div className="mb-6 flex items-center justify-between gap-4">
-            <SectionHeader icon={<Disc3 className="h-6 w-6 text-primary" />} title="Nuevos Lanzamientos" subtitle="Los albumes mas recientes del catalogo" />
+            <SectionHeader icon={<Disc3 className="h-6 w-6 text-primary" />} title="Nuevos Lanzamientos" subtitle="Los álbumes más recientes del catálogo" />
             {featuredAlbums.length > newReleasesPageSize ? (
               <div className="flex items-center gap-2">
                 <button
@@ -203,7 +203,7 @@ export default function HomePage() {
                     setNewReleasesPage((current) => (current + 1) % newReleasesPageCount);
                   }}
                   className="rounded-full border border-border/60 bg-card p-2 text-muted-foreground transition hover:border-primary/30 hover:text-foreground"
-                  aria-label="Ver mas lanzamientos"
+                  aria-label="Ver más lanzamientos"
                 >
                   <ChevronRight className="h-4 w-4" />
                 </button>

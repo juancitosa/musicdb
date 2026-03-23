@@ -89,7 +89,7 @@ function SearchSuggestionItem({ item, onSelect }) {
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{item.name}</p>
         <p className="truncate text-xs text-muted-foreground capitalize">
-          {item._type === "artist" ? "Artista" : `Album · ${item.artists?.[0]?.name ?? ""}`}
+          {item._type === "artist" ? "Artista" : `Álbum · ${item.artists?.[0]?.name ?? ""}`}
         </p>
       </div>
     </Link>
@@ -177,7 +177,7 @@ function SearchBox() {
               setShowSuggestions(true);
             }
           }}
-          placeholder="Buscar artistas, albumes..."
+          placeholder="Buscar artistas, álbumes..."
           className="w-full rounded-full bg-secondary py-2 pr-4 pl-10 text-sm outline-none transition focus:ring-2 focus:ring-primary"
         />
         {isLoadingSuggestions ? <LoaderCircle className="absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 animate-spin text-primary" /> : null}
@@ -427,7 +427,7 @@ function UserActions() {
                   <UserRound className="h-4 w-4 text-primary" />
                   <div>
                     <p className="font-semibold">Mi perfil</p>
-                    <p className="text-xs text-muted-foreground">Cuenta, sesion e historial</p>
+                    <p className="text-xs text-muted-foreground">Cuenta, sesión e historial</p>
                   </div>
                 </Link>
                 <Link
@@ -436,7 +436,7 @@ function UserActions() {
                 >
                   <BarChart3 className="h-4 w-4 text-primary" />
                   <div>
-                    <p className="font-semibold">Mis estadisticas</p>
+                    <p className="font-semibold">Mis estadísticas</p>
                     <p className="text-xs text-muted-foreground">Tus tops personales de Spotify</p>
                   </div>
                 </Link>
@@ -446,8 +446,8 @@ function UserActions() {
           <button
             onClick={() => setShowLogoutConfirm(true)}
             className="rounded-full bg-secondary p-2 text-muted-foreground transition hover:bg-secondary/80 hover:text-foreground"
-            aria-label="Cerrar sesion"
-            title="Cerrar sesion de Spotify"
+            aria-label="Cerrar sesión"
+            title="Cerrar sesión de Spotify"
           >
             <LogOut className="h-4 w-4" />
           </button>
@@ -457,11 +457,11 @@ function UserActions() {
           ? createPortal(
               <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/38 px-4 backdrop-blur-md">
                 <div className="w-full max-w-md rounded-[2rem] border border-white/12 bg-white/8 p-6 shadow-[0_24px_80px_rgba(0,0,0,0.45)] ring-1 ring-white/8 backdrop-blur-2xl">
-                  <h3 className="text-center text-xl font-bold text-foreground">Realmente desea cerrar sesion?</h3>
+                  <h3 className="text-center text-xl font-bold text-foreground">¿Realmente desea cerrar sesión?</h3>
                   <p className="mt-3 text-center text-sm text-muted-foreground">
                     {isSpotifyConnected
-                      ? "Vas a cerrar tu sesion de MusicDB y desconectar Spotify."
-                      : "Vas a cerrar tu sesion actual de MusicDB."}
+                      ? "Vas a cerrar tu sesión de MusicDB y desconectar Spotify."
+                      : "Vas a cerrar tu sesión actual de MusicDB."}
                   </p>
                   <div className="mt-6 flex justify-center gap-3">
                     <button
@@ -482,7 +482,7 @@ function UserActions() {
                       }}
                       className="logout-confirm-button cursor-pointer rounded-full border border-red-500/90 bg-red-500/6 px-5 py-2.5 text-sm font-semibold text-red-200 shadow-[0_0_24px_rgba(239,68,68,0.4)] transition hover:bg-red-500/14 hover:text-red-100"
                     >
-                      Cerrar sesion
+                      Cerrar sesión
                     </button>
                   </div>
                 </div>
@@ -497,7 +497,7 @@ function UserActions() {
   return (
     <>
       <div className="hidden items-center gap-2 md:flex">
-        <AuthDialog triggerLabel="Iniciar sesion" triggerClassName="px-4 py-2 text-sm" />
+        <AuthDialog triggerLabel="Iniciar sesión" triggerClassName="px-4 py-2 text-sm" />
       </div>
       <div className="flex items-center gap-2 md:hidden">
         <AuthDialog triggerLabel="Entrar" triggerSize="default" triggerClassName="px-3 py-2 text-xs" />

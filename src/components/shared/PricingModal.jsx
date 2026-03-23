@@ -67,7 +67,7 @@ export default function PricingModal({
             </span>
             <h2 className="mt-4 text-3xl font-black tracking-tight text-white">Elige tu plan premium</h2>
             <p className="mt-3 text-sm leading-relaxed text-white/68 sm:text-base">
-              Desbloquea resenas y puntuaciones ilimitadas, nombre dorado, estadisticas Spotify PRO y una presencia mucho mas premium dentro de MusicDB.
+              Desbloquea reseñas y puntuaciones ilimitadas, nombre dorado, estadísticas Spotify PRO y una presencia mucho más premium dentro de MusicDB.
             </p>
           </div>
 
@@ -117,7 +117,7 @@ export default function PricingModal({
                   </div>
                   <div className="flex items-center gap-2 text-sm text-white/78">
                     <Check className="h-4 w-4 text-amber-200" />
-                    <span>Resenas y puntuaciones ilimitadas</span>
+                    <span>Reseñas y puntuaciones ilimitadas</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm text-white/78">
                     <Check className="h-4 w-4 text-amber-200" />
@@ -125,7 +125,7 @@ export default function PricingModal({
                   </div>
                   <div className="flex items-center gap-2 text-sm text-white/78">
                     <Check className="h-4 w-4 text-amber-200" />
-                    <span>Estadisticas Spotify y tops filtrables</span>
+                    <span>Estadísticas Spotify y tops filtrables</span>
                   </div>
                 </div>
 

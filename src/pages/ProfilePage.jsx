@@ -22,13 +22,13 @@ import {
 const filters = [
   { key: "all", label: "Todo" },
   { key: "artist", label: "Artistas" },
-  { key: "album", label: "Albumes" },
+  { key: "album", label: "Álbumes" },
 ];
 
 const statsRangeOptions = [
   { key: "short_term", label: "Hace 4 semanas" },
   { key: "medium_term", label: "Hace 6 meses" },
-  { key: "long_term", label: "Hace 1 ano" },
+  { key: "long_term", label: "Hace 1 año" },
 ];
 
 function formatDate(value) {
@@ -115,8 +115,8 @@ function normalizeRatingEntry(rating, entity) {
     id: rating.id ?? `${rating.entity_type}-${rating.entity_id}`,
     entityType: "album",
     entityId: rating.entity_id,
-    title: entity?.name ?? "Album no disponible",
-    subtitle: `${entity?.artists?.[0]?.name ?? "Album"}${entity?.release_date ? ` • ${String(entity.release_date).slice(0, 4)}` : ""}`,
+    title: entity?.name ?? "Álbum no disponible",
+    subtitle: `${entity?.artists?.[0]?.name ?? "Álbum"}${entity?.release_date ? ` • ${String(entity.release_date).slice(0, 4)}` : ""}`,
     image: getImageUrl(entity?.images),
     href: `/album/${rating.entity_id}`,
     ratingValue: rating.rating_value,
@@ -145,7 +145,7 @@ function RatingHistoryCard({ entry }) {
       <div className="min-w-0 flex-1">
         <div className="mb-1 flex items-center gap-2">
           <span className="rounded-full bg-secondary px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            {entry.entityType === "artist" ? "Artista" : "Album"}
+            {entry.entityType === "artist" ? "Artista" : "Álbum"}
           </span>
         </div>
         <p className="truncate text-lg font-semibold">{entry.title}</p>
@@ -166,7 +166,7 @@ function RatingHistoryCard({ entry }) {
 
 function SpotifyFeatureLock({ isSpotifyUser, onUnlock }) {
   const message = !isSpotifyUser
-    ? "Inicia sesion con Spotify para habilitar tus estadisticas personales."
+    ? "Inicia sesión con Spotify para habilitar tus estadísticas personales."
     : "Hazte MusicDB PRO para desbloquear tus tops personales.";
 
   return (
@@ -175,20 +175,20 @@ function SpotifyFeatureLock({ isSpotifyUser, onUnlock }) {
         <Star className="h-3.5 w-3.5 fill-current" />
         Spotify + PRO
       </span>
-      <h2 className="mt-4 text-2xl font-black text-white sm:text-3xl">Tus estadisticas personales viven aca</h2>
+      <h2 className="mt-4 text-2xl font-black text-white sm:text-3xl">Tus estadísticas personales viven acá</h2>
       <p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/72 sm:text-base">{message}</p>
       <div className="mt-6 grid gap-4 md:grid-cols-3">
         <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-100/80">Artistas mas escuchados</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-100/80">Artistas más escuchados</p>
           <p className="mt-3 text-sm text-white/68">Tu ranking personal de artistas favoritos en Spotify.</p>
         </div>
         <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-100/80">Albumes mas escuchados</p>
-          <p className="mt-3 text-sm text-white/68">Los albumes que mas giraron en tu historial reciente.</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-100/80">Álbumes más escuchados</p>
+          <p className="mt-3 text-sm text-white/68">Los álbumes que más giraron en tu historial reciente.</p>
         </div>
         <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-100/80">Canciones mas escuchadas</p>
-          <p className="mt-3 text-sm text-white/68">Tus temas favoritos segun tu cuenta conectada.</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-100/80">Canciones más escuchadas</p>
+          <p className="mt-3 text-sm text-white/68">Tus temas favoritos según tu cuenta conectada.</p>
         </div>
       </div>
       <div className="mt-6">
@@ -221,7 +221,7 @@ function EmptySpotifyState({ message }) {
 function ProfileSectionTabs() {
   const items = [
     { to: "/profile", label: "Mi perfil" },
-    { to: "/profile/stats", label: "Mis estadisticas" },
+    { to: "/profile/stats", label: "Mis estadísticas" },
   ];
 
   return (
@@ -264,7 +264,7 @@ function ProfileOverview({
     <>
       <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
         <section className="rounded-2xl border border-border bg-card p-6">
-          <h2 className="text-xl font-bold">Estado de sesion</h2>
+          <h2 className="text-xl font-bold">Estado de sesión</h2>
           <div className="mt-4 space-y-3 text-sm">
             <p><span className="font-semibold">Proveedor:</span> {user?.authProvider === "spotify" ? "Spotify + MusicDB" : "MusicDB"}</p>
             <p><span className="font-semibold">Spotify:</span> {hasSpotifyFeatures ? `Conectado como ${spotifyUser?.name ?? "usuario"}` : "No conectado"}</p>
@@ -278,7 +278,7 @@ function ProfileOverview({
           <div className="flex items-center justify-between gap-4">
             <div>
               <h2 className="text-xl font-bold">Historial de ratings</h2>
-              <p className="mt-2 text-sm text-muted-foreground">Revisa y filtra tus votos de artistas y albumes desde tu perfil.</p>
+              <p className="mt-2 text-sm text-muted-foreground">Revisa y filtra tus votos de artistas y álbumes desde tu perfil.</p>
             </div>
 
             <button
@@ -359,7 +359,7 @@ function ProfileOverview({
           </div>
         ) : (
           <EmptySpotifyState
-            message={historyEntries.length > 0 ? "No hay resultados para ese filtro." : "Todavia no registraste ratings. Cuando puntues artistas o albumes, van a aparecer aca."}
+            message={historyEntries.length > 0 ? "No hay resultados para ese filtro." : "Todavía no registraste ratings. Cuando puntúes artistas o álbumes, van a aparecer acá."}
           />
         )}
       </section>
@@ -407,7 +407,7 @@ function ProfileStats({
     <div>
       <StatsRangeFilter selectedRange={selectedRange} onChange={setSelectedRange} />
       <div className="grid gap-6 xl:grid-cols-3">
-        <SpotifyStatCard icon={<Flame className="h-6 w-6 text-primary" />} title="Artistas mas escuchados" subtitle="Tus artistas mas reproducidos segun Spotify">
+        <SpotifyStatCard icon={<Flame className="h-6 w-6 text-primary" />} title="Artistas más escuchados" subtitle="Tus artistas más reproducidos según Spotify">
           {isLoadingSpotifyStats ? (
             <EmptySpotifyState message="Cargando tus artistas favoritos..." />
           ) : spotifyTopArtists.length > 0 ? (
@@ -424,13 +424,13 @@ function ProfileStats({
               ))}
             </div>
           ) : (
-            <EmptySpotifyState message="Spotify no devolvio artistas para tu top actual." />
+            <EmptySpotifyState message="Spotify no devolvió artistas para tu top actual." />
           )}
         </SpotifyStatCard>
 
-        <SpotifyStatCard icon={<Disc3 className="h-6 w-6 text-primary" />} title="Albumes mas escuchados" subtitle="Construido a partir de tus canciones mas escuchadas">
+        <SpotifyStatCard icon={<Disc3 className="h-6 w-6 text-primary" />} title="Álbumes más escuchados" subtitle="Construido a partir de tus canciones más escuchadas">
           {isLoadingSpotifyStats ? (
-            <EmptySpotifyState message="Cargando tus albumes mas escuchados..." />
+            <EmptySpotifyState message="Cargando tus álbumes más escuchados..." />
           ) : spotifyTopAlbums.length > 0 ? (
             <div className="space-y-3">
               {spotifyTopAlbums.map((album, index) => (
@@ -439,17 +439,17 @@ function ProfileStats({
                   <img src={getImageUrl(album.images)} alt={album.name} className="h-12 w-12 rounded-2xl object-cover" />
                   <div className="min-w-0">
                     <p className="truncate font-semibold">{album.name}</p>
-                    <p className="truncate text-xs text-muted-foreground">{album.artists?.map((artist) => artist.name).join(", ") || "Album"}</p>
+                    <p className="truncate text-xs text-muted-foreground">{album.artists?.map((artist) => artist.name).join(", ") || "Álbum"}</p>
                   </div>
                 </Link>
               ))}
             </div>
           ) : (
-            <EmptySpotifyState message="Todavia no pudimos construir un top de albumes para esta cuenta." />
+            <EmptySpotifyState message="Todavía no pudimos construir un top de álbumes para esta cuenta." />
           )}
         </SpotifyStatCard>
 
-        <SpotifyStatCard icon={<AudioLines className="h-6 w-6 text-primary" />} title="Canciones mas escuchadas" subtitle="Tus temas mas reproducidos en Spotify">
+        <SpotifyStatCard icon={<AudioLines className="h-6 w-6 text-primary" />} title="Canciones más escuchadas" subtitle="Tus temas más reproducidos en Spotify">
           {isLoadingSpotifyStats ? (
             <EmptySpotifyState message="Cargando tus canciones favoritas..." />
           ) : spotifyTopTracks.length > 0 ? (
@@ -467,7 +467,7 @@ function ProfileStats({
               ))}
             </div>
           ) : (
-            <EmptySpotifyState message="Spotify no devolvio canciones para tu top actual." />
+            <EmptySpotifyState message="Spotify no devolvió canciones para tu top actual." />
           )}
         </SpotifyStatCard>
       </div>

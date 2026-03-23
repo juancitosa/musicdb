@@ -162,7 +162,7 @@ export default function AlbumPage() {
       } catch {
         if (!cancelled) {
           setReviews([]);
-          setReviewError("No pudimos cargar las reseÃ±as.");
+          setReviewError("No pudimos cargar las reseñas.");
         }
       } finally {
         if (!cancelled) {
@@ -204,13 +204,13 @@ export default function AlbumPage() {
       setRatingsSummary(response.summary ?? DEFAULT_RATINGS_SUMMARY);
       if (response?.usage && !response.usage.is_pro && response.usage.remaining?.ratings !== null) {
         toast({
-          title: "Puntuacion guardada",
+          title: "Puntuación guardada",
           description: `Te quedan ${response.usage.remaining.ratings} ranks hoy.`,
         });
       }
     } catch (ratingError) {
       if (ratingError?.message === "DAILY_RATING_LIMIT_REACHED") {
-        setRatingsError("Alcanzaste el limite de 10 ranks en 24 horas. Hazte PRO para desbloquear mas.");
+        setRatingsError("Alcanzaste el límite de 10 ranks en 24 horas. Hazte PRO para desbloquear más.");
       } else {
         setRatingsError("No pudimos guardar tu voto. Intenta nuevamente.");
       }
@@ -244,17 +244,17 @@ export default function AlbumPage() {
       setReviewText("");
       if (response?.usage && !response.usage.is_pro && response.usage.remaining?.reviews !== null) {
         toast({
-          title: "Resena guardada",
-          description: `Te quedan ${response.usage.remaining.reviews} resenas hoy.`,
+          title: "Reseña guardada",
+          description: `Te quedan ${response.usage.remaining.reviews} reseñas hoy.`,
         });
       }
     } catch (reviewRequestError) {
       if (reviewRequestError?.message === "REVIEW_ALREADY_EXISTS") {
-        setReviewError("Ya dejaste una resena para este album.");
+        setReviewError("Ya dejaste una reseña para este álbum.");
       } else if (reviewRequestError?.message === "DAILY_REVIEW_LIMIT_REACHED") {
-        setReviewError("Alcanzaste el limite de 10 resenas en 24 horas. Hazte PRO para desbloquear mas.");
+        setReviewError("Alcanzaste el límite de 10 reseñas en 24 horas. Hazte PRO para desbloquear más.");
       } else {
-        setReviewError("No pudimos guardar la resena. Intenta nuevamente.");
+        setReviewError("No pudimos guardar la reseña. Intenta nuevamente.");
       }
     } finally {
       setIsSubmittingReview(false);
@@ -273,7 +273,7 @@ export default function AlbumPage() {
       await deleteReview(reviewId, appToken);
       setReviews((currentReviews) => currentReviews.filter((review) => review.id !== reviewId));
     } catch {
-      setReviewError("No pudimos eliminar la reseÃ±a.");
+      setReviewError("No pudimos eliminar la reseña.");
     } finally {
       setDeletingReviewId(null);
     }
@@ -304,8 +304,8 @@ export default function AlbumPage() {
     return (
       <div className="px-4 py-20 text-center">
         <Play className="mx-auto mb-4 h-16 w-16 text-primary/30" />
-        <h2 className="mb-2 text-2xl font-bold">Album no encontrado</h2>
-        <p className="text-muted-foreground">{error || "No se pudo cargar este album."}</p>
+        <h2 className="mb-2 text-2xl font-bold">Álbum no encontrado</h2>
+        <p className="text-muted-foreground">{error || "No se pudo cargar este álbum."}</p>
       </div>
     );
   }
@@ -323,7 +323,7 @@ export default function AlbumPage() {
 
         <div className="flex flex-1 flex-col justify-center pt-0 md:pt-4">
           <div className="mb-2 text-sm font-bold uppercase tracking-widest text-primary">
-            {isLocal ? "Album" : album.album_type === "single" ? "Single" : "Album"}
+            {isLocal ? "Álbum" : album.album_type === "single" ? "Single" : "Álbum"}
           </div>
           <h1 className="mb-4 text-4xl font-black leading-tight md:text-5xl">{isLocal ? album.title : album.name}</h1>
 
@@ -333,13 +333,13 @@ export default function AlbumPage() {
                 {primaryArtist.name}
               </Link>
             ) : null}
-            <span>Â·</span>
+            <span>·</span>
             <span>{releaseYear}</span>
-            <span>Â·</span>
+            <span>·</span>
             <span>{isLocal ? album.trackCount : album.total_tracks} canciones</span>
             {!isLocal && totalDuration ? (
               <>
-                <span>Â·</span>
+                <span>·</span>
                 <span>{totalDuration} min</span>
               </>
             ) : null}
@@ -355,7 +355,7 @@ export default function AlbumPage() {
 
           <div className="mb-4 flex flex-wrap items-center gap-6 rounded-2xl border border-border bg-card p-5">
             <div className="flex flex-col">
-              <span className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{isLocal ? "Calificacion" : "Popularidad"}</span>
+              <span className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{isLocal ? "Calificación" : "Popularidad"}</span>
               {isLocal ? (
                 <div className="flex items-center gap-2">
                   <Star className="h-4 w-4 fill-primary text-primary" />
@@ -442,7 +442,7 @@ export default function AlbumPage() {
           <div className="rounded-2xl border border-border bg-card p-6">
             <h3 className="mb-6 flex items-center text-xl font-bold">
               <Disc3 className="mr-2 h-5 w-5 text-primary" />
-              ReseÃ±as
+              Reseñas
             </h3>
 
             {canInteract ? (
@@ -451,20 +451,20 @@ export default function AlbumPage() {
                   rows={3}
                   value={reviewText}
                   onChange={(event) => setReviewText(event.target.value)}
-                  placeholder="Â¿Que te parecio el album?"
+                  placeholder="¿Qué te pareció el álbum?"
                   className="w-full resize-none rounded-xl border-2 border-border bg-background p-3 text-sm outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
                 />
                 <Button type="submit" disabled={!reviewText.trim() || isSubmittingReview} className="w-full rounded-lg">
-                  {isSubmittingReview ? "Publicando..." : "Publicar reseÃ±a"}
+                  {isSubmittingReview ? "Publicando..." : "Publicar reseña"}
                 </Button>
                 <p className="text-center text-xs text-muted-foreground">
-                  PodÃ©s enviar la reseÃ±a con o sin rating. Si ya votaste, se guarda junto con tu comentario.
+                  Podés enviar la reseña con o sin rating. Si ya votaste, se guarda junto con tu comentario.
                 </p>
                 {reviewError ? <p className="text-center text-xs text-destructive">{reviewError}</p> : null}
               </form>
             ) : (
               <div className="mb-6 rounded-xl border border-border bg-secondary/50 p-4 text-center">
-                <p className="mb-2 text-sm text-muted-foreground">Inicia sesion para dejar una reseÃ±a y puntuar.</p>
+                <p className="mb-2 text-sm text-muted-foreground">Inicia sesión para dejar una reseña y puntuar.</p>
                 <AuthRestrictionMessage />
               </div>
             )}
@@ -472,7 +472,7 @@ export default function AlbumPage() {
             <div className="space-y-6">
               {isLoadingReviews ? (
                 <div className="rounded-xl border border-dashed border-border bg-secondary/40 p-4 text-sm text-muted-foreground">
-                  Cargando reseÃ±as...
+                  Cargando reseñas...
                 </div>
               ) : reviews.length > 0 ? (
                 reviews.map((review) => (
@@ -491,7 +491,7 @@ export default function AlbumPage() {
                           onClick={() => handleDeleteReview(review.id)}
                           disabled={deletingReviewId === review.id}
                           className="rounded-full p-2 text-muted-foreground transition hover:bg-secondary hover:text-foreground disabled:cursor-wait disabled:opacity-60"
-                          aria-label="Eliminar reseÃ±a"
+                          aria-label="Eliminar reseña"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -507,7 +507,7 @@ export default function AlbumPage() {
                 ))
               ) : (
                 <div className="rounded-xl border border-dashed border-border bg-secondary/40 p-4 text-sm text-muted-foreground">
-                  Todavia no hay reseÃ±as reales para este album.
+                  Todavía no hay reseñas reales para este álbum.
                 </div>
               )}
             </div>
