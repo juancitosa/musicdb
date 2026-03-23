@@ -20,16 +20,23 @@ function normalizeUser(user) {
     return null;
   }
 
+  const authProvider = user.auth_provider ?? user.authProvider ?? "local";
+  const username = user.username ?? "";
+  const resolvedDisplayName =
+    authProvider === "local"
+      ? username || user.display_name || user.displayName || user.name || "MusicDB User"
+      : user.display_name || user.displayName || user.username || user.name || "MusicDB User";
+
   return {
     id: user.id,
     email: user.email ?? "",
-    username: user.username ?? "",
+    username,
     phone: user.phone ?? "",
-    displayName: user.display_name ?? user.displayName ?? user.username ?? "MusicDB User",
-    authProvider: user.auth_provider ?? user.authProvider ?? "local",
+    displayName: resolvedDisplayName,
+    authProvider,
     avatar: user.avatar_url ?? user.avatar ?? "",
-    name: user.display_name ?? user.displayName ?? user.username ?? "MusicDB User",
-    isVerified: Boolean(user.is_verified ?? user.isVerified ?? user.auth_provider === "spotify"),
+    name: resolvedDisplayName,
+    isVerified: Boolean(user.is_verified ?? user.isVerified ?? authProvider === "spotify"),
     verifiedAt: user.verified_at ?? user.verifiedAt ?? null,
     isPro: Boolean(user.is_pro ?? user.isPro),
     proUntil: user.pro_until ?? user.proUntil ?? null,
