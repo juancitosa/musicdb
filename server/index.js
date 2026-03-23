@@ -288,6 +288,9 @@ function getEmailTransporter() {
   if (!emailTransporter) {
     emailTransporter = nodemailer.createTransport({
       service: "gmail",
+      connectionTimeout: 15000,
+      greetingTimeout: 15000,
+      socketTimeout: 20000,
       auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS,
@@ -650,6 +653,7 @@ async function sendVerificationEmail({ email, username, token, expiresAt }) {
   }
 
   try {
+    console.log("Enviando email...");
     await transporter.sendMail({
       from: `"${SMTP_FROM_NAME}" <${SMTP_FROM_EMAIL}>`,
       to: email,
@@ -672,6 +676,7 @@ async function sendVerificationEmail({ email, username, token, expiresAt }) {
         </div>
       `,
     });
+    console.log("Email enviado");
   } catch (error) {
     console.error("[auth:email] Failed to send verification email", {
       email,
@@ -1985,49 +1990,59 @@ async function handleResendVerificationEmail(req, res) {
   const email = normalizeEmail(req.body?.email);
 
   if (!email) {
-    throw createHttpError(400, "INVALID_EMAIL_VERIFICATION_RESEND_PAYLOAD", "A valid email is required");
-  }
-
-  const supabase = getSupabaseAdmin();
-  const userSelect = await buildUserSelect(supabase);
-  const { data: user, error: userError } = await supabase
-    .from("users")
-    .select(userSelect)
-    .eq("email", email)
-    .maybeSingle();
-
-  if (userError) {
-    console.error("[auth:verify-email:resend] Failed to fetch user by email", {
-      email,
-      errorCode: userError.code ?? null,
-      errorMessage: userError.message ?? "Unknown select error",
+    return res.status(400).json({
+      success: false,
+      error: "Email invalido",
     });
-    handleSupabaseError(userError, "Failed to fetch user by email for resend verification");
   }
-
-  if (!user?.id) {
-    throw createHttpError(404, "EMAIL_VERIFICATION_USER_NOT_FOUND", "No account was found for that email");
-  }
-
-  if (user.auth_provider !== "local") {
-    throw createHttpError(400, "EMAIL_VERIFICATION_RESEND_NOT_SUPPORTED", "Only local accounts can resend verification emails");
-  }
-
-  if (user.is_verified) {
-    res.status(200).json({
-      ok: true,
-      already_verified: true,
-      message: "Ese email ya esta verificado",
-    });
-    return;
-  }
-
-  console.log("[auth:verify-email:resend] Resending verification email", {
-    userId: user.id,
-    email,
-  });
 
   try {
+    const supabase = getSupabaseAdmin();
+    const userSelect = await buildUserSelect(supabase);
+    const { data: user, error: userError } = await supabase
+      .from("users")
+      .select(userSelect)
+      .eq("email", email)
+      .maybeSingle();
+
+    if (userError) {
+      console.error("[auth:verify-email:resend] Failed to fetch user by email", {
+        email,
+        errorCode: userError.code ?? null,
+        errorMessage: userError.message ?? "Unknown select error",
+      });
+
+      return res.status(500).json({
+        success: false,
+        error: "Error buscando usuario",
+      });
+    }
+
+    if (!user?.id) {
+      return res.status(404).json({
+        success: false,
+        error: "Usuario no encontrado",
+      });
+    }
+
+    if (user.auth_provider !== "local") {
+      return res.status(400).json({
+        success: false,
+        error: "La cuenta no admite verificacion por email",
+      });
+    }
+
+    if (user.is_verified) {
+      return res.json({
+        success: true,
+      });
+    }
+
+    console.log("[auth:verify-email:resend] Resending verification email", {
+      userId: user.id,
+      email,
+    });
+
     const { token, expiresAt } = await createEmailVerificationToken(supabase, user.id);
     const delivery = await sendVerificationEmail({
       email: user.email,
@@ -2038,26 +2053,20 @@ async function handleResendVerificationEmail(req, res) {
 
     await markVerificationEmailSent(supabase, user.id);
 
-    res.status(200).json({
-      ok: true,
-      message: "Revisa tu email para verificar la cuenta",
-      verification_delivery: delivery.delivered ? "smtp" : "logged",
-      verification_url: delivery.delivered ? null : delivery.verificationUrl ?? null,
-      verification_expires_at: expiresAt,
+    return res.json({
+      success: true,
     });
   } catch (error) {
     console.error("[auth:verify-email:resend] Resend verification failed", {
-      userId: user.id,
       email,
       errorCode: error?.code ?? null,
       errorMessage: error?.message ?? "Unknown resend error",
     });
 
-    if (error?.status) {
-      throw error;
-    }
-
-    throw createHttpError(500, "EMAIL_VERIFICATION_RESEND_FAILED", "No pudimos reenviar el email de verificacion");
+    return res.status(500).json({
+      success: false,
+      error: "Error enviando email",
+    });
   }
 }
 
