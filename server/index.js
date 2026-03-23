@@ -639,8 +639,8 @@ async function sendVerificationEmail({ email, username, token, expiresAt }) {
 
   try {
     console.log("Enviando email...");
-    await resend.emails.send({
-      from: "MusicDB <onboarding@resend.dev>",
+    const resendResult = await resend.emails.send({
+      from: "MusicDB <juan.remondino07@gmail.com>",
       to: email,
       subject: "Verificá tu cuenta",
       html: `<p>Hola ${username || "MusicDB User"},</p>
@@ -649,7 +649,9 @@ async function sendVerificationEmail({ email, username, token, expiresAt }) {
           <p>El enlace vence el ${expirationDate}.</p>`,
     });
     console.log("Email enviado");
+    console.log("[auth:email] Resend result", resendResult);
   } catch (error) {
+    console.error("[auth:email] Resend send error", error);
     console.error("[auth:email] Failed to send verification email with Resend", {
       email,
       errorMessage: error?.message ?? "Unknown mail error",
