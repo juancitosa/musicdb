@@ -277,7 +277,7 @@ function getMercadoPagoPaymentClient() {
 }
 
 function hasSmtpConfig() {
-  return Boolean(SMTP_HOST && SMTP_PORT && SMTP_USER && SMTP_PASS);
+  return Boolean(SMTP_USER && SMTP_PASS);
 }
 
 function getEmailTransporter() {
@@ -287,12 +287,10 @@ function getEmailTransporter() {
 
   if (!emailTransporter) {
     emailTransporter = nodemailer.createTransport({
-      host: SMTP_HOST,
-      port: SMTP_PORT,
-      secure: SMTP_SECURE,
+      service: "gmail",
       auth: {
-        user: SMTP_USER,
-        pass: SMTP_PASS,
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
       },
     });
   }
@@ -631,7 +629,7 @@ async function markVerificationEmailSent(supabase, userId) {
 }
 
 async function sendVerificationEmail({ email, username, token, expiresAt }) {
-  const verificationUrl = buildEmailVerificationUrl(token);
+  const verificationUrl = `https://musicdb.online/verify-email?token=${encodeURIComponent(token)}`;
   const expirationDate = new Date(expiresAt).toLocaleString("es-AR", {
     dateStyle: "medium",
     timeStyle: "short",
@@ -651,36 +649,36 @@ async function sendVerificationEmail({ email, username, token, expiresAt }) {
     };
   }
 
-  await transporter.sendMail({
-    from: `"${SMTP_FROM_NAME}" <${SMTP_FROM_EMAIL}>`,
-    to: email,
-    subject: "Verifica tu cuenta de MusicDB",
-    text: [
-      `Hola ${username || "MusicDB User"},`,
-      "",
-      "Activa tu cuenta entrando en este enlace:",
-      verificationUrl,
-      "",
-      `El enlace vence el ${expirationDate}.`,
-      "",
-      "Si no creaste esta cuenta, puedes ignorar este mensaje.",
-    ].join("\n"),
-    html: `
-      <div style="font-family:Arial,sans-serif;line-height:1.6;color:#111827">
-        <h2 style="margin-bottom:8px;">Verifica tu cuenta de MusicDB</h2>
-        <p>Hola ${username || "MusicDB User"},</p>
-        <p>Confirma tu email para activar la cuenta y evitar registros masivos.</p>
-        <p>
-          <a href="${verificationUrl}" style="display:inline-block;padding:12px 18px;border-radius:999px;background:#111827;color:#ffffff;text-decoration:none;font-weight:700;">
-            Verificar email
-          </a>
-        </p>
-        <p>Si el boton no funciona, copia y pega este enlace:</p>
-        <p><a href="${verificationUrl}">${verificationUrl}</a></p>
-        <p>El enlace vence el ${expirationDate}.</p>
-      </div>
-    `,
-  });
+  try {
+    await transporter.sendMail({
+      from: `"${SMTP_FROM_NAME}" <${SMTP_FROM_EMAIL}>`,
+      to: email,
+      subject: "Verifica tu cuenta",
+      text: [
+        `Hola ${username || "MusicDB User"},`,
+        "",
+        "Verifica tu cuenta entrando en este enlace:",
+        verificationUrl,
+        "",
+        `El enlace vence el ${expirationDate}.`,
+      ].join("\n"),
+      html: `
+        <div style="font-family:Arial,sans-serif;line-height:1.6;color:#111827">
+          <h2 style="margin-bottom:8px;">Verifica tu cuenta</h2>
+          <p>Hola ${username || "MusicDB User"},</p>
+          <p>Activa tu cuenta desde este enlace:</p>
+          <p><a href="${verificationUrl}">${verificationUrl}</a></p>
+          <p>El enlace vence el ${expirationDate}.</p>
+        </div>
+      `,
+    });
+  } catch (error) {
+    console.error("[auth:email] Failed to send verification email", {
+      email,
+      errorMessage: error?.message ?? "Unknown mail error",
+    });
+    throw error;
+  }
 
   return {
     delivered: true,
