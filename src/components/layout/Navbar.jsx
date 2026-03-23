@@ -217,10 +217,13 @@ function UserActions() {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [currentlyPlaying, setCurrentlyPlaying] = useState(null);
+  const [displayedProgressMs, setDisplayedProgressMs] = useState(0);
   const [showNowPlaying, setShowNowPlaying] = useState(false);
+  const [isNowPlayingHovered, setIsNowPlayingHovered] = useState(false);
   const location = useLocation();
   const profileUser = spotifyUser ?? user;
   const activeTrack = currentlyPlaying?.is_playing && currentlyPlaying?.item ? currentlyPlaying.item : null;
+  const isShowingTrack = Boolean(showNowPlaying && activeTrack);
 
   useEffect(() => {
     if (!showProfileMenu) {
@@ -255,11 +258,14 @@ function UserActions() {
         const playback = await getCurrentlyPlayingTrack(spotifyToken);
 
         if (!cancelled) {
-          setCurrentlyPlaying(playback?.is_playing && playback?.item ? playback : null);
+          const nextPlayback = playback?.is_playing && playback?.item ? playback : null;
+          setCurrentlyPlaying(nextPlayback);
+          setDisplayedProgressMs(nextPlayback?.progress_ms ?? 0);
         }
       } catch {
         if (!cancelled) {
           setCurrentlyPlaying(null);
+          setDisplayedProgressMs(0);
         }
       }
     }
@@ -279,14 +285,32 @@ function UserActions() {
       return undefined;
     }
 
+    if (isNowPlayingHovered) {
+      return undefined;
+    }
+
     const intervalId = window.setInterval(() => {
       setShowNowPlaying((current) => !current);
-    }, 30000);
+    }, 15000);
 
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [activeTrack?.id]);
+  }, [activeTrack?.id, isNowPlayingHovered]);
+
+  useEffect(() => {
+    if (!currentlyPlaying?.is_playing || !activeTrack?.duration_ms) {
+      return undefined;
+    }
+
+    const intervalId = window.setInterval(() => {
+      setDisplayedProgressMs((current) => Math.min(current + 1000, activeTrack.duration_ms));
+    }, 1000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [activeTrack?.duration_ms, currentlyPlaying?.is_playing]);
 
   if (isLoggedIn) {
     return (
@@ -300,18 +324,22 @@ function UserActions() {
             </div>
           ) : null}
           <div data-profile-menu className="relative">
-            <div className="relative">
-              {activeTrack ? (
-                <>
-                  <div className="pointer-events-none absolute inset-y-1 -left-3 -right-3 rounded-full bg-linear-to-r from-transparent via-primary/28 to-transparent blur-xl opacity-90" />
-                  <div className="pointer-events-none absolute inset-y-0 left-[12%] right-[12%] rounded-full bg-linear-to-r from-transparent via-sky-400/25 to-transparent blur-2xl opacity-80" />
-                </>
-              ) : null}
+            <div
+              className="relative"
+              onMouseEnter={() => {
+                if (isShowingTrack) {
+                  setIsNowPlayingHovered(true);
+                }
+              }}
+              onMouseLeave={() => {
+                setIsNowPlayingHovered(false);
+              }}
+            >
               <button
                 type="button"
                 onClick={() => setShowProfileMenu((current) => !current)}
                 className={`relative flex items-center gap-2 rounded-full border border-white/5 bg-zinc-900 px-3 py-1.5 text-sm font-medium text-foreground transition hover:bg-zinc-800 ${
-                  activeTrack ? "min-w-[220px] border-white/10 bg-zinc-950/95 shadow-[0_0_28px_rgba(56,189,248,0.16)]" : ""
+                  activeTrack ? "min-w-[220px] border-white/10 bg-zinc-950/95" : ""
                 }`}
                 title={profileUser?.name ?? "Perfil"}
                 aria-haspopup="menu"
@@ -354,6 +382,40 @@ function UserActions() {
                 </AnimatePresence>
                 <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition ${showProfileMenu ? "rotate-180" : ""}`} />
               </button>
+
+              <AnimatePresence>
+                {isShowingTrack && isNowPlayingHovered ? (
+                  <motion.div
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    transition={{ duration: 0.2, ease: "easeOut" }}
+                    className="absolute top-full left-1/2 z-50 mt-2 w-72 -translate-x-1/2 overflow-hidden rounded-2xl border border-white/12 bg-zinc-950/95 p-4 shadow-2xl shadow-black/35 ring-1 ring-white/8 backdrop-blur-xl"
+                  >
+                    <div className="flex items-center gap-3">
+                      <img src={getImageUrl(activeTrack.album?.images)} alt={activeTrack.name} className="h-14 w-14 rounded-2xl object-cover" />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-white">{activeTrack.name}</p>
+                        <p className="truncate text-xs text-zinc-300">{activeTrack.artists?.map((artist) => artist.name).join(", ")}</p>
+                        <p className="truncate text-[11px] uppercase tracking-[0.16em] text-zinc-500">{activeTrack.album?.name ?? "Spotify"}</p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4">
+                      <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+                        <div
+                          className="h-full rounded-full bg-primary transition-[width] duration-700"
+                          style={{ width: `${Math.min((displayedProgressMs / (activeTrack.duration_ms || 1)) * 100, 100)}%` }}
+                        />
+                      </div>
+                      <div className="mt-2 flex items-center justify-between text-[11px] text-zinc-400">
+                        <span>{Math.floor(displayedProgressMs / 60000)}:{Math.floor((displayedProgressMs % 60000) / 1000).toString().padStart(2, "0")}</span>
+                        <span>{Math.floor((activeTrack.duration_ms ?? 0) / 60000)}:{Math.floor(((activeTrack.duration_ms ?? 0) % 60000) / 1000).toString().padStart(2, "0")}</span>
+                      </div>
+                    </div>
+                  </motion.div>
+                ) : null}
+              </AnimatePresence>
             </div>
 
             {showProfileMenu ? (
