@@ -4,7 +4,7 @@ import express from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
-import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { MercadoPagoConfig, Payment } from "mercadopago";
 import { createClient } from "@supabase/supabase-js";
 
@@ -300,10 +300,6 @@ function getEmailTransporter() {
   return emailTransporter;
 }
 
-function hashVerificationToken(token) {
-  return createHash("sha256").update(token).digest("hex");
-}
-
 function generateEmailVerificationToken() {
   return randomBytes(32).toString("hex");
 }
@@ -561,7 +557,6 @@ async function deleteEmailVerificationTokensForUser(supabase, userId) {
 
 async function createEmailVerificationToken(supabase, userId) {
   const token = generateEmailVerificationToken();
-  const tokenHash = hashVerificationToken(token);
   const expiresAt = getEmailVerificationExpiryDate();
 
   console.log("[auth:register] Generating email verification token", {
@@ -573,7 +568,7 @@ async function createEmailVerificationToken(supabase, userId) {
 
   const { error } = await supabase.from("email_verification_tokens").insert({
     user_id: userId,
-    token_hash: tokenHash,
+    token,
     expires_at: expiresAt,
   });
 
@@ -715,11 +710,10 @@ async function issueVerificationEmail(supabase, user) {
 }
 
 async function getEmailVerificationRecordByToken(supabase, token) {
-  const tokenHash = hashVerificationToken(token);
   const { data, error } = await supabase
     .from("email_verification_tokens")
-    .select("user_id, token_hash, expires_at, consumed_at, created_at")
-    .eq("token_hash", tokenHash)
+    .select("user_id, token, expires_at, consumed_at, created_at")
+    .eq("token", token)
     .maybeSingle();
 
   if (isMissingRelationError(error)) {
@@ -735,13 +729,12 @@ async function getEmailVerificationRecordByToken(supabase, token) {
 }
 
 async function markEmailVerificationTokenAsConsumed(supabase, token) {
-  const tokenHash = hashVerificationToken(token);
   const { error } = await supabase
     .from("email_verification_tokens")
     .update({
       consumed_at: new Date().toISOString(),
     })
-    .eq("token_hash", tokenHash);
+    .eq("token", token);
 
   if (isMissingRelationError(error)) {
     throw createHttpError(

@@ -33,7 +33,7 @@ USO
 1.b email_verification_tokens
 - id: uuid, primary key
 - user_id: uuid, foreign key -> users.id
-- token_hash: varchar unique
+- token: varchar unique
 - expires_at: timestamp
 - consumed_at: timestamp, nullable
 - created_at: timestamp
@@ -138,7 +138,7 @@ USO
 7. user_sessions
 - id: uuid, primary key
 - user_id: uuid, foreign key -> users.id
-- refresh_token_hash: varchar
+- hashed_refresh_token: varchar
 - user_agent: text
 - ip_address: varchar
 - expires_at: timestamp
@@ -185,7 +185,7 @@ INDICES RECOMENDADOS
 - unique index spotify_accounts(user_id)
 - unique index spotify_accounts(spotify_user_id)
 - unique index entity_cache(entity_type, entity_id)
-- unique index email_verification_tokens(token_hash)
+- unique index email_verification_tokens(token)
 - index email_verification_tokens(user_id)
 
 REGLAS DE NEGOCIO RECOMENDADAS
