@@ -136,6 +136,32 @@ export async function loginLocalUser(payload) {
   };
 }
 
+export async function fetchLocalSupabaseUser(token) {
+  const supabase = getSupabaseClient();
+  const {
+    data: { user } = {},
+    error,
+  } = await supabase.auth.getUser(token);
+
+  if (error || !user) {
+    throw new Error(error?.message || "LOCAL_AUTH_USER_NOT_FOUND");
+  }
+
+  const authUser = mapSupabaseUser(user);
+  const profile = authUser?.id ? await fetchSupabaseProfile(authUser.id).catch(() => null) : null;
+  const resolvedUsername = profile?.username ?? "";
+  const resolvedAvatar = profile?.avatar_url ?? authUser?.avatar_url ?? "";
+
+  return {
+    ...authUser,
+    username: resolvedUsername,
+    phone: profile?.phone ?? authUser?.phone ?? "",
+    avatar_url: resolvedAvatar,
+    display_name: resolvedUsername || authUser?.display_name || "MusicDB User",
+    name: resolvedUsername || authUser?.name || "MusicDB User",
+  };
+}
+
 export function resendVerificationEmail(payload) {
   return postAuthRequest("/auth/verify-email/resend", payload);
 }

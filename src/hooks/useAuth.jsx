@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
-import { fetchAuthenticatedUser, fetchSupabaseProfile } from "../services/appAuth";
+import { fetchAuthenticatedUser, fetchLocalSupabaseUser, fetchSupabaseProfile } from "../services/appAuth";
 
 const SESSION_KEY = "musicdb_app_session";
 
@@ -62,6 +62,26 @@ function mergeProfileIntoUser(user, profile) {
     display_name: displayName,
     displayName,
     name: displayName,
+  });
+}
+
+function mergeBackendStatusIntoLocalUser(localUser, backendUser) {
+  if (!localUser) {
+    return null;
+  }
+
+  if (!backendUser) {
+    return normalizeUser(localUser);
+  }
+
+  return normalizeUser({
+    ...localUser,
+    email: backendUser.email ?? localUser.email,
+    is_pro: backendUser.is_pro ?? localUser.isPro,
+    pro_until: backendUser.pro_until ?? localUser.proUntil,
+    is_verified: backendUser.is_verified ?? localUser.isVerified,
+    verified_at: backendUser.verified_at ?? localUser.verifiedAt,
+    auth_provider: "local",
   });
 }
 
@@ -132,16 +152,18 @@ export function AuthProvider({ children }) {
       }
 
       try {
-        const backendUser = await fetchAuthenticatedUser(session.token);
+        let normalizedUser = null;
 
-        if (!cancelled && backendUser) {
-          let normalizedUser = normalizeUser(backendUser);
+        try {
+          const localSupabaseUser = await fetchLocalSupabaseUser(session.token);
+          const backendUser = await fetchAuthenticatedUser(session.token).catch(() => null);
+          normalizedUser = mergeBackendStatusIntoLocalUser(localSupabaseUser, backendUser);
+        } catch {
+          const backendUser = await fetchAuthenticatedUser(session.token);
+          normalizedUser = normalizeUser(backendUser);
+        }
 
-          if (normalizedUser?.authProvider === "local" && normalizedUser?.id) {
-            const profile = await fetchSupabaseProfile(normalizedUser.id).catch(() => null);
-            normalizedUser = mergeProfileIntoUser(normalizedUser, profile);
-          }
-
+        if (!cancelled && normalizedUser) {
           setUser(normalizedUser);
           persistSession({
             token: session.token,
