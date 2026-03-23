@@ -728,9 +728,17 @@ async function issueVerificationEmail(supabase, user) {
 async function getEmailVerificationRecordByToken(supabase, token) {
   const { data, error } = await supabase
     .from("email_verification_tokens")
-    .select("user_id, token, expires_at, consumed_at, created_at")
+    .select("user_id, token, expires_at, created_at")
     .eq("token", token)
     .maybeSingle();
+
+  if (error) {
+    console.error("[auth:verify-email] Failed to fetch email verification token", {
+      token,
+      errorCode: error.code ?? null,
+      errorMessage: error.message ?? "Unknown select error",
+    });
+  }
 
   if (isMissingRelationError(error)) {
     throw createHttpError(
@@ -742,25 +750,6 @@ async function getEmailVerificationRecordByToken(supabase, token) {
 
   handleSupabaseError(error, "Failed to fetch email verification token");
   return data;
-}
-
-async function markEmailVerificationTokenAsConsumed(supabase, token) {
-  const { error } = await supabase
-    .from("email_verification_tokens")
-    .update({
-      consumed_at: new Date().toISOString(),
-    })
-    .eq("token", token);
-
-  if (isMissingRelationError(error)) {
-    throw createHttpError(
-      500,
-      "EMAIL_VERIFICATION_SCHEMA_MISSING",
-      "Missing email_verification_tokens table required for email verification",
-    );
-  }
-
-  handleSupabaseError(error, "Failed to consume email verification token");
 }
 
 async function markUserEmailAsVerified(supabase, userId) {
@@ -778,6 +767,14 @@ async function markUserEmailAsVerified(supabase, userId) {
     .eq("id", userId)
     .select(userSelect)
     .single();
+
+  if (error) {
+    console.error("[auth:verify-email] Failed to update user as verified", {
+      userId,
+      errorCode: error.code ?? null,
+      errorMessage: error.message ?? "Unknown update error",
+    });
+  }
 
   handleSupabaseError(error, "Failed to verify user email");
   return data;
@@ -2191,42 +2188,72 @@ app.post(
   }),
 );
 
-app.post(
-  "/api/auth/verify-email",
-  asyncRoute(async (req, res) => {
-    const token = typeof req.body?.token === "string" ? req.body.token.trim() : "";
+app.get("/api/auth/verify-email", async (req, res) => {
+  const token = typeof req.query?.token === "string" ? req.query.token.trim() : "";
 
-    if (!token) {
-      throw createHttpError(400, "INVALID_EMAIL_VERIFICATION_TOKEN", "A valid verification token is required");
-    }
+  if (!token) {
+    res.status(400).json({
+      success: false,
+      error: "Falta el token de verificacion",
+    });
+    return;
+  }
 
+  try {
     const supabase = getSupabaseAdmin();
     const verificationRecord = await getEmailVerificationRecordByToken(supabase, token);
 
     if (!verificationRecord) {
-      throw createHttpError(400, "EMAIL_VERIFICATION_INVALID", "The verification link is invalid");
+      res.status(404).json({
+        success: false,
+        error: "El token de verificacion no existe",
+      });
+      return;
     }
 
-    if (verificationRecord.consumed_at) {
-      throw createHttpError(400, "EMAIL_VERIFICATION_ALREADY_USED", "The verification link was already used");
+    const userId = normalizeUserId(verificationRecord.user_id);
+
+    if (!userId) {
+      console.error("[auth:verify-email] Invalid UUID in email verification token", {
+        token,
+        userId: verificationRecord.user_id ?? null,
+      });
+      res.status(500).json({
+        success: false,
+        error: "El token tiene un user_id invalido",
+      });
+      return;
     }
 
     const expiresAt = new Date(verificationRecord.expires_at);
 
     if (Number.isNaN(expiresAt.getTime()) || expiresAt.getTime() <= Date.now()) {
-      throw createHttpError(400, "EMAIL_VERIFICATION_EXPIRED", "The verification link expired");
+      res.status(400).json({
+        success: false,
+        error: "El token de verificacion esta expirado",
+      });
+      return;
     }
 
-    await markEmailVerificationTokenAsConsumed(supabase, token);
-    const user = await markUserEmailAsVerified(supabase, verificationRecord.user_id);
-    await deleteEmailVerificationTokensForUser(supabase, verificationRecord.user_id);
+    await markUserEmailAsVerified(supabase, userId);
+    await deleteEmailVerificationTokensForUser(supabase, userId);
 
-    res.json({
-      user: mapUserRecord(user),
-      token: createAppSessionToken(user),
+    res.status(200).json({
+      success: true,
     });
-  }),
-);
+  } catch (error) {
+    console.error("[auth:verify-email] Verification failed", {
+      token,
+      errorCode: error?.code ?? null,
+      errorMessage: error?.message ?? "Unknown verification error",
+    });
+
+    res.status(error?.status || 500).json({
+      success: false,
+      error: error?.message || "No pudimos verificar el email",
+    });
+  }
+});
 
 app.post(
   "/api/auth/verify-email/resend",

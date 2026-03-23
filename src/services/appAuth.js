@@ -75,8 +75,22 @@ export function resendVerificationEmail(payload) {
   return postAuthRequest("/auth/verify-email/resend", payload);
 }
 
-export function verifyEmailToken(payload) {
-  return postAuthRequest("/auth/verify-email", payload);
+export async function verifyEmailToken(token) {
+  let response;
+
+  try {
+    response = await fetch(`${import.meta.env.VITE_API_URL}/auth/verify-email?token=${encodeURIComponent(token)}`);
+  } catch {
+    throw new Error("APP_BACKEND_UNAVAILABLE");
+  }
+
+  const data = await parseJsonResponse(response);
+
+  if (!response.ok || data?.success === false) {
+    throw new Error(data?.error || "APP_AUTH_ERROR");
+  }
+
+  return data;
 }
 
 export async function fetchAuthenticatedUser(token) {

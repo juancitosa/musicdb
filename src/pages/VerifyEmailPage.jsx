@@ -2,20 +2,18 @@ import { LoaderCircle, MailCheck, MailWarning } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
-import { useAuth } from "../hooks/useAuth";
 import { verifyEmailToken } from "../services/appAuth";
 
 function mapVerificationError(errorCode) {
   switch (errorCode) {
-    case "INVALID_EMAIL_VERIFICATION_TOKEN":
-    case "EMAIL_VERIFICATION_INVALID":
+    case "Falta el token de verificacion":
       return "El link de verificacion no es valido.";
-    case "EMAIL_VERIFICATION_ALREADY_USED":
-      return "Ese link ya fue usado. Si la cuenta ya esta activa, puedes iniciar sesion.";
-    case "EMAIL_VERIFICATION_EXPIRED":
+    case "El token de verificacion no existe":
+      return "El link de verificacion no es valido.";
+    case "El token de verificacion esta expirado":
       return "El link vencio. Vuelve al login y reenvia el mail de verificacion.";
-    case "EMAIL_VERIFICATION_SCHEMA_MISSING":
-      return "Falta la configuracion de base de datos para este flujo.";
+    case "El token tiene un user_id invalido":
+      return "El link de verificacion es invalido.";
     case "APP_BACKEND_UNAVAILABLE":
       return "No pudimos conectar con el backend.";
     default:
@@ -26,7 +24,6 @@ function mapVerificationError(errorCode) {
 export default function VerifyEmailPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { setAuthenticatedSession } = useAuth();
   const [status, setStatus] = useState("loading");
   const [message, setMessage] = useState("Estamos validando tu email.");
 
@@ -43,16 +40,15 @@ export default function VerifyEmailPage() {
 
     async function runVerification() {
       try {
-        const response = await verifyEmailToken({ token });
+        await verifyEmailToken(token);
 
         if (cancelled) {
           return;
         }
 
-        setAuthenticatedSession(response);
         setStatus("success");
-        setMessage("Tu cuenta ya esta verificada. Entrando a tu perfil...");
-        window.setTimeout(() => navigate("/profile", { replace: true }), 1200);
+        setMessage("Tu cuenta ya esta verificada. Ahora puedes iniciar sesion.");
+        window.setTimeout(() => navigate("/login", { replace: true }), 1200);
       } catch (error) {
         if (cancelled) {
           return;
@@ -68,7 +64,7 @@ export default function VerifyEmailPage() {
     return () => {
       cancelled = true;
     };
-  }, [navigate, searchParams, setAuthenticatedSession]);
+  }, [navigate, searchParams]);
 
   return (
     <div className="px-4 py-12">
@@ -97,7 +93,7 @@ export default function VerifyEmailPage() {
           {status === "loading"
             ? "Este proceso suele tardar unos segundos."
             : status === "success"
-              ? "Si no te redirigimos automaticamente, puedes entrar manualmente."
+              ? "Si no te redirigimos automaticamente, puedes iniciar sesion manualmente."
               : "Si el enlace vencio o ya no funciona, abre el login y usa la opcion de reenviar verificacion."}
         </div>
 
