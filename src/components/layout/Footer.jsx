@@ -6,7 +6,7 @@ export default function Footer() {
           MusicDB © - Todos los derechos reservados 2026
         </p>
         <p className="footer-neon-text text-[11px] font-semibold tracking-[0.28em] uppercase text-white/72">
-          Beta 1.0.1
+          Beta 1.0.2
         </p>
       </div>
     </footer>
