@@ -338,7 +338,7 @@ function UserActions() {
               <button
                 type="button"
                 onClick={() => setShowProfileMenu((current) => !current)}
-                className={`relative flex items-center gap-2 rounded-full border border-white/5 bg-zinc-900 px-3 py-1.5 text-sm font-medium text-foreground transition hover:bg-zinc-800 ${
+                className={`relative flex items-center rounded-full border border-white/5 bg-zinc-900 py-1.5 pr-10 pl-3 text-sm font-medium text-foreground transition hover:bg-zinc-800 ${
                   activeTrack ? "min-w-[220px] border-white/10 bg-zinc-950/95" : ""
                 }`}
                 title={profileUser?.name ?? "Perfil"}
@@ -380,7 +380,7 @@ function UserActions() {
                     </motion.div>
                   )}
                 </AnimatePresence>
-                <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition ${showProfileMenu ? "rotate-180" : ""}`} />
+                <ChevronDown className={`absolute right-3 h-4 w-4 shrink-0 text-muted-foreground transition ${showProfileMenu ? "rotate-180" : ""}`} />
               </button>
 
               <AnimatePresence>
