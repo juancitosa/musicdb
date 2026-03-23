@@ -222,6 +222,7 @@ function UserActions() {
   const [isNowPlayingHovered, setIsNowPlayingHovered] = useState(false);
   const location = useLocation();
   const profileUser = spotifyUser ?? user;
+  const canShowNowPlaying = Boolean(user?.isPro && isSpotifyConnected && spotifyToken);
   const activeTrack = currentlyPlaying?.is_playing && currentlyPlaying?.item ? currentlyPlaying.item : null;
   const isShowingTrack = Boolean(showNowPlaying && activeTrack);
 
@@ -245,9 +246,10 @@ function UserActions() {
   }, [location.pathname]);
 
   useEffect(() => {
-    if (!isSpotifyConnected || !spotifyToken) {
+    if (!canShowNowPlaying) {
       setCurrentlyPlaying(null);
       setShowNowPlaying(false);
+      setDisplayedProgressMs(0);
       return undefined;
     }
 
@@ -277,7 +279,7 @@ function UserActions() {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [isSpotifyConnected, spotifyToken]);
+  }, [canShowNowPlaying, spotifyToken]);
 
   useEffect(() => {
     if (!activeTrack) {
