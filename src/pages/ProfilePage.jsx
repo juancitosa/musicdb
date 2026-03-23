@@ -260,6 +260,7 @@ function LocalProfileSettings({
   form,
   onAvatarChange,
   onChange,
+  onClose,
   onSubmit,
   saveError,
   isUploadingAvatar,
@@ -278,17 +279,28 @@ function LocalProfileSettings({
   }
 
   return (
-    <section className="rounded-2xl border border-border bg-card p-6">
+    <section className="w-full max-w-2xl rounded-[2rem] border border-white/14 bg-[linear-gradient(135deg,rgba(255,255,255,0.18),rgba(255,255,255,0.06))] p-6 shadow-[0_30px_120px_rgba(0,0,0,0.4)] ring-1 ring-white/10 backdrop-blur-3xl sm:p-7">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold">Datos de acceso</h2>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-primary/80">Editar perfil</p>
+          <h2 className="mt-2 text-2xl font-black text-foreground">Datos de acceso</h2>
           <p className="mt-2 text-sm text-muted-foreground">Puedes cambiar tu nombre de usuario, agregar o editar tu telefono y actualizar la contrasena.</p>
         </div>
-        <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Solo cuenta local</span>
+        <div className="flex items-center gap-2">
+          <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Solo cuenta local</span>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/8 text-muted-foreground transition hover:bg-white/12 hover:text-foreground"
+            aria-label="Cerrar editor de perfil"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
-      <div className="mt-6 flex flex-col gap-4 rounded-2xl border border-border/70 bg-background/50 p-4 sm:flex-row sm:items-center">
-        <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-secondary">
+      <div className="mt-6 flex flex-col gap-4 rounded-[1.6rem] border border-white/10 bg-black/18 p-4 sm:flex-row sm:items-center">
+        <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-secondary/80">
           {avatarUrl ? (
             <img src={avatarUrl} alt="Avatar del perfil" className="h-full w-full object-cover" />
           ) : (
@@ -301,7 +313,7 @@ function LocalProfileSettings({
           <p className="mt-1 text-xs text-muted-foreground">Sube una imagen JPG o PNG. Se guarda en Supabase Storage y reemplaza la anterior.</p>
         </div>
 
-        <label className="inline-flex cursor-pointer items-center justify-center rounded-full bg-secondary px-4 py-2.5 text-sm font-semibold text-foreground transition hover:bg-secondary/80">
+        <label className="inline-flex cursor-pointer items-center justify-center rounded-full border border-white/10 bg-white/10 px-4 py-2.5 text-sm font-semibold text-foreground transition hover:bg-white/16">
           {isUploadingAvatar ? (
             <span className="inline-flex items-center gap-2">
               <LoaderCircle className="h-4 w-4 animate-spin" />
@@ -322,7 +334,7 @@ function LocalProfileSettings({
             value={form.username}
             onChange={(event) => onChange("username", event.target.value)}
             autoComplete="username"
-            className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none transition focus:border-primary"
+            className="w-full rounded-2xl border border-white/10 bg-black/18 px-4 py-3 text-sm outline-none transition focus:border-primary"
             placeholder="Tu nombre en MusicDB"
             required
           />
@@ -335,7 +347,7 @@ function LocalProfileSettings({
             value={form.phone}
             onChange={(event) => onChange("phone", event.target.value)}
             autoComplete="tel"
-            className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none transition focus:border-primary"
+            className="w-full rounded-2xl border border-white/10 bg-black/18 px-4 py-3 text-sm outline-none transition focus:border-primary"
             placeholder="+54 11 1234 5678"
           />
         </div>
@@ -347,7 +359,7 @@ function LocalProfileSettings({
             value={form.password}
             onChange={(event) => onChange("password", event.target.value)}
             autoComplete="new-password"
-            className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none transition focus:border-primary"
+            className="w-full rounded-2xl border border-white/10 bg-black/18 px-4 py-3 text-sm outline-none transition focus:border-primary"
             placeholder="Deja este campo vacio si no quieres cambiarla"
           />
           <p className="mt-2 text-xs text-muted-foreground">Si escribes una nueva contrasena, debe tener al menos 6 caracteres.</p>
@@ -355,8 +367,11 @@ function LocalProfileSettings({
 
         {saveError ? <p className="md:col-span-2 rounded-2xl border border-destructive/25 bg-destructive/8 px-4 py-3 text-sm text-destructive">{saveError}</p> : null}
 
-        <div className="md:col-span-2">
-          <Button type="submit" size="lg" className="w-full justify-center sm:w-auto" disabled={isSaving}>
+        <div className="md:col-span-2 flex flex-wrap justify-end gap-3">
+          <Button type="button" variant="ghost" size="lg" className="border border-white/10 bg-white/6 text-foreground hover:bg-white/10" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button type="submit" size="lg" className="justify-center rounded-full px-6" disabled={isSaving}>
             {isSaving ? (
               <span className="inline-flex items-center gap-2">
                 <LoaderCircle className="h-4 w-4 animate-spin" />
@@ -373,29 +388,20 @@ function LocalProfileSettings({
 }
 
 function ProfileOverview({
-  avatarUrl,
   filteredEntries,
   hasSpotifyFeatures,
   historyEntries,
   historyError,
   historyFilter,
   isLoadingHistory,
-  isSavingProfile,
-  isSpotifyUser,
-  isUploadingAvatar,
   proUntilLabel,
-  profileForm,
-  profileSaveError,
-  setAvatarFile,
   searchOpen,
   searchTerm,
   setHistoryFilter,
-  setProfileFormField,
   setSearchOpen,
   setSearchTerm,
   spotifyUser,
   user,
-  onSubmitProfile,
 }) {
   return (
     <>
@@ -481,20 +487,6 @@ function ProfileOverview({
             ))}
           </div>
         </section>
-      </div>
-
-      <div className="mb-6">
-        <LocalProfileSettings
-          avatarUrl={avatarUrl}
-          form={profileForm}
-          onAvatarChange={setAvatarFile}
-          onChange={setProfileFormField}
-          onSubmit={onSubmitProfile}
-          saveError={profileSaveError}
-          isUploadingAvatar={isUploadingAvatar}
-          isSaving={isSavingProfile}
-          isSpotifyUser={isSpotifyUser}
-        />
       </div>
 
       <section className="rounded-3xl border border-border bg-card p-6 shadow-lg shadow-black/5">
@@ -654,6 +646,7 @@ export default function ProfilePage() {
   });
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
   const [profileSaveError, setProfileSaveError] = useState("");
   const proUntilLabel = user?.isPro ? formatProUntil(user?.proUntil) : "";
 
@@ -664,6 +657,19 @@ export default function ProfilePage() {
       password: "",
     }));
   }, [user?.phone, user?.username]);
+
+  useEffect(() => {
+    if (!isEditProfileOpen) {
+      return undefined;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isEditProfileOpen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -935,6 +941,7 @@ export default function ProfilePage() {
           ? "Guardamos tu usuario, telefono y nueva contrasena."
           : "Tus datos de perfil ya fueron actualizados.",
       });
+      setIsEditProfileOpen(false);
     } catch (error) {
       setProfileSaveError(mapProfileUpdateError(error?.message));
     } finally {
@@ -968,35 +975,83 @@ export default function ProfilePage() {
       <ProfileSectionTabs />
 
       <div className="mb-8 rounded-3xl border border-border bg-card p-8 shadow-lg shadow-black/5">
-        <div className="flex flex-col gap-6 md:flex-row md:items-center">
-          <div className="flex h-24 w-24 items-center justify-center rounded-full bg-secondary">
-            {profileUser?.avatar ? (
-              <img src={profileUser.avatar} alt={profileUser.name} className="h-full w-full rounded-full object-cover" />
-            ) : (
-              <UserRound className="h-10 w-10 text-muted-foreground" />
-            )}
-          </div>
-          <div>
-            <p className="text-sm uppercase tracking-widest text-primary">
-              {hasSpotifyFeatures ? "Perfil con Spotify" : user?.authProvider === "local" ? "Cuenta MusicDB" : "Perfil de usuario"}
-            </p>
-            <div className="mt-1 flex flex-wrap items-center gap-3">
-              <h1 className={`text-4xl font-bold ${user?.isPro ? "pro-username" : ""}`}>{profileUser?.name}</h1>
-              {user?.isPro ? (
-                <span className="pro-badge inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em]">
-                  PRO <Star className="h-3.5 w-3.5 fill-current" />
-                </span>
+        <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
+          <div className="flex flex-col gap-6 md:flex-row md:items-center">
+            <div className="flex h-24 w-24 items-center justify-center rounded-full bg-secondary">
+              {profileUser?.avatar ? (
+                <img src={profileUser.avatar} alt={profileUser.name} className="h-full w-full rounded-full object-cover" />
+              ) : (
+                <UserRound className="h-10 w-10 text-muted-foreground" />
+              )}
+            </div>
+            <div>
+              <p className="text-sm uppercase tracking-widest text-primary">
+                {hasSpotifyFeatures ? "Perfil con Spotify" : user?.authProvider === "local" ? "Cuenta MusicDB" : "Perfil de usuario"}
+              </p>
+              <div className="mt-1 flex flex-wrap items-center gap-3">
+                <h1 className={`text-4xl font-bold ${user?.isPro ? "pro-username" : ""}`}>{profileUser?.name}</h1>
+                {user?.isPro ? (
+                  <span className="pro-badge inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em]">
+                    PRO <Star className="h-3.5 w-3.5 fill-current" />
+                  </span>
+                ) : null}
+              </div>
+              <p className="mt-1 text-muted-foreground">{profileUser?.email || "Sin email visible"}</p>
+              {user?.isPro && proUntilLabel ? (
+                <p className="mt-2 text-sm font-medium text-amber-200">
+                  Miembro PRO hasta: <span className="text-amber-100">{proUntilLabel}</span>
+                </p>
               ) : null}
             </div>
-            <p className="mt-1 text-muted-foreground">{profileUser?.email || "Sin email visible"}</p>
-            {user?.isPro && proUntilLabel ? (
-              <p className="mt-2 text-sm font-medium text-amber-200">
-                Miembro PRO hasta: <span className="text-amber-100">{proUntilLabel}</span>
-              </p>
-            ) : null}
+          </div>
+
+          <div className="md:pl-6">
+            <Button
+              type="button"
+              variant="ghost"
+              size="lg"
+              onClick={() => setIsEditProfileOpen(true)}
+              className="w-full rounded-full border border-white/10 bg-white/6 px-5 text-foreground shadow-[0_10px_30px_rgba(0,0,0,0.16)] backdrop-blur-xl hover:bg-white/12 md:w-auto"
+            >
+              Editar perfil
+            </Button>
           </div>
         </div>
       </div>
+
+      <AnimatePresence>
+        {isEditProfileOpen ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[220] flex items-center justify-center bg-[rgba(3,4,10,0.42)] px-4 py-6 backdrop-blur-md"
+            onClick={() => setIsEditProfileOpen(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 24, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 16, scale: 0.98 }}
+              transition={{ duration: 0.22, ease: "easeOut" }}
+              className="w-full max-w-2xl"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <LocalProfileSettings
+                avatarUrl={user?.avatar}
+                form={profileForm}
+                onAvatarChange={handleAvatarFileChange}
+                onChange={setProfileFormField}
+                onClose={() => setIsEditProfileOpen(false)}
+                onSubmit={handleSubmitProfile}
+                saveError={profileSaveError}
+                isUploadingAvatar={isUploadingAvatar}
+                isSaving={isSavingProfile}
+                isSpotifyUser={isSpotifyUser}
+              />
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
 
       {isStatsView ? (
         <ProfileStats
@@ -1012,29 +1067,20 @@ export default function ProfilePage() {
         />
       ) : (
         <ProfileOverview
-          avatarUrl={user?.avatar}
           filteredEntries={filteredEntries}
           hasSpotifyFeatures={hasSpotifyFeatures}
           historyEntries={historyEntries}
           historyError={historyError}
           historyFilter={historyFilter}
           isLoadingHistory={isLoadingHistory}
-          isSavingProfile={isSavingProfile}
-          isSpotifyUser={isSpotifyUser}
-          isUploadingAvatar={isUploadingAvatar}
           proUntilLabel={proUntilLabel}
-          profileForm={profileForm}
-          profileSaveError={profileSaveError}
-          setAvatarFile={handleAvatarFileChange}
           searchOpen={searchOpen}
           searchTerm={searchTerm}
           setHistoryFilter={setHistoryFilter}
-          setProfileFormField={setProfileFormField}
           setSearchOpen={setSearchOpen}
           setSearchTerm={setSearchTerm}
           spotifyUser={spotifyUser}
           user={user}
-          onSubmitProfile={handleSubmitProfile}
         />
       )}
     </div>
