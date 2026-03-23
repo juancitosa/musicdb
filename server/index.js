@@ -544,6 +544,14 @@ function isMissingRelationError(error) {
 async function deleteEmailVerificationTokensForUser(supabase, userId) {
   const { error } = await supabase.from("email_verification_tokens").delete().eq("user_id", userId);
 
+  if (error) {
+    console.error("[auth:verify-email:resend] Failed to clear previous email verification tokens", {
+      userId,
+      errorCode: error.code ?? null,
+      errorMessage: error.message ?? "Unknown delete error",
+    });
+  }
+
   if (isMissingRelationError(error)) {
     throw createHttpError(
       500,
@@ -610,6 +618,14 @@ async function markVerificationEmailSent(supabase, userId) {
       verification_sent_at: new Date().toISOString(),
     })
     .eq("id", userId);
+
+  if (error) {
+    console.error("[auth:verify-email:resend] Failed to update verification_sent_at", {
+      userId,
+      errorCode: error.code ?? null,
+      errorMessage: error.message ?? "Unknown update error",
+    });
+  }
 
   handleSupabaseError(error, "Failed to persist verification sent timestamp");
 }
@@ -1970,6 +1986,86 @@ async function handleLocalRegister(req, res) {
   });
 }
 
+async function handleResendVerificationEmail(req, res) {
+  const email = normalizeEmail(req.body?.email);
+
+  if (!email) {
+    throw createHttpError(400, "INVALID_EMAIL_VERIFICATION_RESEND_PAYLOAD", "A valid email is required");
+  }
+
+  const supabase = getSupabaseAdmin();
+  const userSelect = await buildUserSelect(supabase);
+  const { data: user, error: userError } = await supabase
+    .from("users")
+    .select(userSelect)
+    .eq("email", email)
+    .maybeSingle();
+
+  if (userError) {
+    console.error("[auth:verify-email:resend] Failed to fetch user by email", {
+      email,
+      errorCode: userError.code ?? null,
+      errorMessage: userError.message ?? "Unknown select error",
+    });
+    handleSupabaseError(userError, "Failed to fetch user by email for resend verification");
+  }
+
+  if (!user?.id) {
+    throw createHttpError(404, "EMAIL_VERIFICATION_USER_NOT_FOUND", "No account was found for that email");
+  }
+
+  if (user.auth_provider !== "local") {
+    throw createHttpError(400, "EMAIL_VERIFICATION_RESEND_NOT_SUPPORTED", "Only local accounts can resend verification emails");
+  }
+
+  if (user.is_verified) {
+    res.status(200).json({
+      ok: true,
+      already_verified: true,
+      message: "Ese email ya esta verificado",
+    });
+    return;
+  }
+
+  console.log("[auth:verify-email:resend] Resending verification email", {
+    userId: user.id,
+    email,
+  });
+
+  try {
+    const { token, expiresAt } = await createEmailVerificationToken(supabase, user.id);
+    const delivery = await sendVerificationEmail({
+      email: user.email,
+      username: user.username,
+      token,
+      expiresAt,
+    });
+
+    await markVerificationEmailSent(supabase, user.id);
+
+    res.status(200).json({
+      ok: true,
+      message: "Revisa tu email para verificar la cuenta",
+      verification_delivery: delivery.delivered ? "smtp" : "logged",
+      verification_url: delivery.delivered ? null : delivery.verificationUrl ?? null,
+      verification_expires_at: expiresAt,
+    });
+  } catch (error) {
+    console.error("[auth:verify-email:resend] Resend verification failed", {
+      userId: user.id,
+      email,
+      errorCode: error?.code ?? null,
+      errorMessage: error?.message ?? "Unknown resend error",
+    });
+
+    if (error?.status) {
+      throw error;
+    }
+
+    throw createHttpError(500, "EMAIL_VERIFICATION_RESEND_FAILED", "No pudimos reenviar el email de verificacion");
+  }
+}
+
 app.get(
   "/api/search/artists",
   asyncRoute(async (req, res) => {
@@ -2134,32 +2230,7 @@ app.post(
 
 app.post(
   "/api/auth/verify-email/resend",
-  asyncRoute(async (req, res) => {
-    const email = normalizeEmail(req.body?.email);
-
-    if (!email) {
-      throw createHttpError(400, "INVALID_EMAIL_VERIFICATION_RESEND_PAYLOAD", "A valid email is required");
-    }
-
-    const supabase = getSupabaseAdmin();
-    const user = await getUserByEmail(supabase, email);
-
-    if (!user?.id || user.auth_provider !== "local") {
-      res.status(200).json({
-        ok: true,
-      });
-      return;
-    }
-
-    const verification = await issueVerificationEmail(supabase, user);
-
-    res.status(200).json({
-      ok: true,
-      already_verified: Boolean(verification.alreadyVerified),
-      verification_delivery: verification.delivery?.delivered ? "smtp" : verification.delivery?.verificationUrl ? "logged" : null,
-      verification_url: verification.delivery?.delivered ? null : verification.delivery?.verificationUrl ?? null,
-    });
-  }),
+  asyncRoute(handleResendVerificationEmail),
 );
 
 app.get(
