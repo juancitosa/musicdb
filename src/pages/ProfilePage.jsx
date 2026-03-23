@@ -1,19 +1,18 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { AudioLines, Disc3, Flame, Play, Search, Star, UserRound, X } from "lucide-react";
+import { AudioLines, Disc3, Flame, Search, Star, UserRound, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { Link, Navigate, useNavigate } from "react-router-dom";
+import { Link, Navigate, NavLink, useLocation, useNavigate } from "react-router-dom";
 
 import SectionHeader from "../components/shared/SectionHeader";
 import Button from "../components/ui/Button";
-import { getMockAlbum, getMockArtist } from "../services/catalog";
 import { useAuth } from "../hooks/useAuth";
 import { useSpotifyAuth } from "../hooks/useSpotifyAuth";
+import { getMockAlbum, getMockArtist } from "../services/catalog";
 import { getMyRatings } from "../services/ratingHistory";
 import {
   formatTrackDuration,
   getAlbumById,
   getArtistById,
-  getCurrentlyPlayingTrack,
   getImageUrl,
   getTopAlbumsFromTopTracks,
   getTopArtists,
@@ -98,7 +97,7 @@ function normalizeRatingEntry(rating, entity) {
       entityType: "artist",
       entityId: rating.entity_id,
       title: entity?.name ?? "Artista no disponible",
-      subtitle: entity?.genres?.slice(0, 2).join(" Â· ") || "Artista",
+      subtitle: entity?.genres?.slice(0, 2).join(" • ") || "Artista",
       image: getImageUrl(entity?.images),
       href: `/artist/${rating.entity_id}`,
       ratingValue: rating.rating_value,
@@ -111,7 +110,7 @@ function normalizeRatingEntry(rating, entity) {
     entityType: "album",
     entityId: rating.entity_id,
     title: entity?.name ?? "Album no disponible",
-    subtitle: `${entity?.artists?.[0]?.name ?? "Album"}${entity?.release_date ? ` Â· ${String(entity.release_date).slice(0, 4)}` : ""}`,
+    subtitle: `${entity?.artists?.[0]?.name ?? "Album"}${entity?.release_date ? ` • ${String(entity.release_date).slice(0, 4)}` : ""}`,
     image: getImageUrl(entity?.images),
     href: `/album/${rating.entity_id}`,
     ratingValue: rating.rating_value,
@@ -162,7 +161,7 @@ function RatingHistoryCard({ entry }) {
 function SpotifyFeatureLock({ isSpotifyUser, onUnlock }) {
   const message = !isSpotifyUser
     ? "Inicia sesion con Spotify para habilitar tus estadisticas personales."
-    : "Hazte MusicDB PRO para desbloquear tus tops personales y el escuchando ahora.";
+    : "Hazte MusicDB PRO para desbloquear tus tops personales.";
 
   return (
     <section className="rounded-[1.8rem] border border-amber-300/18 bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.12),transparent_28%),linear-gradient(135deg,rgba(14,14,16,0.98),rgba(24,19,14,0.96),rgba(12,12,14,0.98))] p-6 shadow-[0_24px_60px_-36px_rgba(245,158,11,0.5)] sm:p-8">
@@ -171,9 +170,7 @@ function SpotifyFeatureLock({ isSpotifyUser, onUnlock }) {
         Spotify + PRO
       </span>
       <h2 className="mt-4 text-2xl font-black text-white sm:text-3xl">Tus estadisticas personales viven aca</h2>
-      <p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/72 sm:text-base">
-        {message}
-      </p>
+      <p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/72 sm:text-base">{message}</p>
       <div className="mt-6 grid gap-4 md:grid-cols-3">
         <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-100/80">Artistas mas escuchados</p>
@@ -184,8 +181,8 @@ function SpotifyFeatureLock({ isSpotifyUser, onUnlock }) {
           <p className="mt-3 text-sm text-white/68">Los albumes que mas giraron en tu historial reciente.</p>
         </div>
         <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-100/80">Escuchando ahora</p>
-          <p className="mt-3 text-sm text-white/68">Ve lo que esta sonando en este momento desde tu cuenta.</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-100/80">Canciones mas escuchadas</p>
+          <p className="mt-3 text-sm text-white/68">Tus temas favoritos segun tu cuenta conectada.</p>
         </div>
       </div>
       <div className="mt-6">
@@ -212,9 +209,228 @@ function SpotifyStatCard({ title, subtitle, icon, children }) {
 }
 
 function EmptySpotifyState({ message }) {
+  return <div className="rounded-2xl border border-dashed border-border bg-secondary/40 p-6 text-sm text-muted-foreground">{message}</div>;
+}
+
+function ProfileSectionTabs() {
+  const items = [
+    { to: "/profile", label: "Mi perfil" },
+    { to: "/profile/stats", label: "Mis estadisticas" },
+  ];
+
   return (
-    <div className="rounded-2xl border border-dashed border-border bg-secondary/40 p-6 text-sm text-muted-foreground">
-      {message}
+    <div className="mb-6 flex flex-wrap gap-2">
+      {items.map((item) => (
+        <NavLink
+          key={item.to}
+          to={item.to}
+          end={item.to === "/profile"}
+          className={({ isActive }) =>
+            `rounded-full px-4 py-2 text-sm font-medium transition ${
+              isActive ? "bg-primary text-primary-foreground shadow-md" : "bg-secondary text-muted-foreground hover:text-foreground"
+            }`
+          }
+        >
+          {item.label}
+        </NavLink>
+      ))}
+    </div>
+  );
+}
+
+function ProfileOverview({
+  filteredEntries,
+  hasSpotifyFeatures,
+  historyEntries,
+  historyError,
+  historyFilter,
+  isLoadingHistory,
+  proUntilLabel,
+  searchOpen,
+  searchTerm,
+  setHistoryFilter,
+  setSearchOpen,
+  setSearchTerm,
+  spotifyUser,
+  user,
+}) {
+  return (
+    <>
+      <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <section className="rounded-2xl border border-border bg-card p-6">
+          <h2 className="text-xl font-bold">Estado de sesion</h2>
+          <div className="mt-4 space-y-3 text-sm">
+            <p><span className="font-semibold">Proveedor:</span> {user?.authProvider === "spotify" ? "Spotify + MusicDB" : "MusicDB"}</p>
+            <p><span className="font-semibold">Spotify:</span> {hasSpotifyFeatures ? `Conectado como ${spotifyUser?.name ?? "usuario"}` : "No conectado"}</p>
+            <p><span className="font-semibold">MusicDB PRO:</span> {user?.isPro ? "Activo" : "No activo"}</p>
+            {user?.isPro && proUntilLabel ? <p><span className="font-semibold">Miembro PRO hasta:</span> {proUntilLabel}</p> : null}
+            <p><span className="font-semibold">User ID:</span> {user?.id ?? "No disponible"}</p>
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-border bg-card p-6">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-bold">Historial de ratings</h2>
+              <p className="mt-2 text-sm text-muted-foreground">Revisa y filtra tus votos de artistas y albumes desde tu perfil.</p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setSearchOpen((current) => !current);
+                if (searchOpen) {
+                  setSearchTerm("");
+                }
+              }}
+              className="flex h-11 w-11 items-center justify-center rounded-2xl border border-border bg-background text-muted-foreground transition hover:border-primary/40 hover:text-primary"
+              aria-label="Buscar en historial"
+            >
+              <Search className="h-5 w-5" />
+            </button>
+          </div>
+
+          <AnimatePresence initial={false}>
+            {searchOpen ? (
+              <motion.div
+                initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                animate={{ opacity: 1, height: "auto", marginTop: 16 }}
+                exit={{ opacity: 0, height: 0, marginTop: 0 }}
+                transition={{ duration: 0.2, ease: "easeOut" }}
+                className="overflow-hidden"
+              >
+                <div className="relative">
+                  <Search className="pointer-events-none absolute top-1/2 left-4 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(event) => setSearchTerm(event.target.value)}
+                    placeholder="Buscar artista o album..."
+                    className="w-full rounded-2xl border border-border bg-background py-3 pr-12 pl-11 text-sm outline-none transition focus:border-primary"
+                  />
+                  {searchTerm ? (
+                    <button
+                      type="button"
+                      onClick={() => setSearchTerm("")}
+                      className="absolute top-1/2 right-3 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground transition hover:bg-secondary hover:text-foreground"
+                      aria-label="Limpiar busqueda"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  ) : null}
+                </div>
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
+
+          <div className="mt-5 flex flex-wrap gap-2">
+            {filters.map((filter) => (
+              <button
+                key={filter.key}
+                type="button"
+                onClick={() => setHistoryFilter(filter.key)}
+                className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                  historyFilter === filter.key ? "bg-primary text-primary-foreground shadow-md" : "bg-secondary text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
+        </section>
+      </div>
+
+      <section className="rounded-3xl border border-border bg-card p-6 shadow-lg shadow-black/5">
+        {isLoadingHistory ? (
+          <EmptySpotifyState message="Cargando tu historial de ratings..." />
+        ) : historyError ? (
+          <div className="rounded-2xl border border-dashed border-border bg-secondary/40 p-6 text-sm text-destructive">{historyError}</div>
+        ) : filteredEntries.length > 0 ? (
+          <div className="space-y-3">
+            {filteredEntries.map((entry) => (
+              <RatingHistoryCard key={entry.id} entry={entry} />
+            ))}
+          </div>
+        ) : (
+          <EmptySpotifyState
+            message={historyEntries.length > 0 ? "No hay resultados para ese filtro." : "Todavia no registraste ratings. Cuando puntues artistas o albumes, van a aparecer aca."}
+          />
+        )}
+      </section>
+    </>
+  );
+}
+
+function ProfileStats({ hasSpotifyStatsAccess, isLoadingSpotifyStats, isSpotifyUser, navigate, spotifyTopAlbums, spotifyTopArtists, spotifyTopTracks }) {
+  if (!hasSpotifyStatsAccess) {
+    return <SpotifyFeatureLock isSpotifyUser={isSpotifyUser} onUnlock={() => navigate("/pro")} />;
+  }
+
+  return (
+    <div className="grid gap-6 xl:grid-cols-3">
+      <SpotifyStatCard icon={<Flame className="h-6 w-6 text-primary" />} title="Artistas mas escuchados" subtitle="Tus artistas mas reproducidos segun Spotify">
+        {isLoadingSpotifyStats ? (
+          <EmptySpotifyState message="Cargando tus artistas favoritos..." />
+        ) : spotifyTopArtists.length > 0 ? (
+          <div className="space-y-3">
+            {spotifyTopArtists.map((artist, index) => (
+              <Link key={artist.id} to={`/artist/${artist.id}`} className="flex items-center gap-3 rounded-2xl border border-border/70 bg-background/60 p-3 transition hover:border-primary/35 hover:bg-secondary/30">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-bold text-muted-foreground">{index + 1}</span>
+                <img src={getImageUrl(artist.images)} alt={artist.name} className="h-12 w-12 rounded-full object-cover" />
+                <div className="min-w-0">
+                  <p className="truncate font-semibold">{artist.name}</p>
+                  <p className="truncate text-xs text-muted-foreground">{artist.genres?.slice(0, 2).join(" • ") || "Artista"}</p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <EmptySpotifyState message="Spotify no devolvio artistas para tu top actual." />
+        )}
+      </SpotifyStatCard>
+
+      <SpotifyStatCard icon={<Disc3 className="h-6 w-6 text-primary" />} title="Albumes mas escuchados" subtitle="Construido a partir de tus canciones mas escuchadas">
+        {isLoadingSpotifyStats ? (
+          <EmptySpotifyState message="Cargando tus albumes mas escuchados..." />
+        ) : spotifyTopAlbums.length > 0 ? (
+          <div className="space-y-3">
+            {spotifyTopAlbums.map((album, index) => (
+              <Link key={album.id} to={`/album/${album.id}`} className="flex items-center gap-3 rounded-2xl border border-border/70 bg-background/60 p-3 transition hover:border-primary/35 hover:bg-secondary/30">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-bold text-muted-foreground">{index + 1}</span>
+                <img src={getImageUrl(album.images)} alt={album.name} className="h-12 w-12 rounded-2xl object-cover" />
+                <div className="min-w-0">
+                  <p className="truncate font-semibold">{album.name}</p>
+                  <p className="truncate text-xs text-muted-foreground">{album.artists?.map((artist) => artist.name).join(", ") || "Album"}</p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <EmptySpotifyState message="Todavia no pudimos construir un top de albumes para esta cuenta." />
+        )}
+      </SpotifyStatCard>
+
+      <SpotifyStatCard icon={<AudioLines className="h-6 w-6 text-primary" />} title="Canciones mas escuchadas" subtitle="Tus temas mas reproducidos en Spotify">
+        {isLoadingSpotifyStats ? (
+          <EmptySpotifyState message="Cargando tus canciones favoritas..." />
+        ) : spotifyTopTracks.length > 0 ? (
+          <div className="space-y-3">
+            {spotifyTopTracks.map((track, index) => (
+              <div key={track.id} className="flex items-center gap-3 rounded-2xl border border-border/70 bg-background/60 p-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-bold text-muted-foreground">{index + 1}</span>
+                <img src={getImageUrl(track.album?.images)} alt={track.album?.name ?? track.name} className="h-12 w-12 rounded-2xl object-cover" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-semibold">{track.name}</p>
+                  <p className="truncate text-xs text-muted-foreground">{track.artists?.map((artist) => artist.name).join(", ")}</p>
+                </div>
+                <span className="text-xs text-muted-foreground">{formatTrackDuration(track.duration_ms ?? 0)}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <EmptySpotifyState message="Spotify no devolvio canciones para tu top actual." />
+        )}
+      </SpotifyStatCard>
     </div>
   );
 }
@@ -222,10 +438,12 @@ function EmptySpotifyState({ message }) {
 export default function ProfilePage() {
   const { isLoggedIn, user, appToken, isSpotifyUser } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const { isSpotifyConnected, isLoadingSpotify, spotifyToken, spotifyUser } = useSpotifyAuth();
   const profileUser = spotifyUser ?? user;
   const hasSpotifyFeatures = isSpotifyUser && isSpotifyConnected;
   const hasSpotifyStatsAccess = hasSpotifyFeatures && Boolean(user?.isPro) && Boolean(spotifyToken);
+  const isStatsView = location.pathname === "/profile/stats";
   const [historyFilter, setHistoryFilter] = useState("all");
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -235,8 +453,6 @@ export default function ProfilePage() {
   const [spotifyTopArtists, setSpotifyTopArtists] = useState([]);
   const [spotifyTopAlbums, setSpotifyTopAlbums] = useState([]);
   const [spotifyTopTracks, setSpotifyTopTracks] = useState([]);
-  const [currentlyPlaying, setCurrentlyPlaying] = useState(null);
-  const [displayedProgressMs, setDisplayedProgressMs] = useState(0);
   const [isLoadingSpotifyStats, setIsLoadingSpotifyStats] = useState(false);
   const proUntilLabel = user?.isPro ? formatProUntil(user?.proUntil) : "";
 
@@ -293,19 +509,16 @@ export default function ProfilePage() {
         setSpotifyTopArtists([]);
         setSpotifyTopAlbums([]);
         setSpotifyTopTracks([]);
-        setCurrentlyPlaying(null);
-        setDisplayedProgressMs(0);
         return;
       }
 
       setIsLoadingSpotifyStats(true);
 
       try {
-        const [artistsResponse, albumsResponse, tracksResponse, playback] = await Promise.all([
+        const [artistsResponse, albumsResponse, tracksResponse] = await Promise.all([
           getTopArtists(spotifyToken, 6),
           getTopAlbumsFromTopTracks(spotifyToken, 6, 30),
           getTopTracks(spotifyToken, 6, "medium_term"),
-          getCurrentlyPlayingTrack(spotifyToken),
         ]);
 
         if (cancelled) {
@@ -315,17 +528,11 @@ export default function ProfilePage() {
         setSpotifyTopArtists(artistsResponse?.items ?? []);
         setSpotifyTopAlbums(albumsResponse ?? []);
         setSpotifyTopTracks(tracksResponse?.items ?? []);
-
-        const nextPlayback = playback?.is_playing && playback?.item ? playback : null;
-        setCurrentlyPlaying(nextPlayback);
-        setDisplayedProgressMs(nextPlayback?.progress_ms ?? 0);
       } catch {
         if (!cancelled) {
           setSpotifyTopArtists([]);
           setSpotifyTopAlbums([]);
           setSpotifyTopTracks([]);
-          setCurrentlyPlaying(null);
-          setDisplayedProgressMs(0);
         }
       } finally {
         if (!cancelled) {
@@ -341,54 +548,6 @@ export default function ProfilePage() {
     };
   }, [hasSpotifyStatsAccess, spotifyToken]);
 
-  useEffect(() => {
-    if (!hasSpotifyStatsAccess) {
-      return undefined;
-    }
-
-    let cancelled = false;
-
-    async function refreshPlayback() {
-      try {
-        const playback = await getCurrentlyPlayingTrack(spotifyToken);
-
-        if (cancelled) {
-          return;
-        }
-
-        const nextPlayback = playback?.is_playing && playback?.item ? playback : null;
-        setCurrentlyPlaying(nextPlayback);
-        setDisplayedProgressMs(nextPlayback?.progress_ms ?? 0);
-      } catch {
-        if (!cancelled) {
-          setCurrentlyPlaying(null);
-          setDisplayedProgressMs(0);
-        }
-      }
-    }
-
-    const intervalId = window.setInterval(refreshPlayback, 5000);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(intervalId);
-    };
-  }, [hasSpotifyStatsAccess, spotifyToken]);
-
-  useEffect(() => {
-    if (!currentlyPlaying?.is_playing || !currentlyPlaying?.item?.duration_ms) {
-      return undefined;
-    }
-
-    const intervalId = window.setInterval(() => {
-      setDisplayedProgressMs((current) => Math.min(current + 1000, currentlyPlaying.item.duration_ms));
-    }, 1000);
-
-    return () => {
-      window.clearInterval(intervalId);
-    };
-  }, [currentlyPlaying]);
-
   const filteredEntries = useMemo(() => {
     const normalizedTerm = searchTerm.trim().toLowerCase();
 
@@ -402,10 +561,6 @@ export default function ProfilePage() {
       return matchesFilter && matchesSearch;
     });
   }, [historyEntries, historyFilter, searchTerm]);
-  const currentTrack = currentlyPlaying?.item ?? null;
-  const currentTrackProgress = currentTrack?.duration_ms
-    ? Math.min((displayedProgressMs / currentTrack.duration_ms) * 100, 100)
-    : 0;
 
   if (isLoadingSpotify && !profileUser) {
     return (
@@ -430,6 +585,8 @@ export default function ProfilePage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
+      <ProfileSectionTabs />
+
       <div className="mb-8 rounded-3xl border border-border bg-card p-8 shadow-lg shadow-black/5">
         <div className="flex flex-col gap-6 md:flex-row md:items-center">
           <div className="flex h-24 w-24 items-center justify-center rounded-full bg-secondary">
@@ -461,301 +618,34 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <section className="rounded-2xl border border-border bg-card p-6">
-          <h2 className="text-xl font-bold">Estado de sesion</h2>
-          <div className="mt-4 space-y-3 text-sm">
-            <p>
-              <span className="font-semibold">Proveedor:</span> {user?.authProvider === "spotify" ? "Spotify + MusicDB" : "MusicDB"}
-            </p>
-            <p>
-              <span className="font-semibold">Spotify:</span> {hasSpotifyFeatures ? `Conectado como ${spotifyUser?.name ?? "usuario"}` : "No conectado"}
-            </p>
-            <p>
-              <span className="font-semibold">MusicDB PRO:</span> {user?.isPro ? "Activo" : "No activo"}
-            </p>
-            {user?.isPro && proUntilLabel ? (
-              <p>
-                <span className="font-semibold">Miembro PRO hasta:</span> {proUntilLabel}
-              </p>
-            ) : null}
-            <p>
-              <span className="font-semibold">User ID:</span> {user?.id ?? "No disponible"}
-            </p>
-          </div>
-        </section>
-
-        <section className="rounded-2xl border border-border bg-card p-6">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <h2 className="text-xl font-bold">Historial de ratings</h2>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Revisa y filtra tus votos de artistas y albumes desde tu perfil.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchOpen((current) => !current);
-                  if (searchOpen) {
-                    setSearchTerm("");
-                  }
-                }}
-                className="flex h-11 w-11 items-center justify-center rounded-2xl border border-border bg-background text-muted-foreground transition hover:border-primary/40 hover:text-primary"
-                aria-label="Buscar en historial"
-              >
-                <Search className="h-5 w-5" />
-              </button>
-            </div>
-          </div>
-
-          <AnimatePresence initial={false}>
-            {searchOpen ? (
-              <motion.div
-                initial={{ opacity: 0, height: 0, marginTop: 0 }}
-                animate={{ opacity: 1, height: "auto", marginTop: 16 }}
-                exit={{ opacity: 0, height: 0, marginTop: 0 }}
-                transition={{ duration: 0.2, ease: "easeOut" }}
-                className="overflow-hidden"
-              >
-                <div className="relative">
-                  <Search className="pointer-events-none absolute top-1/2 left-4 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={(event) => setSearchTerm(event.target.value)}
-                    placeholder="Buscar artista o album..."
-                    className="w-full rounded-2xl border border-border bg-background py-3 pr-12 pl-11 text-sm outline-none transition focus:border-primary"
-                  />
-                  {searchTerm ? (
-                    <button
-                      type="button"
-                      onClick={() => setSearchTerm("")}
-                      className="absolute top-1/2 right-3 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground transition hover:bg-secondary hover:text-foreground"
-                      aria-label="Limpiar busqueda"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  ) : null}
-                </div>
-              </motion.div>
-            ) : null}
-          </AnimatePresence>
-
-          <div className="mt-5 flex flex-wrap gap-2">
-            {filters.map((filter) => (
-              <button
-                key={filter.key}
-                type="button"
-                onClick={() => setHistoryFilter(filter.key)}
-                className={`rounded-full px-4 py-2 text-sm font-medium transition ${
-                  historyFilter === filter.key
-                    ? "bg-primary text-primary-foreground shadow-md"
-                    : "bg-secondary text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {filter.label}
-              </button>
-            ))}
-          </div>
-        </section>
-      </div>
-
-      <section className="rounded-3xl border border-border bg-card p-6 shadow-lg shadow-black/5">
-        {isLoadingHistory ? (
-          <div className="rounded-2xl border border-dashed border-border bg-secondary/40 p-6 text-sm text-muted-foreground">
-            Cargando tu historial de ratings...
-          </div>
-        ) : historyError ? (
-          <div className="rounded-2xl border border-dashed border-border bg-secondary/40 p-6 text-sm text-destructive">
-            {historyError}
-          </div>
-        ) : filteredEntries.length > 0 ? (
-          <div className="space-y-3">
-            {filteredEntries.map((entry) => (
-              <RatingHistoryCard key={entry.id} entry={entry} />
-            ))}
-          </div>
-        ) : (
-          <div className="rounded-2xl border border-dashed border-border bg-secondary/40 p-6 text-sm text-muted-foreground">
-            {historyEntries.length > 0
-              ? "No hay resultados para ese filtro."
-              : "Todavia no registraste ratings. Cuando puntues artistas o albumes, van a aparecer aca."}
-          </div>
-        )}
-      </section>
-
-      <div className="mt-8">
-        {hasSpotifyStatsAccess ? (
-          <div className="space-y-6">
-            <section className="rounded-[1.8rem] border border-border bg-card p-6 shadow-lg shadow-black/5">
-              <SectionHeader
-                icon={<Play className="h-6 w-6 text-primary fill-current" />}
-                title="Escuchando ahora"
-                subtitle="Lo que esta reproduciendose en este momento en tu cuenta de Spotify"
-              />
-              <div className="mt-6">
-                {isLoadingSpotifyStats ? (
-                  <EmptySpotifyState message="Cargando reproduccion actual..." />
-                ) : currentTrack ? (
-                  <div className="rounded-[1.6rem] border border-border/70 bg-background/70 p-4 sm:p-5">
-                    <div className="flex items-center gap-4">
-                      <img
-                        src={getImageUrl(currentTrack.album?.images)}
-                        alt={currentTrack.album?.name ?? currentTrack.name}
-                        className="h-20 w-20 rounded-2xl object-cover"
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">Spotify Live</p>
-                        <h3 className="mt-2 truncate text-xl font-bold">{currentTrack.name}</h3>
-                        <p className="truncate text-sm text-muted-foreground">
-                          {currentTrack.artists?.map((artist) => artist.name).join(", ")}
-                        </p>
-                        <p className="mt-1 truncate text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                          {currentTrack.album?.name ?? "Spotify"}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="mt-5">
-                      <div className="h-2 overflow-hidden rounded-full bg-secondary">
-                        <div className="h-full rounded-full bg-primary transition-[width] duration-500" style={{ width: `${currentTrackProgress}%` }} />
-                      </div>
-                      <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-                        <span>{formatTrackDuration(displayedProgressMs)}</span>
-                        <span>{formatTrackDuration(currentTrack.duration_ms ?? 0)}</span>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <EmptySpotifyState message="No hay una reproduccion activa en Spotify en este momento." />
-                )}
-              </div>
-            </section>
-
-            <div className="grid gap-6 xl:grid-cols-3">
-              <SpotifyStatCard
-                icon={<Flame className="h-6 w-6 text-primary" />}
-                title="Artistas mas escuchados"
-                subtitle="Tus artistas mas reproducidos segun Spotify"
-              >
-                {isLoadingSpotifyStats ? (
-                  <EmptySpotifyState message="Cargando tus artistas favoritos..." />
-                ) : spotifyTopArtists.length > 0 ? (
-                  <div className="space-y-3">
-                    {spotifyTopArtists.map((artist, index) => (
-                      <Link
-                        key={artist.id}
-                        to={`/artist/${artist.id}`}
-                        className="flex items-center gap-3 rounded-2xl border border-border/70 bg-background/60 p-3 transition hover:border-primary/35 hover:bg-secondary/30"
-                      >
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-bold text-muted-foreground">
-                          {index + 1}
-                        </span>
-                        <img
-                          src={getImageUrl(artist.images)}
-                          alt={artist.name}
-                          className="h-12 w-12 rounded-full object-cover"
-                        />
-                        <div className="min-w-0">
-                          <p className="truncate font-semibold">{artist.name}</p>
-                          <p className="truncate text-xs text-muted-foreground">
-                            {artist.genres?.slice(0, 2).join(" â€¢ ") || "Artista"}
-                          </p>
-                        </div>
-                      </Link>
-                    ))}
-                  </div>
-                ) : (
-                  <EmptySpotifyState message="Spotify no devolvio artistas para tu top actual." />
-                )}
-              </SpotifyStatCard>
-
-              <SpotifyStatCard
-                icon={<Disc3 className="h-6 w-6 text-primary" />}
-                title="Albumes mas escuchados"
-                subtitle="Construido a partir de tus canciones mas escuchadas"
-              >
-                {isLoadingSpotifyStats ? (
-                  <EmptySpotifyState message="Cargando tus albumes mas escuchados..." />
-                ) : spotifyTopAlbums.length > 0 ? (
-                  <div className="space-y-3">
-                    {spotifyTopAlbums.map((album, index) => (
-                      <Link
-                        key={album.id}
-                        to={`/album/${album.id}`}
-                        className="flex items-center gap-3 rounded-2xl border border-border/70 bg-background/60 p-3 transition hover:border-primary/35 hover:bg-secondary/30"
-                      >
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-bold text-muted-foreground">
-                          {index + 1}
-                        </span>
-                        <img
-                          src={getImageUrl(album.images)}
-                          alt={album.name}
-                          className="h-12 w-12 rounded-2xl object-cover"
-                        />
-                        <div className="min-w-0">
-                          <p className="truncate font-semibold">{album.name}</p>
-                          <p className="truncate text-xs text-muted-foreground">
-                            {album.artists?.map((artist) => artist.name).join(", ") || "Album"}
-                          </p>
-                        </div>
-                      </Link>
-                    ))}
-                  </div>
-                ) : (
-                  <EmptySpotifyState message="Todavia no pudimos construir un top de albumes para esta cuenta." />
-                )}
-              </SpotifyStatCard>
-
-              <SpotifyStatCard
-                icon={<AudioLines className="h-6 w-6 text-primary" />}
-                title="Canciones mas escuchadas"
-                subtitle="Tus temas mas reproducidos en Spotify"
-              >
-                {isLoadingSpotifyStats ? (
-                  <EmptySpotifyState message="Cargando tus canciones favoritas..." />
-                ) : spotifyTopTracks.length > 0 ? (
-                  <div className="space-y-3">
-                    {spotifyTopTracks.map((track, index) => (
-                      <div
-                        key={track.id}
-                        className="flex items-center gap-3 rounded-2xl border border-border/70 bg-background/60 p-3"
-                      >
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-bold text-muted-foreground">
-                          {index + 1}
-                        </span>
-                        <img
-                          src={getImageUrl(track.album?.images)}
-                          alt={track.album?.name ?? track.name}
-                          className="h-12 w-12 rounded-2xl object-cover"
-                        />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate font-semibold">{track.name}</p>
-                          <p className="truncate text-xs text-muted-foreground">
-                            {track.artists?.map((artist) => artist.name).join(", ")}
-                          </p>
-                        </div>
-                        <span className="text-xs text-muted-foreground">
-                          {formatTrackDuration(track.duration_ms ?? 0)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <EmptySpotifyState message="Spotify no devolvio canciones para tu top actual." />
-                )}
-              </SpotifyStatCard>
-            </div>
-          </div>
-        ) : (
-          <SpotifyFeatureLock
-            isSpotifyUser={isSpotifyUser}
-            onUnlock={() => navigate("/pro")}
-          />
-        )}
-      </div>
+      {isStatsView ? (
+        <ProfileStats
+          hasSpotifyStatsAccess={hasSpotifyStatsAccess}
+          isLoadingSpotifyStats={isLoadingSpotifyStats}
+          isSpotifyUser={isSpotifyUser}
+          navigate={navigate}
+          spotifyTopAlbums={spotifyTopAlbums}
+          spotifyTopArtists={spotifyTopArtists}
+          spotifyTopTracks={spotifyTopTracks}
+        />
+      ) : (
+        <ProfileOverview
+          filteredEntries={filteredEntries}
+          hasSpotifyFeatures={hasSpotifyFeatures}
+          historyEntries={historyEntries}
+          historyError={historyError}
+          historyFilter={historyFilter}
+          isLoadingHistory={isLoadingHistory}
+          proUntilLabel={proUntilLabel}
+          searchOpen={searchOpen}
+          searchTerm={searchTerm}
+          setHistoryFilter={setHistoryFilter}
+          setSearchOpen={setSearchOpen}
+          setSearchTerm={setSearchTerm}
+          spotifyUser={spotifyUser}
+          user={user}
+        />
+      )}
     </div>
   );
 }

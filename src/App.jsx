@@ -34,6 +34,7 @@ export default function App() {
                   <Route path="/login" element={<LoginPage />} />
                   <Route path="/register" element={<RegisterPage />} />
                   <Route path="/profile" element={<ProfilePage />} />
+                  <Route path="/profile/stats" element={<ProfilePage />} />
                   <Route path="*" element={<NotFoundPage />} />
                 </Routes>
               </AppLayout>

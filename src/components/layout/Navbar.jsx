@@ -1,7 +1,7 @@
-import { Disc3, LoaderCircle, LogOut, Moon, Search, Sun, UserRound } from "lucide-react";
+import { BarChart3, ChevronDown, Disc3, LoaderCircle, LogOut, Moon, Search, Sun, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { Link, NavLink, useNavigate } from "react-router-dom";
+import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 
 import { useDebounce } from "../../hooks/useDebounce";
 import { useAuth } from "../../hooks/useAuth";
@@ -214,7 +214,28 @@ function UserActions() {
   const { isLoggedIn, user, clearAuthenticatedUser, isSpotifyUser } = useAuth();
   const { isSpotifyConnected, spotifyUser, connectSpotify, disconnectSpotify } = useSpotifyAuth();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const location = useLocation();
   const profileUser = spotifyUser ?? user;
+
+  useEffect(() => {
+    if (!showProfileMenu) {
+      return undefined;
+    }
+
+    function handleClickOutside(event) {
+      if (!event.target.closest("[data-profile-menu]")) {
+        setShowProfileMenu(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showProfileMenu]);
+
+  useEffect(() => {
+    setShowProfileMenu(false);
+  }, [location.pathname]);
 
   if (isLoggedIn) {
     return (
@@ -227,22 +248,53 @@ function UserActions() {
               </SpotifyConnectButton>
             </div>
           ) : null}
-          <Link
-            to="/profile"
-            className="flex items-center gap-2 rounded-full border border-white/5 bg-zinc-900 px-3 py-1.5 text-sm font-medium text-foreground transition hover:bg-zinc-800"
-            title={profileUser?.name ?? "Perfil"}
-          >
-            {profileUser?.avatar ? (
-              <img src={profileUser.avatar} alt={profileUser.name} className="h-7 w-7 rounded-full object-cover" />
-            ) : (
-              <div className="flex h-7 w-7 items-center justify-center rounded-full bg-secondary">
-                <UserRound className="h-4 w-4" />
+          <div data-profile-menu className="relative">
+            <button
+              type="button"
+              onClick={() => setShowProfileMenu((current) => !current)}
+              className="flex items-center gap-2 rounded-full border border-white/5 bg-zinc-900 px-3 py-1.5 text-sm font-medium text-foreground transition hover:bg-zinc-800"
+              title={profileUser?.name ?? "Perfil"}
+              aria-haspopup="menu"
+              aria-expanded={showProfileMenu}
+            >
+              {profileUser?.avatar ? (
+                <img src={profileUser.avatar} alt={profileUser.name} className="h-7 w-7 rounded-full object-cover" />
+              ) : (
+                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-secondary">
+                  <UserRound className="h-4 w-4" />
+                </div>
+              )}
+              <span className={`max-w-28 truncate ${user?.isPro ? "pro-username pro-username-shimmer" : ""}`}>
+                {profileUser?.name ?? "Mi perfil"}
+              </span>
+              <ChevronDown className={`h-4 w-4 text-muted-foreground transition ${showProfileMenu ? "rotate-180" : ""}`} />
+            </button>
+
+            {showProfileMenu ? (
+              <div className="absolute right-0 z-50 mt-2 w-56 overflow-hidden rounded-2xl border border-border bg-card p-2 shadow-2xl shadow-black/25">
+                <Link
+                  to="/profile"
+                  className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm transition hover:bg-secondary"
+                >
+                  <UserRound className="h-4 w-4 text-primary" />
+                  <div>
+                    <p className="font-semibold">Mi perfil</p>
+                    <p className="text-xs text-muted-foreground">Cuenta, sesion e historial</p>
+                  </div>
+                </Link>
+                <Link
+                  to="/profile/stats"
+                  className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm transition hover:bg-secondary"
+                >
+                  <BarChart3 className="h-4 w-4 text-primary" />
+                  <div>
+                    <p className="font-semibold">Mis estadisticas</p>
+                    <p className="text-xs text-muted-foreground">Tus tops personales de Spotify</p>
+                  </div>
+                </Link>
               </div>
-            )}
-            <span className={`max-w-28 truncate ${user?.isPro ? "pro-username pro-username-shimmer" : ""}`}>
-              {profileUser?.name ?? "Mi perfil"}
-            </span>
-          </Link>
+            ) : null}
+          </div>
           <button
             onClick={() => setShowLogoutConfirm(true)}
             className="rounded-full bg-secondary p-2 text-muted-foreground transition hover:bg-secondary/80 hover:text-foreground"
