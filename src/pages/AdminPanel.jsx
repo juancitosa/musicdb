@@ -33,7 +33,7 @@ function buildSearchFilter(searchTerm) {
 
   const escapedValue = value.replaceAll(",", "\\,");
 
-  return `username.ilike.%${escapedValue}%,email.ilike.%${escapedValue}%,phone.ilike.%${escapedValue}%`;
+  return `username.ilike.%${escapedValue}%,email.ilike.%${escapedValue}%`;
 }
 
 function FiltersBar({
@@ -57,7 +57,7 @@ function FiltersBar({
             type="text"
             value={filters.search}
             onChange={(event) => onChange("search", event.target.value)}
-            placeholder="Buscar por username, email o telefono"
+            placeholder="Buscar por username o email"
             className="w-full rounded-2xl border border-border bg-background py-3 pr-4 pl-10 text-sm outline-none transition focus:border-primary"
           />
         </label>
@@ -173,7 +173,7 @@ function UsersTable({ users }) {
               <tr key={user.id} className="transition hover:bg-secondary/30">
                 <td className="px-5 py-4 font-medium text-foreground">{user.username || "-"}</td>
                 <td className="px-5 py-4 text-muted-foreground">{user.email || "-"}</td>
-                <td className="px-5 py-4 text-muted-foreground">{user.phone || "-"}</td>
+                <td className="px-5 py-4 text-muted-foreground">{user.phone ?? "-"}</td>
                 <td className="px-5 py-4 text-muted-foreground">{formatDateTime(user.created_at)}</td>
                 <td className="px-5 py-4 text-center">
                   {user.is_pro ? <Star className="mx-auto h-4 w-4 fill-[#facc15] text-[#facc15]" /> : <span className="inline-block h-4 w-4" />}
@@ -229,7 +229,7 @@ export default function AdminPanel() {
         const supabase = getSupabaseClient();
         let query = supabase
           .from("users")
-          .select("id, username, email, phone, created_at, is_pro", { count: "exact" })
+          .select("*", { count: "exact" })
           .order("created_at", { ascending: appliedFilters.sortOrder === "asc" })
           .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
 
