@@ -407,69 +407,69 @@ function ProfileStats({
     <div>
       <StatsRangeFilter selectedRange={selectedRange} onChange={setSelectedRange} />
       <div className="grid gap-6 xl:grid-cols-3">
-      <SpotifyStatCard icon={<Flame className="h-6 w-6 text-primary" />} title="Artistas mas escuchados" subtitle="Tus artistas mas reproducidos segun Spotify">
-        {isLoadingSpotifyStats ? (
-          <EmptySpotifyState message="Cargando tus artistas favoritos..." />
-        ) : spotifyTopArtists.length > 0 ? (
-          <div className="space-y-3">
-            {spotifyTopArtists.map((artist, index) => (
-              <Link key={artist.id} to={`/artist/${artist.id}`} className="flex items-center gap-3 rounded-2xl border border-border/70 bg-background/60 p-3 transition hover:border-primary/35 hover:bg-secondary/30">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-bold text-muted-foreground">{index + 1}</span>
-                <img src={getImageUrl(artist.images)} alt={artist.name} className="h-12 w-12 rounded-full object-cover" />
-                <div className="min-w-0">
-                  <p className="truncate font-semibold">{artist.name}</p>
-                  <p className="truncate text-xs text-muted-foreground">{artist.genres?.slice(0, 2).join(" • ") || "Artista"}</p>
-                </div>
-              </Link>
-            ))}
-          </div>
-        ) : (
-          <EmptySpotifyState message="Spotify no devolvio artistas para tu top actual." />
-        )}
-      </SpotifyStatCard>
+        <SpotifyStatCard icon={<Flame className="h-6 w-6 text-primary" />} title="Artistas mas escuchados" subtitle="Tus artistas mas reproducidos segun Spotify">
+          {isLoadingSpotifyStats ? (
+            <EmptySpotifyState message="Cargando tus artistas favoritos..." />
+          ) : spotifyTopArtists.length > 0 ? (
+            <div className="space-y-3">
+              {spotifyTopArtists.map((artist, index) => (
+                <Link key={artist.id} to={`/artist/${artist.id}`} className="flex items-center gap-3 rounded-2xl border border-border/70 bg-background/60 p-3 transition hover:border-primary/35 hover:bg-secondary/30">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-bold text-muted-foreground">{index + 1}</span>
+                  <img src={getImageUrl(artist.images)} alt={artist.name} className="h-12 w-12 rounded-full object-cover" />
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold">{artist.name}</p>
+                    <p className="truncate text-xs text-muted-foreground">{artist.genres?.slice(0, 2).join(" • ") || "Artista"}</p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <EmptySpotifyState message="Spotify no devolvio artistas para tu top actual." />
+          )}
+        </SpotifyStatCard>
 
-      <SpotifyStatCard icon={<Disc3 className="h-6 w-6 text-primary" />} title="Albumes mas escuchados" subtitle="Construido a partir de tus canciones mas escuchadas">
-        {isLoadingSpotifyStats ? (
-          <EmptySpotifyState message="Cargando tus albumes mas escuchados..." />
-        ) : spotifyTopAlbums.length > 0 ? (
-          <div className="space-y-3">
-            {spotifyTopAlbums.map((album, index) => (
-              <Link key={album.id} to={`/album/${album.id}`} className="flex items-center gap-3 rounded-2xl border border-border/70 bg-background/60 p-3 transition hover:border-primary/35 hover:bg-secondary/30">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-bold text-muted-foreground">{index + 1}</span>
-                <img src={getImageUrl(album.images)} alt={album.name} className="h-12 w-12 rounded-2xl object-cover" />
-                <div className="min-w-0">
-                  <p className="truncate font-semibold">{album.name}</p>
-                  <p className="truncate text-xs text-muted-foreground">{album.artists?.map((artist) => artist.name).join(", ") || "Album"}</p>
-                </div>
-              </Link>
-            ))}
-          </div>
-        ) : (
-          <EmptySpotifyState message="Todavia no pudimos construir un top de albumes para esta cuenta." />
-        )}
-      </SpotifyStatCard>
+        <SpotifyStatCard icon={<Disc3 className="h-6 w-6 text-primary" />} title="Albumes mas escuchados" subtitle="Construido a partir de tus canciones mas escuchadas">
+          {isLoadingSpotifyStats ? (
+            <EmptySpotifyState message="Cargando tus albumes mas escuchados..." />
+          ) : spotifyTopAlbums.length > 0 ? (
+            <div className="space-y-3">
+              {spotifyTopAlbums.map((album, index) => (
+                <Link key={album.id} to={`/album/${album.id}`} className="flex items-center gap-3 rounded-2xl border border-border/70 bg-background/60 p-3 transition hover:border-primary/35 hover:bg-secondary/30">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-bold text-muted-foreground">{index + 1}</span>
+                  <img src={getImageUrl(album.images)} alt={album.name} className="h-12 w-12 rounded-2xl object-cover" />
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold">{album.name}</p>
+                    <p className="truncate text-xs text-muted-foreground">{album.artists?.map((artist) => artist.name).join(", ") || "Album"}</p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <EmptySpotifyState message="Todavia no pudimos construir un top de albumes para esta cuenta." />
+          )}
+        </SpotifyStatCard>
 
-      <SpotifyStatCard icon={<AudioLines className="h-6 w-6 text-primary" />} title="Canciones mas escuchadas" subtitle="Tus temas mas reproducidos en Spotify">
-        {isLoadingSpotifyStats ? (
-          <EmptySpotifyState message="Cargando tus canciones favoritas..." />
-        ) : spotifyTopTracks.length > 0 ? (
-          <div className="space-y-3">
-            {spotifyTopTracks.map((track, index) => (
-              <div key={track.id} className="flex items-center gap-3 rounded-2xl border border-border/70 bg-background/60 p-3">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-bold text-muted-foreground">{index + 1}</span>
-                <img src={getImageUrl(track.album?.images)} alt={track.album?.name ?? track.name} className="h-12 w-12 rounded-2xl object-cover" />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-semibold">{track.name}</p>
-                  <p className="truncate text-xs text-muted-foreground">{track.artists?.map((artist) => artist.name).join(", ")}</p>
+        <SpotifyStatCard icon={<AudioLines className="h-6 w-6 text-primary" />} title="Canciones mas escuchadas" subtitle="Tus temas mas reproducidos en Spotify">
+          {isLoadingSpotifyStats ? (
+            <EmptySpotifyState message="Cargando tus canciones favoritas..." />
+          ) : spotifyTopTracks.length > 0 ? (
+            <div className="space-y-3">
+              {spotifyTopTracks.map((track, index) => (
+                <div key={track.id} className="flex items-center gap-3 rounded-2xl border border-border/70 bg-background/60 p-3">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-bold text-muted-foreground">{index + 1}</span>
+                  <img src={getImageUrl(track.album?.images)} alt={track.album?.name ?? track.name} className="h-12 w-12 rounded-2xl object-cover" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-semibold">{track.name}</p>
+                    <p className="truncate text-xs text-muted-foreground">{track.artists?.map((artist) => artist.name).join(", ")}</p>
+                  </div>
+                  <span className="text-xs text-muted-foreground">{formatTrackDuration(track.duration_ms ?? 0)}</span>
                 </div>
-                <span className="text-xs text-muted-foreground">{formatTrackDuration(track.duration_ms ?? 0)}</span>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <EmptySpotifyState message="Spotify no devolvio canciones para tu top actual." />
-        )}
-      </SpotifyStatCard>
+              ))}
+            </div>
+          ) : (
+            <EmptySpotifyState message="Spotify no devolvio canciones para tu top actual." />
+          )}
+        </SpotifyStatCard>
       </div>
     </div>
   );
@@ -557,9 +557,9 @@ export default function ProfilePage() {
 
       try {
         const [artistsResponse, albumsResponse, tracksResponse] = await Promise.all([
-          getTopArtists(spotifyToken, 6, statsRange),
-          getTopAlbumsFromTopTracks(spotifyToken, 6, 30, statsRange),
-          getTopTracks(spotifyToken, 6, statsRange),
+          getTopArtists(spotifyToken, 10, statsRange),
+          getTopAlbumsFromTopTracks(spotifyToken, 10, 50, statsRange),
+          getTopTracks(spotifyToken, 10, statsRange),
         ]);
 
         if (cancelled) {

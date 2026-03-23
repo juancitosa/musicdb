@@ -7,7 +7,7 @@ import { useDebounce } from "../../hooks/useDebounce";
 import { useAuth } from "../../hooks/useAuth";
 import { useSpotifyAuth } from "../../hooks/useSpotifyAuth";
 import { useTheme } from "../../hooks/useTheme";
-import { getImageUrl, searchSpotify } from "../../services/spotify";
+import { getCurrentlyPlayingTrack, getImageUrl, searchSpotify } from "../../services/spotify";
 import AuthDialog from "../shared/AuthDialog";
 import SpotifyConnectButton from "../shared/SpotifyConnectButton";
 
@@ -212,11 +212,14 @@ function ThemeToggle() {
 
 function UserActions() {
   const { isLoggedIn, user, clearAuthenticatedUser, isSpotifyUser } = useAuth();
-  const { isSpotifyConnected, spotifyUser, connectSpotify, disconnectSpotify } = useSpotifyAuth();
+  const { isSpotifyConnected, spotifyToken, spotifyUser, connectSpotify, disconnectSpotify } = useSpotifyAuth();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [currentlyPlaying, setCurrentlyPlaying] = useState(null);
+  const [showNowPlaying, setShowNowPlaying] = useState(false);
   const location = useLocation();
   const profileUser = spotifyUser ?? user;
+  const activeTrack = currentlyPlaying?.is_playing && currentlyPlaying?.item ? currentlyPlaying.item : null;
 
   useEffect(() => {
     if (!showProfileMenu) {
@@ -237,6 +240,53 @@ function UserActions() {
     setShowProfileMenu(false);
   }, [location.pathname]);
 
+  useEffect(() => {
+    if (!isSpotifyConnected || !spotifyToken) {
+      setCurrentlyPlaying(null);
+      setShowNowPlaying(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+
+    async function loadCurrentlyPlaying() {
+      try {
+        const playback = await getCurrentlyPlayingTrack(spotifyToken);
+
+        if (!cancelled) {
+          setCurrentlyPlaying(playback?.is_playing && playback?.item ? playback : null);
+        }
+      } catch {
+        if (!cancelled) {
+          setCurrentlyPlaying(null);
+        }
+      }
+    }
+
+    loadCurrentlyPlaying();
+    const intervalId = window.setInterval(loadCurrentlyPlaying, 15000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [isSpotifyConnected, spotifyToken]);
+
+  useEffect(() => {
+    if (!activeTrack) {
+      setShowNowPlaying(false);
+      return undefined;
+    }
+
+    const intervalId = window.setInterval(() => {
+      setShowNowPlaying((current) => !current);
+    }, 30000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [activeTrack?.id]);
+
   if (isLoggedIn) {
     return (
       <>
@@ -249,26 +299,40 @@ function UserActions() {
             </div>
           ) : null}
           <div data-profile-menu className="relative">
-            <button
-              type="button"
-              onClick={() => setShowProfileMenu((current) => !current)}
-              className="flex items-center gap-2 rounded-full border border-white/5 bg-zinc-900 px-3 py-1.5 text-sm font-medium text-foreground transition hover:bg-zinc-800"
-              title={profileUser?.name ?? "Perfil"}
-              aria-haspopup="menu"
-              aria-expanded={showProfileMenu}
-            >
-              {profileUser?.avatar ? (
-                <img src={profileUser.avatar} alt={profileUser.name} className="h-7 w-7 rounded-full object-cover" />
-              ) : (
-                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-secondary">
-                  <UserRound className="h-4 w-4" />
-                </div>
-              )}
-              <span className={`max-w-28 truncate ${user?.isPro ? "pro-username pro-username-shimmer" : ""}`}>
-                {profileUser?.name ?? "Mi perfil"}
-              </span>
-              <ChevronDown className={`h-4 w-4 text-muted-foreground transition ${showProfileMenu ? "rotate-180" : ""}`} />
-            </button>
+            <div className={`relative rounded-full ${activeTrack ? "p-[1px]" : ""}`}>
+              {activeTrack ? (
+                <div className="pointer-events-none absolute inset-0 rounded-full bg-[conic-gradient(from_0deg,rgba(34,197,94,0.15),rgba(59,130,246,0.55),rgba(168,85,247,0.2),rgba(34,197,94,0.15))] opacity-95 blur-[1px] animate-[spin_5s_linear_infinite]" />
+              ) : null}
+              <button
+                type="button"
+                onClick={() => setShowProfileMenu((current) => !current)}
+                className={`relative flex items-center gap-2 rounded-full border border-white/5 bg-zinc-900 px-3 py-1.5 text-sm font-medium text-foreground transition hover:bg-zinc-800 ${
+                  activeTrack ? "min-w-[220px] bg-zinc-950/95 shadow-[0_0_30px_rgba(59,130,246,0.12)]" : ""
+                }`}
+                title={profileUser?.name ?? "Perfil"}
+                aria-haspopup="menu"
+                aria-expanded={showProfileMenu}
+              >
+                {showNowPlaying && activeTrack ? (
+                  <>
+                    <img src={getImageUrl(activeTrack.album?.images)} alt={activeTrack.name} className="h-7 w-7 rounded-full object-cover" />
+                    <span className="max-w-28 truncate">{activeTrack.name}</span>
+                  </>
+                ) : profileUser?.avatar ? (
+                  <img src={profileUser.avatar} alt={profileUser.name} className="h-7 w-7 rounded-full object-cover" />
+                ) : (
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-secondary">
+                    <UserRound className="h-4 w-4" />
+                  </div>
+                )}
+                {showNowPlaying && activeTrack ? null : (
+                  <span className={`max-w-28 truncate ${user?.isPro ? "pro-username pro-username-shimmer" : ""}`}>
+                    {profileUser?.name ?? "Mi perfil"}
+                  </span>
+                )}
+                <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition ${showProfileMenu ? "rotate-180" : ""}`} />
+              </button>
+            </div>
 
             {showProfileMenu ? (
               <div className="absolute right-0 z-50 mt-2 w-56 overflow-hidden rounded-2xl border border-border bg-card p-2 shadow-2xl shadow-black/25">
