@@ -50,18 +50,7 @@ function FiltersBar({
 }) {
   return (
     <div className="rounded-[1.75rem] border border-border bg-card/80 p-4 shadow-lg shadow-black/10">
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.3fr)_repeat(4,minmax(0,1fr))]">
-        <label className="relative block">
-          <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <input
-            type="text"
-            value={filters.search}
-            onChange={(event) => onChange("search", event.target.value)}
-            placeholder="Buscar por username o email"
-            className="w-full rounded-2xl border border-border bg-background py-3 pr-4 pl-10 text-sm outline-none transition focus:border-primary"
-          />
-        </label>
-
+      <div className="grid gap-4 lg:grid-cols-4">
         <label className="block">
           <span className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Desde</span>
           <input
@@ -105,6 +94,19 @@ function FiltersBar({
             <option value="desc">Mas recientes</option>
             <option value="asc">Mas antiguos</option>
           </select>
+        </label>
+      </div>
+
+      <div className="mt-4">
+        <label className="relative block">
+          <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            type="text"
+            value={filters.search}
+            onChange={(event) => onChange("search", event.target.value)}
+            placeholder="Buscar usuario o email"
+            className="w-full rounded-2xl border border-border bg-background py-3 pr-4 pl-10 text-sm outline-none transition focus:border-primary"
+          />
         </label>
       </div>
 
