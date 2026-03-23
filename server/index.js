@@ -3,9 +3,9 @@ import dotenv from "dotenv";
 import express from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import nodemailer from "nodemailer";
 import { randomBytes, randomUUID } from "node:crypto";
 import { MercadoPagoConfig, Payment } from "mercadopago";
+import { Resend } from "resend";
 import { createClient } from "@supabase/supabase-js";
 
 dotenv.config();
@@ -24,13 +24,7 @@ const MERCADO_PAGO_API_BASE_URL = "https://api.mercadopago.com";
 const MERCADO_PAGO_ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN || process.env.MERCADO_PAGO_ACCESS_TOKEN;
 const PUBLIC_APP_URL = process.env.PUBLIC_APP_URL || "https://musicdb.online";
 const PUBLIC_API_URL = process.env.PUBLIC_API_URL || process.env.BACKEND_PUBLIC_URL || "https://musicdb-backend.onrender.com";
-const SMTP_HOST = process.env.SMTP_HOST || "";
-const SMTP_PORT = Number(process.env.SMTP_PORT || 587);
-const SMTP_SECURE = String(process.env.SMTP_SECURE || "").toLowerCase() === "true";
-const SMTP_USER = process.env.SMTP_USER || "";
-const SMTP_PASS = process.env.SMTP_PASS || "";
-const SMTP_FROM_EMAIL = process.env.SMTP_FROM_EMAIL || SMTP_USER || "no-reply@musicdb.online";
-const SMTP_FROM_NAME = process.env.SMTP_FROM_NAME || "MusicDB";
+const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
 const EMAIL_VERIFICATION_TTL_HOURS = Math.max(Number(process.env.EMAIL_VERIFICATION_TTL_HOURS || 24), 1);
 const PRO_SUBSCRIPTION_PLANS = {
   "1m": { price: 3500, months: 1, title: "MusicDB PRO - 1 mes" },
@@ -53,7 +47,7 @@ let supabaseAdmin = null;
 let cachedUserTableColumns = null;
 let mercadoPagoClient = null;
 let mercadoPagoPaymentClient = null;
-let emailTransporter = null;
+let resendClient = null;
 
 function isAllowedOrigin(origin) {
   if (!origin) {
@@ -276,29 +270,20 @@ function getMercadoPagoPaymentClient() {
   return mercadoPagoPaymentClient;
 }
 
-function hasSmtpConfig() {
-  return Boolean(SMTP_USER && SMTP_PASS);
+function hasResendConfig() {
+  return Boolean(RESEND_API_KEY);
 }
 
-function getEmailTransporter() {
-  if (!hasSmtpConfig()) {
+function getResendClient() {
+  if (!hasResendConfig()) {
     return null;
   }
 
-  if (!emailTransporter) {
-    emailTransporter = nodemailer.createTransport({
-      service: "gmail",
-      connectionTimeout: 15000,
-      greetingTimeout: 15000,
-      socketTimeout: 20000,
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    });
+  if (!resendClient) {
+    resendClient = new Resend(process.env.RESEND_API_KEY);
   }
 
-  return emailTransporter;
+  return resendClient;
 }
 
 function generateEmailVerificationToken() {
@@ -632,53 +617,40 @@ async function markVerificationEmailSent(supabase, userId) {
 }
 
 async function sendVerificationEmail({ email, username, token, expiresAt }) {
-  const verificationUrl = `https://musicdb.online/verify-email?token=${encodeURIComponent(token)}`;
+  const verificationLink = `https://musicdb.online/verify-email?token=${encodeURIComponent(token)}`;
   const expirationDate = new Date(expiresAt).toLocaleString("es-AR", {
     dateStyle: "medium",
     timeStyle: "short",
   });
-  const transporter = getEmailTransporter();
+  const resend = getResendClient();
 
-  if (!transporter) {
-    console.log("[auth] SMTP not configured, email verification link generated", {
+  if (!resend) {
+    console.log("[auth] Resend not configured, email verification link generated", {
       email,
-      verificationUrl,
+      verificationLink,
       expiresAt,
     });
 
     return {
       delivered: false,
-      verificationUrl,
+      verificationUrl: verificationLink,
     };
   }
 
   try {
     console.log("Enviando email...");
-    await transporter.sendMail({
-      from: `"${SMTP_FROM_NAME}" <${SMTP_FROM_EMAIL}>`,
+    await resend.emails.send({
+      from: "MusicDB <onboarding@resend.dev>",
       to: email,
-      subject: "Verifica tu cuenta",
-      text: [
-        `Hola ${username || "MusicDB User"},`,
-        "",
-        "Verifica tu cuenta entrando en este enlace:",
-        verificationUrl,
-        "",
-        `El enlace vence el ${expirationDate}.`,
-      ].join("\n"),
-      html: `
-        <div style="font-family:Arial,sans-serif;line-height:1.6;color:#111827">
-          <h2 style="margin-bottom:8px;">Verifica tu cuenta</h2>
-          <p>Hola ${username || "MusicDB User"},</p>
-          <p>Activa tu cuenta desde este enlace:</p>
-          <p><a href="${verificationUrl}">${verificationUrl}</a></p>
-          <p>El enlace vence el ${expirationDate}.</p>
-        </div>
-      `,
+      subject: "Verificá tu cuenta",
+      html: `<p>Hola ${username || "MusicDB User"},</p>
+          <p>Hacé click acá:</p>
+          <a href="${verificationLink}">Verificar cuenta</a>
+          <p>El enlace vence el ${expirationDate}.</p>`,
     });
     console.log("Email enviado");
   } catch (error) {
-    console.error("[auth:email] Failed to send verification email", {
+    console.error("[auth:email] Failed to send verification email with Resend", {
       email,
       errorMessage: error?.message ?? "Unknown mail error",
     });
@@ -687,7 +659,7 @@ async function sendVerificationEmail({ email, username, token, expiresAt }) {
 
   return {
     delivered: true,
-    verificationUrl,
+    verificationUrl: verificationLink,
   };
 }
 
