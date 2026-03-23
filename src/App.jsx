@@ -7,6 +7,8 @@ import { ThemeProvider } from "./hooks/useTheme";
 import { ToastProvider } from "./hooks/useToast";
 import AlbumPage from "./pages/AlbumPage";
 import AdminPanel from "./pages/AdminPanel";
+import AdminUserProfilePage from "./pages/AdminUserProfilePage";
+import AdminUserRankingsPage from "./pages/AdminUserRankingsPage";
 import ArtistPage from "./pages/ArtistPage";
 import DBRankingPage from "./pages/DBRankingPage";
 import HomePage from "./pages/HomePage";
@@ -29,6 +31,8 @@ export default function App() {
                 <Routes>
                   <Route path="/" element={<HomePage />} />
                   <Route path="/admin" element={<AdminPanel />} />
+                  <Route path="/admin/users/:userId/profile" element={<AdminUserProfilePage />} />
+                  <Route path="/admin/users/:userId/rankings" element={<AdminUserRankingsPage />} />
                   <Route path="/search" element={<SearchPage />} />
                   <Route path="/dbranking" element={<DBRankingPage />} />
                   <Route path="/pro" element={<ProPage />} />

@@ -1,8 +1,9 @@
-import { LoaderCircle, Search, ShieldAlert, Star } from "lucide-react";
-import { useEffect, useState } from "react";
-import { Navigate } from "react-router-dom";
+import { BarChart3, ChevronDown, LoaderCircle, Search, ShieldAlert, Star, Trash2, UserRound } from "lucide-react";
+import { Fragment, useEffect, useState } from "react";
+import { Navigate, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../hooks/useAuth";
+import { useToast } from "../hooks/useToast";
 import { getSupabaseClient } from "../lib/supabase";
 
 const PAGE_SIZE = 30;
@@ -156,7 +157,7 @@ function FiltersBar({
   );
 }
 
-function UsersTable({ users }) {
+function UsersTable({ users, openUserId, onToggleUser, onViewProfile, onViewRankings, onDeleteUser, isDeletingUserId }) {
   return (
     <div className="overflow-hidden rounded-[1.75rem] border border-border bg-card shadow-xl shadow-black/10">
       <div className="overflow-x-auto">
@@ -171,17 +172,67 @@ function UsersTable({ users }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-border/80">
-            {users.map((user) => (
-              <tr key={user.id} className="transition hover:bg-secondary/30">
-                <td className="px-5 py-4 font-medium text-foreground">{user.username || "-"}</td>
-                <td className="px-5 py-4 text-muted-foreground">{user.email || "-"}</td>
-                <td className="px-5 py-4 text-muted-foreground">{user.phone ?? "-"}</td>
-                <td className="px-5 py-4 text-muted-foreground">{formatDateTime(user.created_at)}</td>
-                <td className="px-5 py-4 text-center">
-                  {user.is_pro ? <Star className="mx-auto h-4 w-4 fill-[#facc15] text-[#facc15]" /> : <span className="inline-block h-4 w-4" />}
-                </td>
-              </tr>
-            ))}
+            {users.map((user) => {
+              const isOpen = openUserId === user.id;
+              const isDeleting = isDeletingUserId === user.id;
+
+              return (
+                <Fragment key={user.id}>
+                  <tr
+                    onClick={() => onToggleUser(user.id)}
+                    className={`cursor-pointer transition hover:bg-secondary/30 ${isOpen ? "bg-secondary/20" : ""}`}
+                  >
+                    <td className="px-5 py-4 font-medium text-foreground">
+                      <div className="flex items-center justify-between gap-3">
+                        <span>{user.username || "-"}</span>
+                        <ChevronDown className={`h-4 w-4 text-muted-foreground transition ${isOpen ? "rotate-180" : ""}`} />
+                      </div>
+                    </td>
+                    <td className="px-5 py-4 text-muted-foreground">{user.email || "-"}</td>
+                    <td className="px-5 py-4 text-muted-foreground">{user.phone ?? "-"}</td>
+                    <td className="px-5 py-4 text-muted-foreground">{formatDateTime(user.created_at)}</td>
+                    <td className="px-5 py-4 text-center">
+                      {user.is_pro ? <Star className="mx-auto h-4 w-4 fill-[#facc15] text-[#facc15]" /> : <span className="inline-block h-4 w-4" />}
+                    </td>
+                  </tr>
+                  {isOpen ? (
+                    <tr className="bg-background/70">
+                      <td colSpan={5} className="px-5 py-4">
+                        <div className="rounded-2xl border border-border bg-background/80 p-3">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                            <button
+                              type="button"
+                              onClick={() => onViewProfile(user.id)}
+                              className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-sm font-medium transition hover:bg-secondary"
+                            >
+                              <UserRound className="h-4 w-4 text-primary" />
+                              Ver perfil
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => onViewRankings(user.id)}
+                              className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-sm font-medium transition hover:bg-secondary"
+                            >
+                              <BarChart3 className="h-4 w-4 text-primary" />
+                              Ver rankings
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => onDeleteUser(user)}
+                              disabled={isDeleting}
+                              className="inline-flex items-center gap-2 rounded-full border border-red-500/20 bg-red-500/8 px-4 py-2 text-sm font-medium text-red-200 transition hover:bg-red-500/14 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {isDeleting ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                              Eliminar usuario
+                            </button>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : null}
+                </Fragment>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -190,6 +241,8 @@ function UsersTable({ users }) {
 }
 
 export default function AdminPanel() {
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const { isLoading, isLoggedIn, currentUser, isCurrentUserLoading } = useAuth();
   const [filters, setFilters] = useState({
     search: "",
@@ -210,6 +263,8 @@ export default function AdminPanel() {
   const [hasNextPage, setHasNextPage] = useState(false);
   const [isFetchingUsers, setIsFetchingUsers] = useState(true);
   const [error, setError] = useState("");
+  const [openUserId, setOpenUserId] = useState(null);
+  const [isDeletingUserId, setIsDeletingUserId] = useState(null);
 
   useEffect(() => {
     if (isCurrentUserLoading) {
@@ -231,7 +286,7 @@ export default function AdminPanel() {
         const supabase = getSupabaseClient();
         let query = supabase
           .from("users")
-          .select("*", { count: "exact" })
+          .select("*")
           .order("created_at", { ascending: appliedFilters.sortOrder === "asc" })
           .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
 
@@ -267,6 +322,7 @@ export default function AdminPanel() {
           const nextUsers = data ?? [];
           setUsers(nextUsers.slice(0, PAGE_SIZE));
           setHasNextPage(nextUsers.length > PAGE_SIZE);
+          setOpenUserId((current) => (nextUsers.some((entry) => entry.id === current) ? current : null));
         }
       } catch (loadError) {
         if (!cancelled) {
@@ -297,6 +353,7 @@ export default function AdminPanel() {
 
   function applyFilters() {
     setPage(0);
+    setOpenUserId(null);
     setAppliedFilters(filters);
   }
 
@@ -312,6 +369,41 @@ export default function AdminPanel() {
     setFilters(nextFilters);
     setAppliedFilters(nextFilters);
     setPage(0);
+    setOpenUserId(null);
+  }
+
+  async function handleDeleteUser(user) {
+    const confirmed = window.confirm(`Vas a eliminar a ${user.username || user.email || "este usuario"} de la tabla users. Esta accion no se puede deshacer.`);
+
+    if (!confirmed) {
+      return;
+    }
+
+    setIsDeletingUserId(user.id);
+
+    try {
+      const supabase = getSupabaseClient();
+      const { error: deleteError } = await supabase.from("users").delete().eq("id", user.id);
+
+      if (deleteError) {
+        throw deleteError;
+      }
+
+      setUsers((current) => current.filter((entry) => entry.id !== user.id));
+      setOpenUserId((current) => (current === user.id ? null : current));
+      toast({
+        title: "Usuario eliminado",
+        description: "El usuario ya no aparece en el panel.",
+      });
+    } catch (deleteUserError) {
+      toast({
+        title: "No pudimos eliminar el usuario",
+        description: deleteUserError.message || "Intenta nuevamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeletingUserId(null);
+    }
   }
 
   if (isLoading || isCurrentUserLoading) {
@@ -340,7 +432,7 @@ export default function AdminPanel() {
             </div>
             <h1 className="mt-4 text-3xl font-black tracking-tight text-foreground">Panel de administracion</h1>
             <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-              Usuarios ordenados por fecha y hora de registro, con filtros y busqueda. El panel muestra un maximo de 30 resultados por bloque.
+              Usuarios ordenados por fecha y hora de registro, con filtros y busqueda. Toca cualquier fila para desplegar acciones.
             </p>
           </div>
           <div className="rounded-2xl border border-border bg-card/70 px-4 py-3 text-sm text-muted-foreground">
@@ -376,7 +468,15 @@ export default function AdminPanel() {
               No encontramos usuarios con esos filtros.
             </div>
           ) : (
-            <UsersTable users={users} />
+            <UsersTable
+              users={users}
+              openUserId={openUserId}
+              onToggleUser={(userId) => setOpenUserId((current) => (current === userId ? null : userId))}
+              onViewProfile={(userId) => navigate(`/admin/users/${userId}/profile`)}
+              onViewRankings={(userId) => navigate(`/admin/users/${userId}/rankings`)}
+              onDeleteUser={handleDeleteUser}
+              isDeletingUserId={isDeletingUserId}
+            />
           )}
         </div>
       </section>
