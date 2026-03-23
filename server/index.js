@@ -653,22 +653,11 @@ async function sendVerificationEmail({ email, username, token, expiresAt }) {
       throw new Error("Email HTML content is empty");
     }
     const resendResult = await resend.emails.send({
-      from: "MusicDB <onboarding@resend.dev>",
+      from: "[onboarding@resend.dev](mailto:onboarding@resend.dev)",
       to: email,
-      subject: "Verificá tu cuenta",
-      html,
+      subject: "Verific� tu cuenta",
+      html: `<a href="${verificationLink}">Verificar cuenta</a>`,
     });
-    /*
-    const resendResult = await resend.emails.send({
-      from: "MusicDB <onboarding@resend.dev>",
-      to: email,
-      subject: "Verificá tu cuenta",
-      html: `<p>Hola ${username || "MusicDB User"},</p>
-          <p>Hacé click acá:</p>
-          <a href="${verificationLink}">Verificar cuenta</a>
-          <p>El enlace vence el ${expirationDate}.</p>`,
-    });
-    */
     console.log("Email enviado");
     console.log("[auth:email] resend.emails.send() response", resendResult);
   } catch (error) {
@@ -2802,3 +2791,4 @@ app.use((error, _req, res, _next) => {
 app.listen(PORT, () => {
   console.log(`Spotify backend listening on http://localhost:${PORT}`);
 });
+
