@@ -1,3 +1,4 @@
+import { AnimatePresence, motion } from "framer-motion";
 import { BarChart3, ChevronDown, Disc3, LoaderCircle, LogOut, Moon, Search, Sun, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
@@ -299,37 +300,58 @@ function UserActions() {
             </div>
           ) : null}
           <div data-profile-menu className="relative">
-            <div className={`relative rounded-full ${activeTrack ? "p-[1px]" : ""}`}>
+            <div className="relative">
               {activeTrack ? (
-                <div className="pointer-events-none absolute inset-0 rounded-full bg-[conic-gradient(from_0deg,rgba(34,197,94,0.15),rgba(59,130,246,0.55),rgba(168,85,247,0.2),rgba(34,197,94,0.15))] opacity-95 blur-[1px] animate-[spin_5s_linear_infinite]" />
+                <>
+                  <div className="pointer-events-none absolute inset-y-1 -left-3 -right-3 rounded-full bg-linear-to-r from-transparent via-primary/28 to-transparent blur-xl opacity-90" />
+                  <div className="pointer-events-none absolute inset-y-0 left-[12%] right-[12%] rounded-full bg-linear-to-r from-transparent via-sky-400/25 to-transparent blur-2xl opacity-80" />
+                </>
               ) : null}
               <button
                 type="button"
                 onClick={() => setShowProfileMenu((current) => !current)}
                 className={`relative flex items-center gap-2 rounded-full border border-white/5 bg-zinc-900 px-3 py-1.5 text-sm font-medium text-foreground transition hover:bg-zinc-800 ${
-                  activeTrack ? "min-w-[220px] bg-zinc-950/95 shadow-[0_0_30px_rgba(59,130,246,0.12)]" : ""
+                  activeTrack ? "min-w-[220px] border-white/10 bg-zinc-950/95 shadow-[0_0_28px_rgba(56,189,248,0.16)]" : ""
                 }`}
                 title={profileUser?.name ?? "Perfil"}
                 aria-haspopup="menu"
                 aria-expanded={showProfileMenu}
               >
-                {showNowPlaying && activeTrack ? (
-                  <>
-                    <img src={getImageUrl(activeTrack.album?.images)} alt={activeTrack.name} className="h-7 w-7 rounded-full object-cover" />
-                    <span className="max-w-28 truncate">{activeTrack.name}</span>
-                  </>
-                ) : profileUser?.avatar ? (
-                  <img src={profileUser.avatar} alt={profileUser.name} className="h-7 w-7 rounded-full object-cover" />
-                ) : (
-                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-secondary">
-                    <UserRound className="h-4 w-4" />
-                  </div>
-                )}
-                {showNowPlaying && activeTrack ? null : (
-                  <span className={`max-w-28 truncate ${user?.isPro ? "pro-username pro-username-shimmer" : ""}`}>
-                    {profileUser?.name ?? "Mi perfil"}
-                  </span>
-                )}
+                <AnimatePresence mode="wait" initial={false}>
+                  {showNowPlaying && activeTrack ? (
+                    <motion.div
+                      key={`track-${activeTrack.id}`}
+                      initial={{ opacity: 0, x: 18, filter: "blur(6px)" }}
+                      animate={{ opacity: 1, x: 0, filter: "blur(0px)" }}
+                      exit={{ opacity: 0, x: -18, filter: "blur(6px)" }}
+                      transition={{ duration: 0.28, ease: "easeOut" }}
+                      className="flex min-w-0 items-center gap-2"
+                    >
+                      <img src={getImageUrl(activeTrack.album?.images)} alt={activeTrack.name} className="h-7 w-7 rounded-full object-cover" />
+                      <span className="max-w-28 truncate">{activeTrack.name}</span>
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="profile"
+                      initial={{ opacity: 0, x: 18, filter: "blur(6px)" }}
+                      animate={{ opacity: 1, x: 0, filter: "blur(0px)" }}
+                      exit={{ opacity: 0, x: -18, filter: "blur(6px)" }}
+                      transition={{ duration: 0.28, ease: "easeOut" }}
+                      className="flex min-w-0 items-center gap-2"
+                    >
+                      {profileUser?.avatar ? (
+                        <img src={profileUser.avatar} alt={profileUser.name} className="h-7 w-7 rounded-full object-cover" />
+                      ) : (
+                        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-secondary">
+                          <UserRound className="h-4 w-4" />
+                        </div>
+                      )}
+                      <span className={`max-w-28 truncate ${user?.isPro ? "pro-username pro-username-shimmer" : ""}`}>
+                        {profileUser?.name ?? "Mi perfil"}
+                      </span>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
                 <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition ${showProfileMenu ? "rotate-180" : ""}`} />
               </button>
             </div>
