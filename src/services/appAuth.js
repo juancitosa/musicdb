@@ -185,12 +185,23 @@ export async function fetchSupabaseProfile(userId) {
 
 export async function updateSupabaseProfile(userId, payload) {
   const supabase = getSupabaseClient();
+  const updatePayload = {};
+
+  if (payload.username !== undefined) {
+    updatePayload.username = payload.username;
+  }
+
+  if (payload.phone !== undefined) {
+    updatePayload.phone = payload.phone;
+  }
+
+  if (payload.avatar_url !== undefined) {
+    updatePayload.avatar_url = payload.avatar_url;
+  }
+
   const { data, error } = await supabase
     .from("profiles")
-    .update({
-      username: payload.username,
-      phone: payload.phone,
-    })
+    .update(updatePayload)
     .eq("id", userId)
     .select("*")
     .single();
@@ -206,6 +217,39 @@ export async function updateSupabaseProfile(userId, payload) {
   }
 
   return data;
+}
+
+export async function uploadProfileAvatar(userId, file) {
+  const supabase = getSupabaseClient();
+  const allowedTypes = ["image/jpeg", "image/png"];
+
+  if (!allowedTypes.includes(file?.type)) {
+    throw new Error("INVALID_AVATAR_TYPE");
+  }
+
+  const path = `${userId}/avatar`;
+  const { error: uploadError } = await supabase.storage
+    .from("avatars")
+    .upload(path, file, {
+      upsert: true,
+      contentType: file.type,
+    });
+
+  if (uploadError) {
+    throw new Error(uploadError.message || "APP_AUTH_ERROR");
+  }
+
+  const { data } = supabase.storage.from("avatars").getPublicUrl(path);
+
+  const profile = await updateSupabaseProfile(userId, {
+    avatar_url: data?.publicUrl ?? "",
+  });
+
+  return {
+    path,
+    publicUrl: data?.publicUrl ?? "",
+    profile,
+  };
 }
 
 export async function updateAuthenticatedPassword(password) {

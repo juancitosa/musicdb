@@ -9,7 +9,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useSpotifyAuth } from "../hooks/useSpotifyAuth";
 import { useToast } from "../hooks/useToast";
 import { getMockAlbum, getMockArtist } from "../services/catalog";
-import { fetchSupabaseProfile, updateAuthenticatedPassword, updateSupabaseProfile } from "../services/appAuth";
+import { fetchSupabaseProfile, updateAuthenticatedPassword, updateSupabaseProfile, uploadProfileAvatar } from "../services/appAuth";
 import { getMyRatings } from "../services/ratingHistory";
 import {
   formatTrackDuration,
@@ -256,10 +256,13 @@ function mapProfileUpdateError(errorCode) {
 }
 
 function LocalProfileSettings({
+  avatarUrl,
   form,
+  onAvatarChange,
   onChange,
   onSubmit,
   saveError,
+  isUploadingAvatar,
   isSaving,
   isSpotifyUser,
 }) {
@@ -282,6 +285,33 @@ function LocalProfileSettings({
           <p className="mt-2 text-sm text-muted-foreground">Puedes cambiar tu nombre de usuario, agregar o editar tu telefono y actualizar la contrasena.</p>
         </div>
         <span className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Solo cuenta local</span>
+      </div>
+
+      <div className="mt-6 flex flex-col gap-4 rounded-2xl border border-border/70 bg-background/50 p-4 sm:flex-row sm:items-center">
+        <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-secondary">
+          {avatarUrl ? (
+            <img src={avatarUrl} alt="Avatar del perfil" className="h-full w-full object-cover" />
+          ) : (
+            <UserRound className="h-8 w-8 text-muted-foreground" />
+          )}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold text-foreground">Foto de perfil</p>
+          <p className="mt-1 text-xs text-muted-foreground">Sube una imagen JPG o PNG. Se guarda en Supabase Storage y reemplaza la anterior.</p>
+        </div>
+
+        <label className="inline-flex cursor-pointer items-center justify-center rounded-full bg-secondary px-4 py-2.5 text-sm font-semibold text-foreground transition hover:bg-secondary/80">
+          {isUploadingAvatar ? (
+            <span className="inline-flex items-center gap-2">
+              <LoaderCircle className="h-4 w-4 animate-spin" />
+              Subiendo...
+            </span>
+          ) : (
+            "Cambiar foto"
+          )}
+          <input type="file" accept="image/png,image/jpeg" className="hidden" onChange={onAvatarChange} disabled={isUploadingAvatar} />
+        </label>
       </div>
 
       <form onSubmit={onSubmit} className="mt-6 grid gap-4 md:grid-cols-2">
@@ -343,6 +373,7 @@ function LocalProfileSettings({
 }
 
 function ProfileOverview({
+  avatarUrl,
   filteredEntries,
   hasSpotifyFeatures,
   historyEntries,
@@ -351,9 +382,11 @@ function ProfileOverview({
   isLoadingHistory,
   isSavingProfile,
   isSpotifyUser,
+  isUploadingAvatar,
   proUntilLabel,
   profileForm,
   profileSaveError,
+  setAvatarFile,
   searchOpen,
   searchTerm,
   setHistoryFilter,
@@ -452,10 +485,13 @@ function ProfileOverview({
 
       <div className="mb-6">
         <LocalProfileSettings
+          avatarUrl={avatarUrl}
           form={profileForm}
+          onAvatarChange={setAvatarFile}
           onChange={setProfileFormField}
           onSubmit={onSubmitProfile}
           saveError={profileSaveError}
+          isUploadingAvatar={isUploadingAvatar}
           isSaving={isSavingProfile}
           isSpotifyUser={isSpotifyUser}
         />
@@ -617,6 +653,7 @@ export default function ProfilePage() {
     password: "",
   });
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [profileSaveError, setProfileSaveError] = useState("");
   const proUntilLabel = user?.isPro ? formatProUntil(user?.proUntil) : "";
 
@@ -645,11 +682,18 @@ export default function ProfilePage() {
 
         const nextUsername = profile.username ?? user.username ?? "";
         const nextPhone = profile.phone ?? "";
+        const nextAvatar = profile.avatar_url ?? user.avatar ?? "";
+
+        if (nextUsername === (user.username ?? "") && nextPhone === (user.phone ?? "") && nextAvatar === (user.avatar ?? "")) {
+          return;
+        }
 
         setAuthenticatedUser({
           ...user,
           username: nextUsername,
           phone: nextPhone,
+          avatar_url: nextAvatar,
+          avatar: nextAvatar,
           display_name: nextUsername,
           displayName: nextUsername,
           name: nextUsername,
@@ -666,7 +710,7 @@ export default function ProfilePage() {
     return () => {
       cancelled = true;
     };
-  }, [isSpotifyUser, setAuthenticatedUser, user]);
+  }, [isSpotifyUser, setAuthenticatedUser, user?.avatar, user?.id, user?.phone, user?.username]);
 
   useEffect(() => {
     let cancelled = false;
@@ -781,6 +825,52 @@ export default function ProfilePage() {
     }));
   }
 
+  async function handleAvatarFileChange(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file || !user) {
+      return;
+    }
+
+    if (isSpotifyUser) {
+      setProfileSaveError("Las cuentas iniciadas con Spotify no pueden editar estos datos.");
+      return;
+    }
+
+    if (!["image/jpeg", "image/png"].includes(file.type)) {
+      setProfileSaveError("Solo puedes subir imagenes JPG o PNG.");
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    setProfileSaveError("");
+
+    try {
+      const response = await uploadProfileAvatar(user.id, file);
+      const nextAvatar = response?.profile?.avatar_url ?? response?.publicUrl ?? "";
+
+      setAuthenticatedUser({
+        ...user,
+        avatar_url: nextAvatar,
+        avatar: nextAvatar,
+      });
+
+      toast({
+        title: "Foto actualizada",
+        description: "Tu nueva foto de perfil ya esta guardada.",
+      });
+    } catch (error) {
+      if (error?.message === "INVALID_AVATAR_TYPE") {
+        setProfileSaveError("Solo puedes subir imagenes JPG o PNG.");
+      } else {
+        setProfileSaveError("No pudimos subir tu foto de perfil.");
+      }
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  }
+
   async function handleSubmitProfile(event) {
     event.preventDefault();
 
@@ -826,6 +916,8 @@ export default function ProfilePage() {
         ...user,
         username: profile?.username ?? trimmedUsername,
         phone: profile?.phone ?? trimmedPhone,
+        avatar_url: profile?.avatar_url ?? user.avatar ?? "",
+        avatar: profile?.avatar_url ?? user.avatar ?? "",
         display_name: profile?.username ?? trimmedUsername,
         displayName: profile?.username ?? trimmedUsername,
         name: profile?.username ?? trimmedUsername,
@@ -920,6 +1012,7 @@ export default function ProfilePage() {
         />
       ) : (
         <ProfileOverview
+          avatarUrl={user?.avatar}
           filteredEntries={filteredEntries}
           hasSpotifyFeatures={hasSpotifyFeatures}
           historyEntries={historyEntries}
@@ -928,9 +1021,11 @@ export default function ProfilePage() {
           isLoadingHistory={isLoadingHistory}
           isSavingProfile={isSavingProfile}
           isSpotifyUser={isSpotifyUser}
+          isUploadingAvatar={isUploadingAvatar}
           proUntilLabel={proUntilLabel}
           profileForm={profileForm}
           profileSaveError={profileSaveError}
+          setAvatarFile={handleAvatarFileChange}
           searchOpen={searchOpen}
           searchTerm={searchTerm}
           setHistoryFilter={setHistoryFilter}
