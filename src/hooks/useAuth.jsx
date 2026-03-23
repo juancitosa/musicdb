@@ -38,6 +38,7 @@ function normalizeUser(user) {
     name: resolvedDisplayName,
     isVerified: Boolean(user.is_verified ?? user.isVerified ?? authProvider === "spotify"),
     verifiedAt: user.verified_at ?? user.verifiedAt ?? null,
+    isAdmin: Boolean(user.is_admin ?? user.isAdmin),
     isPro: Boolean(user.is_pro ?? user.isPro),
     proUntil: user.pro_until ?? user.proUntil ?? null,
   };
@@ -57,6 +58,7 @@ function mergeProfileIntoUser(user, profile) {
     ...user,
     username,
     phone,
+    is_admin: profile.is_admin ?? user.isAdmin,
     avatar_url: avatar,
     avatar,
     display_name: displayName,
@@ -77,6 +79,7 @@ function mergeBackendStatusIntoLocalUser(localUser, backendUser) {
   return normalizeUser({
     ...localUser,
     email: backendUser.email ?? localUser.email,
+    is_admin: backendUser.is_admin ?? localUser.isAdmin,
     is_pro: backendUser.is_pro ?? localUser.isPro,
     pro_until: backendUser.pro_until ?? localUser.proUntil,
     is_verified: backendUser.is_verified ?? localUser.isVerified,
@@ -121,6 +124,7 @@ function persistSession(session) {
             display_name: session.user.displayName,
             auth_provider: session.user.authProvider,
             avatar_url: session.user.avatar,
+            is_admin: session.user.isAdmin,
             is_verified: session.user.isVerified,
             verified_at: session.user.verifiedAt,
             name: session.user.name,
@@ -209,7 +213,8 @@ export function AuthProvider({ children }) {
           mergedUser?.username === user.username &&
           mergedUser?.phone === user.phone &&
           mergedUser?.avatar === user.avatar &&
-          mergedUser?.displayName === user.displayName
+          mergedUser?.displayName === user.displayName &&
+          mergedUser?.isAdmin === user.isAdmin
         ) {
           return;
         }

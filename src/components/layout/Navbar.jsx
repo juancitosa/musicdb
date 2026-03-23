@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { BarChart3, ChevronDown, Disc3, LoaderCircle, LogOut, Moon, Search, Sun, UserRound } from "lucide-react";
+import { BarChart3, ChevronDown, Disc3, LoaderCircle, LogOut, Moon, Search, Shield, Sun, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
@@ -440,6 +440,18 @@ function UserActions() {
                     <p className="text-xs text-muted-foreground">Tus tops personales de Spotify</p>
                   </div>
                 </Link>
+                {user?.isAdmin ? (
+                  <Link
+                    to="/admin"
+                    className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm transition hover:bg-secondary"
+                  >
+                    <Shield className="h-4 w-4 text-primary" />
+                    <div>
+                      <p className="font-semibold">Panel de administracion</p>
+                      <p className="text-xs text-muted-foreground">Gestion de usuarios</p>
+                    </div>
+                  </Link>
+                ) : null}
               </div>
             ) : null}
           </div>

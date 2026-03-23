@@ -6,6 +6,7 @@ import { SpotifyAuthProvider } from "./hooks/useSpotifyAuth";
 import { ThemeProvider } from "./hooks/useTheme";
 import { ToastProvider } from "./hooks/useToast";
 import AlbumPage from "./pages/AlbumPage";
+import AdminPanel from "./pages/AdminPanel";
 import ArtistPage from "./pages/ArtistPage";
 import DBRankingPage from "./pages/DBRankingPage";
 import HomePage from "./pages/HomePage";
@@ -27,6 +28,7 @@ export default function App() {
               <AppLayout>
                 <Routes>
                   <Route path="/" element={<HomePage />} />
+                  <Route path="/admin" element={<AdminPanel />} />
                   <Route path="/search" element={<SearchPage />} />
                   <Route path="/dbranking" element={<DBRankingPage />} />
                   <Route path="/pro" element={<ProPage />} />

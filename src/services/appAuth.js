@@ -47,6 +47,7 @@ function mapSupabaseUser(user) {
     display_name: fallbackUsername || "MusicDB User",
     auth_provider: "local",
     avatar_url: user.user_metadata?.avatar_url ?? "",
+    is_admin: Boolean(user.user_metadata?.is_admin),
     is_verified: Boolean(user.email_confirmed_at),
     verified_at: user.email_confirmed_at ?? null,
     name: fallbackUsername || "MusicDB User",
@@ -130,6 +131,7 @@ export async function loginLocalUser(payload) {
       username: resolvedUsername,
       phone: profile?.phone ?? authUser?.phone ?? "",
       avatar_url: resolvedAvatar,
+      is_admin: Boolean(profile?.is_admin ?? authUser?.is_admin),
       display_name: resolvedUsername || authUser?.display_name || "MusicDB User",
       name: resolvedUsername || authUser?.name || "MusicDB User",
     },
@@ -157,6 +159,7 @@ export async function fetchLocalSupabaseUser(token) {
     username: resolvedUsername,
     phone: profile?.phone ?? authUser?.phone ?? "",
     avatar_url: resolvedAvatar,
+    is_admin: Boolean(profile?.is_admin ?? authUser?.is_admin),
     display_name: resolvedUsername || authUser?.display_name || "MusicDB User",
     name: resolvedUsername || authUser?.name || "MusicDB User",
   };
@@ -208,7 +211,7 @@ export async function fetchAuthenticatedUser(token) {
 
 export async function fetchSupabaseProfile(userId) {
   const supabase = getSupabaseClient();
-  const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
+  const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single();
 
   if (error) {
     throw new Error(error.message || "APP_AUTH_ERROR");
