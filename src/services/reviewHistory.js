@@ -33,7 +33,10 @@ export async function createReview({ session_token, entity_type, entity_id, revi
     throw new Error(data?.error?.code || "REVIEW_CREATE_ERROR");
   }
 
-  return data?.review ?? null;
+  return {
+    review: data?.review ?? null,
+    usage: data?.usage ?? null,
+  };
 }
 
 export async function getReviews(entity_type, entity_id) {

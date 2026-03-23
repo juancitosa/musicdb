@@ -852,6 +852,43 @@ async function enforceDailyUsageLimit(supabase, user, type, options = {}) {
   }
 }
 
+async function getDailyUsageStatus(supabase, user) {
+  if (!user?.id) {
+    return null;
+  }
+
+  if (isUserPro(user)) {
+    return {
+      is_pro: true,
+      limits: {
+        ratings_per_24h: null,
+        reviews_per_24h: null,
+      },
+      remaining: {
+        ratings: null,
+        reviews: null,
+      },
+    };
+  }
+
+  const [ratingsCount, reviewsCount] = await Promise.all([
+    getUserRatingsCountLast24Hours(supabase, user.id),
+    getUserReviewsCountLast24Hours(supabase, user.id),
+  ]);
+
+  return {
+    is_pro: false,
+    limits: {
+      ratings_per_24h: 10,
+      reviews_per_24h: 10,
+    },
+    remaining: {
+      ratings: Math.max(10 - ratingsCount, 0),
+      reviews: Math.max(10 - reviewsCount, 0),
+    },
+  };
+}
+
 async function getRankingsFallback(supabase, entityType, limit = 10) {
   const { data, error } = await supabase
     .from("ratings")
@@ -1784,10 +1821,12 @@ app.post(
       entityType,
       entityId,
     });
+    const usage = await getDailyUsageStatus(supabase, currentUser);
 
     res.status(200).json({
       rating,
       summary,
+      usage,
     });
   }),
 );
@@ -1921,7 +1960,9 @@ app.post(
       ratingValue,
     });
 
-    res.status(201).json({ review });
+    const usage = await getDailyUsageStatus(supabase, currentUser);
+
+    res.status(201).json({ review, usage });
   }),
 );
 

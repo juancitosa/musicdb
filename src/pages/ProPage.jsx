@@ -1,4 +1,4 @@
-import { Check, Crown, Gem, Sparkles, Star } from "lucide-react";
+﻿import { Check, Crown, Gem, Sparkles, Star } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
@@ -12,7 +12,8 @@ const freeFeatures = [
   "Ver rankings",
   "Buscar en el catalogo",
   "Crear reviews",
-  "10 reseñas como maximo por dia",
+  "10 ranks por dia como maximo",
+  "10 resenas por dia como maximo",
 ];
 const proFeatures = [
   "Todo lo anterior",
@@ -20,7 +21,10 @@ const proFeatures = [
   "Nombre dorado en reviews",
   "Prioridad en rankings",
   "Reviews destacadas",
-  "Reseñas y puntuaciones ilimitadas",
+  "Mis estadisticas de Spotify",
+  "Filtros de tops por 4 semanas, 6 meses y 1 ano",
+  "Escuchando ahora en la burbuja del perfil",
+  "Resenas y puntuaciones ilimitadas",
   "Acceso a funciones exclusivas",
 ];
 
@@ -48,7 +52,12 @@ const benefitCards = [
   {
     icon: <Crown className="h-5 w-5" />,
     title: "Sin limites diarios",
-    description: "Los usuarios PRO tienen reseñas y puntuaciones ilimitadas durante toda su suscripcion.",
+    description: "Los usuarios PRO tienen resenas y puntuaciones ilimitadas durante toda su suscripcion.",
+  },
+  {
+    icon: <Gem className="h-5 w-5" />,
+    title: "Estadisticas Spotify PRO",
+    description: "Desbloquea tops personales de artistas, albumes y canciones con filtros por periodo.",
   },
 ];
 
@@ -93,7 +102,8 @@ export default function ProPage() {
           "Username en dorado con estrella.",
           "Mayor visibilidad en rankings.",
           "Reviews destacadas.",
-          "Reseñas y puntuaciones ilimitadas.",
+          "Resenas y puntuaciones ilimitadas.",
+          "Estadisticas personales de Spotify.",
         ],
       };
     }
@@ -101,7 +111,7 @@ export default function ProPage() {
     if (paymentStatus === "failure" || paymentStatus === "pending") {
       return {
         tone: "error",
-        title: "El pago no se realizó correctamente, intente nuevamente",
+        title: "El pago no se realizÃ³ correctamente, intente nuevamente",
         description: "",
         items: [],
       };
@@ -205,7 +215,7 @@ export default function ProPage() {
             <Star className="h-3.5 w-3.5 fill-current" />
             Premium
           </span>
-          <h1 className="mt-6 text-4xl font-black tracking-tight text-white sm:text-5xl">MusicDB PRO ⭐</h1>
+          <h1 className="mt-6 text-4xl font-black tracking-tight text-white sm:text-5xl">MusicDB PRO â­</h1>
           <p className="mt-4 max-w-2xl text-base text-white/72 sm:text-lg">
             Lleva tu experiencia musical al siguiente nivel.
           </p>
@@ -289,7 +299,7 @@ export default function ProPage() {
         <p className="text-sm font-semibold uppercase tracking-[0.26em] text-amber-200/78">Upgrade</p>
         <h2 className="mt-3 text-3xl font-black text-white">Haz que tu perfil se vea premium</h2>
         <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-white/68 sm:text-base">
-          MusicDB PRO es la forma de destacar tu identidad musical en la app. Por ahora el flujo de pagos es placeholder, pero la experiencia visual ya está lista.
+          MusicDB PRO es la forma de destacar tu identidad musical en la app. Por ahora el flujo de pagos es placeholder, pero la experiencia visual ya estÃ¡ lista.
         </p>
         <div className="mt-6">
           {isPro ? (
@@ -312,3 +322,4 @@ export default function ProPage() {
     </div>
   );
 }
+

@@ -1,4 +1,4 @@
-import { Disc3, ExternalLink, ListMusic, Play, Star, Trash2, Users } from "lucide-react";
+﻿import { Disc3, ExternalLink, ListMusic, Play, Star, Trash2, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
@@ -7,6 +7,7 @@ import PopularityBar from "../components/shared/PopularityBar";
 import RatingStars from "../components/shared/RatingStars";
 import Button from "../components/ui/Button";
 import { useAuth } from "../hooks/useAuth";
+import { useToast } from "../hooks/useToast";
 import { getMockAlbum, getMockAlbumTracks, getMockArtist } from "../services/catalog";
 import { DEFAULT_RATINGS_SUMMARY, getRatings, getUserRating, submitRating } from "../services/ratingHistory";
 import { createReview, deleteReview, getReviews } from "../services/reviewHistory";
@@ -23,6 +24,7 @@ function formatReviewDate(value) {
 export default function AlbumPage() {
   const { id } = useParams();
   const { isLoggedIn, user, appToken } = useAuth();
+  const { toast } = useToast();
   const [album, setAlbum] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -160,7 +162,7 @@ export default function AlbumPage() {
       } catch {
         if (!cancelled) {
           setReviews([]);
-          setReviewError("No pudimos cargar las reseñas.");
+          setReviewError("No pudimos cargar las reseÃ±as.");
         }
       } finally {
         if (!cancelled) {
@@ -200,8 +202,18 @@ export default function AlbumPage() {
 
       setUserRating(nextRating);
       setRatingsSummary(response.summary ?? DEFAULT_RATINGS_SUMMARY);
+      if (response?.usage && !response.usage.is_pro && response.usage.remaining?.ratings !== null) {
+        toast({
+          title: "Puntuacion guardada",
+          description: `Te quedan ${response.usage.remaining.ratings} ranks hoy.`,
+        });
+      }
     } catch (ratingError) {
-      setRatingsError("No pudimos guardar tu voto. Intentá nuevamente.");
+      if (ratingError?.message === "DAILY_RATING_LIMIT_REACHED") {
+        setRatingsError("Alcanzaste el limite de 10 ranks en 24 horas. Hazte PRO para desbloquear mas.");
+      } else {
+        setRatingsError("No pudimos guardar tu voto. Intenta nuevamente.");
+      }
       throw ratingError;
     } finally {
       setIsSubmittingRating(false);
@@ -219,7 +231,7 @@ export default function AlbumPage() {
     setReviewError("");
 
     try {
-      await createReview({
+      const response = await createReview({
         session_token: appToken,
         entity_type: "album",
         entity_id: String(album.id),
@@ -230,11 +242,19 @@ export default function AlbumPage() {
       const nextReviews = await getReviews("album", String(album.id));
       setReviews(nextReviews);
       setReviewText("");
+      if (response?.usage && !response.usage.is_pro && response.usage.remaining?.reviews !== null) {
+        toast({
+          title: "Resena guardada",
+          description: `Te quedan ${response.usage.remaining.reviews} resenas hoy.`,
+        });
+      }
     } catch (reviewRequestError) {
       if (reviewRequestError?.message === "REVIEW_ALREADY_EXISTS") {
-        setReviewError("Ya dejaste una reseña para este album.");
+        setReviewError("Ya dejaste una resena para este album.");
+      } else if (reviewRequestError?.message === "DAILY_REVIEW_LIMIT_REACHED") {
+        setReviewError("Alcanzaste el limite de 10 resenas en 24 horas. Hazte PRO para desbloquear mas.");
       } else {
-        setReviewError("No pudimos guardar la reseña. Intentá nuevamente.");
+        setReviewError("No pudimos guardar la resena. Intenta nuevamente.");
       }
     } finally {
       setIsSubmittingReview(false);
@@ -253,7 +273,7 @@ export default function AlbumPage() {
       await deleteReview(reviewId, appToken);
       setReviews((currentReviews) => currentReviews.filter((review) => review.id !== reviewId));
     } catch {
-      setReviewError("No pudimos eliminar la reseña.");
+      setReviewError("No pudimos eliminar la reseÃ±a.");
     } finally {
       setDeletingReviewId(null);
     }
@@ -313,13 +333,13 @@ export default function AlbumPage() {
                 {primaryArtist.name}
               </Link>
             ) : null}
-            <span>·</span>
+            <span>Â·</span>
             <span>{releaseYear}</span>
-            <span>·</span>
+            <span>Â·</span>
             <span>{isLocal ? album.trackCount : album.total_tracks} canciones</span>
             {!isLocal && totalDuration ? (
               <>
-                <span>·</span>
+                <span>Â·</span>
                 <span>{totalDuration} min</span>
               </>
             ) : null}
@@ -422,7 +442,7 @@ export default function AlbumPage() {
           <div className="rounded-2xl border border-border bg-card p-6">
             <h3 className="mb-6 flex items-center text-xl font-bold">
               <Disc3 className="mr-2 h-5 w-5 text-primary" />
-              Reseñas
+              ReseÃ±as
             </h3>
 
             {canInteract ? (
@@ -431,20 +451,20 @@ export default function AlbumPage() {
                   rows={3}
                   value={reviewText}
                   onChange={(event) => setReviewText(event.target.value)}
-                  placeholder="¿Que te parecio el album?"
+                  placeholder="Â¿Que te parecio el album?"
                   className="w-full resize-none rounded-xl border-2 border-border bg-background p-3 text-sm outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
                 />
                 <Button type="submit" disabled={!reviewText.trim() || isSubmittingReview} className="w-full rounded-lg">
-                  {isSubmittingReview ? "Publicando..." : "Publicar reseña"}
+                  {isSubmittingReview ? "Publicando..." : "Publicar reseÃ±a"}
                 </Button>
                 <p className="text-center text-xs text-muted-foreground">
-                  Podés enviar la reseña con o sin rating. Si ya votaste, se guarda junto con tu comentario.
+                  PodÃ©s enviar la reseÃ±a con o sin rating. Si ya votaste, se guarda junto con tu comentario.
                 </p>
                 {reviewError ? <p className="text-center text-xs text-destructive">{reviewError}</p> : null}
               </form>
             ) : (
               <div className="mb-6 rounded-xl border border-border bg-secondary/50 p-4 text-center">
-                <p className="mb-2 text-sm text-muted-foreground">Inicia sesion para dejar una reseña y puntuar.</p>
+                <p className="mb-2 text-sm text-muted-foreground">Inicia sesion para dejar una reseÃ±a y puntuar.</p>
                 <AuthRestrictionMessage />
               </div>
             )}
@@ -452,7 +472,7 @@ export default function AlbumPage() {
             <div className="space-y-6">
               {isLoadingReviews ? (
                 <div className="rounded-xl border border-dashed border-border bg-secondary/40 p-4 text-sm text-muted-foreground">
-                  Cargando reseñas...
+                  Cargando reseÃ±as...
                 </div>
               ) : reviews.length > 0 ? (
                 reviews.map((review) => (
@@ -471,7 +491,7 @@ export default function AlbumPage() {
                           onClick={() => handleDeleteReview(review.id)}
                           disabled={deletingReviewId === review.id}
                           className="rounded-full p-2 text-muted-foreground transition hover:bg-secondary hover:text-foreground disabled:cursor-wait disabled:opacity-60"
-                          aria-label="Eliminar reseña"
+                          aria-label="Eliminar reseÃ±a"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -487,7 +507,7 @@ export default function AlbumPage() {
                 ))
               ) : (
                 <div className="rounded-xl border border-dashed border-border bg-secondary/40 p-4 text-sm text-muted-foreground">
-                  Todavia no hay reseñas reales para este album.
+                  Todavia no hay reseÃ±as reales para este album.
                 </div>
               )}
             </div>
@@ -497,3 +517,4 @@ export default function AlbumPage() {
     </div>
   );
 }
+
