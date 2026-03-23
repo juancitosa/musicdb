@@ -639,8 +639,28 @@ async function sendVerificationEmail({ email, username, token, expiresAt }) {
 
   try {
     console.log("Enviando email...");
+    if (!verificationLink) {
+      throw new Error("verificationLink is not defined");
+    }
+
+    if (typeof email !== "string" || !email.trim()) {
+      throw new Error("Recipient email is invalid");
+    }
+
+    const html = `<a href="${verificationLink}">Verificar cuenta</a>`;
+
+    if (!html.trim()) {
+      throw new Error("Email HTML content is empty");
+    }
     const resendResult = await resend.emails.send({
-      from: "MusicDB [onboarding@resend.dev](mailto:onboarding@resend.dev)",
+      from: "MusicDB <onboarding@resend.dev>",
+      to: email,
+      subject: "Verificá tu cuenta",
+      html,
+    });
+    /*
+    const resendResult = await resend.emails.send({
+      from: "MusicDB <onboarding@resend.dev>",
       to: email,
       subject: "Verificá tu cuenta",
       html: `<p>Hola ${username || "MusicDB User"},</p>
@@ -648,6 +668,7 @@ async function sendVerificationEmail({ email, username, token, expiresAt }) {
           <a href="${verificationLink}">Verificar cuenta</a>
           <p>El enlace vence el ${expirationDate}.</p>`,
     });
+    */
     console.log("Email enviado");
     console.log("[auth:email] resend.emails.send() response", resendResult);
   } catch (error) {
