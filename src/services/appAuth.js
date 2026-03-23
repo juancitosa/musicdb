@@ -185,7 +185,9 @@ export async function fetchSupabaseProfile(userId) {
 
 export async function updateSupabaseProfile(userId, payload) {
   const supabase = getSupabaseClient();
-  const updatePayload = {};
+  const updatePayload = {
+    id: userId,
+  };
 
   if (payload.username !== undefined) {
     updatePayload.username = payload.username;
@@ -201,8 +203,9 @@ export async function updateSupabaseProfile(userId, payload) {
 
   const { data, error } = await supabase
     .from("profiles")
-    .update(updatePayload)
-    .eq("id", userId)
+    .upsert(updatePayload, {
+      onConflict: "id",
+    })
     .select("*")
     .single();
 
