@@ -875,7 +875,7 @@ export default function ProfilePage() {
   }
 
   function handleAvatarFileChange(e) {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     e.target.value = "";
 
     if (!file || !user) {
@@ -888,6 +888,7 @@ export default function ProfilePage() {
     }
 
     if (!file.type?.startsWith("image/")) {
+      alert("Solo imágenes");
       setProfileSaveError("Solo puedes subir imagenes JPG o PNG.");
       return;
     }

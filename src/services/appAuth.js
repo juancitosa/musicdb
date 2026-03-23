@@ -258,6 +258,7 @@ export async function updateSupabaseProfile(userId, payload) {
 
 export async function uploadProfileAvatar(userId, file) {
   const supabase = getSupabaseClient();
+
   if (!file) {
     return null;
   }
@@ -276,7 +277,8 @@ export async function uploadProfileAvatar(userId, file) {
     });
 
   if (uploadError) {
-    throw new Error(uploadError.message || "APP_AUTH_ERROR");
+    console.error("UPLOAD ERROR:", uploadError);
+    throw uploadError;
   }
 
   const { data } = supabase.storage.from("avatars").getPublicUrl(filePath);
