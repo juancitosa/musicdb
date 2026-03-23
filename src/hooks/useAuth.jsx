@@ -29,6 +29,8 @@ function normalizeUser(user) {
     authProvider: user.auth_provider ?? user.authProvider ?? "local",
     avatar: user.avatar_url ?? user.avatar ?? "",
     name: user.display_name ?? user.displayName ?? user.username ?? "MusicDB User",
+    isVerified: Boolean(user.is_verified ?? user.isVerified ?? user.auth_provider === "spotify"),
+    verifiedAt: user.verified_at ?? user.verifiedAt ?? null,
     isPro: Boolean(user.is_pro ?? user.isPro),
     proUntil: user.pro_until ?? user.proUntil ?? null,
   };
@@ -70,6 +72,8 @@ function persistSession(session) {
             display_name: session.user.displayName,
             auth_provider: session.user.authProvider,
             avatar_url: session.user.avatar,
+            is_verified: session.user.isVerified,
+            verified_at: session.user.verifiedAt,
             name: session.user.name,
           }
         : null,

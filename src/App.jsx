@@ -15,6 +15,7 @@ import ProPage from "./pages/ProPage";
 import ProfilePage from "./pages/ProfilePage";
 import RegisterPage from "./pages/RegisterPage";
 import SearchPage from "./pages/SearchPage";
+import VerifyEmailPage from "./pages/VerifyEmailPage";
 
 export default function App() {
   return (
@@ -33,6 +34,7 @@ export default function App() {
                   <Route path="/album/:id" element={<AlbumPage />} />
                   <Route path="/login" element={<LoginPage />} />
                   <Route path="/register" element={<RegisterPage />} />
+                  <Route path="/verify-email" element={<VerifyEmailPage />} />
                   <Route path="/profile" element={<ProfilePage />} />
                   <Route path="/profile/stats" element={<ProfilePage />} />
                   <Route path="*" element={<NotFoundPage />} />

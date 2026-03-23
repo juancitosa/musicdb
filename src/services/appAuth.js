@@ -71,6 +71,14 @@ export function loginLocalUser(payload) {
   return postAuthRequest("/auth/login", payload);
 }
 
+export function resendVerificationEmail(payload) {
+  return postAuthRequest("/auth/verify-email/resend", payload);
+}
+
+export function verifyEmailToken(payload) {
+  return postAuthRequest("/auth/verify-email", payload);
+}
+
 export async function fetchAuthenticatedUser(token) {
   let response;
 

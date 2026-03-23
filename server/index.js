@@ -3,7 +3,8 @@ import dotenv from "dotenv";
 import express from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { randomUUID } from "node:crypto";
+import nodemailer from "nodemailer";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { MercadoPagoConfig, Payment } from "mercadopago";
 import { createClient } from "@supabase/supabase-js";
 
@@ -23,6 +24,14 @@ const MERCADO_PAGO_API_BASE_URL = "https://api.mercadopago.com";
 const MERCADO_PAGO_ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN || process.env.MERCADO_PAGO_ACCESS_TOKEN;
 const PUBLIC_APP_URL = process.env.PUBLIC_APP_URL || "https://musicdb.online";
 const PUBLIC_API_URL = process.env.PUBLIC_API_URL || process.env.BACKEND_PUBLIC_URL || "https://musicdb-backend.onrender.com";
+const SMTP_HOST = process.env.SMTP_HOST || "";
+const SMTP_PORT = Number(process.env.SMTP_PORT || 587);
+const SMTP_SECURE = String(process.env.SMTP_SECURE || "").toLowerCase() === "true";
+const SMTP_USER = process.env.SMTP_USER || "";
+const SMTP_PASS = process.env.SMTP_PASS || "";
+const SMTP_FROM_EMAIL = process.env.SMTP_FROM_EMAIL || SMTP_USER || "no-reply@musicdb.online";
+const SMTP_FROM_NAME = process.env.SMTP_FROM_NAME || "MusicDB";
+const EMAIL_VERIFICATION_TTL_HOURS = Math.max(Number(process.env.EMAIL_VERIFICATION_TTL_HOURS || 24), 1);
 const PRO_SUBSCRIPTION_PLANS = {
   "1m": { price: 3500, months: 1, title: "MusicDB PRO - 1 mes" },
   "3m": { price: 9000, months: 3, title: "MusicDB PRO - 3 meses" },
@@ -44,6 +53,7 @@ let supabaseAdmin = null;
 let cachedUserTableColumns = null;
 let mercadoPagoClient = null;
 let mercadoPagoPaymentClient = null;
+let emailTransporter = null;
 
 function isAllowedOrigin(origin) {
   if (!origin) {
@@ -266,6 +276,46 @@ function getMercadoPagoPaymentClient() {
   return mercadoPagoPaymentClient;
 }
 
+function hasSmtpConfig() {
+  return Boolean(SMTP_HOST && SMTP_PORT && SMTP_USER && SMTP_PASS);
+}
+
+function getEmailTransporter() {
+  if (!hasSmtpConfig()) {
+    return null;
+  }
+
+  if (!emailTransporter) {
+    emailTransporter = nodemailer.createTransport({
+      host: SMTP_HOST,
+      port: SMTP_PORT,
+      secure: SMTP_SECURE,
+      auth: {
+        user: SMTP_USER,
+        pass: SMTP_PASS,
+      },
+    });
+  }
+
+  return emailTransporter;
+}
+
+function hashVerificationToken(token) {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+function generateEmailVerificationToken() {
+  return randomBytes(32).toString("hex");
+}
+
+function buildEmailVerificationUrl(token) {
+  return `${normalizeUrl(PUBLIC_APP_URL, "https://musicdb.online")}/verify-email?token=${encodeURIComponent(token)}`;
+}
+
+function getEmailVerificationExpiryDate() {
+  return new Date(Date.now() + EMAIL_VERIFICATION_TTL_HOURS * 60 * 60 * 1000).toISOString();
+}
+
 function mapUserRecord(user) {
   const proUntilDate =
     typeof user?.pro_until === "string" || user?.pro_until instanceof Date
@@ -281,6 +331,8 @@ function mapUserRecord(user) {
     display_name: user.display_name,
     avatar_url: user.avatar_url,
     auth_provider: user.auth_provider,
+    is_verified: Boolean(user.is_verified ?? user.auth_provider === "spotify"),
+    verified_at: user.verified_at ?? null,
     is_pro: isProActive,
     pro_until: user.pro_until ?? null,
     created_at: user.created_at,
@@ -323,6 +375,9 @@ async function getUserTableColumns(supabase) {
     "display_name",
     "avatar_url",
     "auth_provider",
+    "is_verified",
+    "verified_at",
+    "verification_sent_at",
     "created_at",
     "updated_at",
     "password_hash",
@@ -403,6 +458,18 @@ async function buildUserSelect(supabase, { includePasswordHash = false } = {}) {
     selectedColumns.push("pro_until");
   }
 
+  if (columns.has("is_verified")) {
+    selectedColumns.push("is_verified");
+  }
+
+  if (columns.has("verified_at")) {
+    selectedColumns.push("verified_at");
+  }
+
+  if (columns.has("verification_sent_at")) {
+    selectedColumns.push("verification_sent_at");
+  }
+
   if (includePasswordHash && columns.has("password_hash")) {
     selectedColumns.push("password_hash");
   }
@@ -461,6 +528,252 @@ async function getUserAuthByEmail(supabase, email) {
   return syncExpiredProStatusIfNeeded(supabase, data, { includePasswordHash: true });
 }
 
+function ensureVerificationColumnsExist(userColumns) {
+  const requiredColumns = ["is_verified", "verified_at", "verification_sent_at"];
+  const missingColumns = requiredColumns.filter((column) => !userColumns.has(column));
+
+  if (missingColumns.length > 0) {
+    throw createHttpError(
+      500,
+      "EMAIL_VERIFICATION_SCHEMA_MISSING",
+      `Missing users columns for email verification: ${missingColumns.join(", ")}`,
+    );
+  }
+}
+
+function isMissingRelationError(error) {
+  return error?.code === "42P01" || error?.message?.toLowerCase().includes("relation") || error?.message?.toLowerCase().includes("does not exist");
+}
+
+async function deleteEmailVerificationTokensForUser(supabase, userId) {
+  const { error } = await supabase.from("email_verification_tokens").delete().eq("user_id", userId);
+
+  if (isMissingRelationError(error)) {
+    throw createHttpError(
+      500,
+      "EMAIL_VERIFICATION_SCHEMA_MISSING",
+      "Missing email_verification_tokens table required for email verification",
+    );
+  }
+
+  handleSupabaseError(error, "Failed to clear email verification tokens");
+}
+
+async function createEmailVerificationToken(supabase, userId) {
+  const token = generateEmailVerificationToken();
+  const tokenHash = hashVerificationToken(token);
+  const expiresAt = getEmailVerificationExpiryDate();
+
+  console.log("[auth:register] Generating email verification token", {
+    userId,
+    expiresAt,
+  });
+
+  await deleteEmailVerificationTokensForUser(supabase, userId);
+
+  const { error } = await supabase.from("email_verification_tokens").insert({
+    user_id: userId,
+    token_hash: tokenHash,
+    expires_at: expiresAt,
+  });
+
+  if (error) {
+    console.error("[auth:register] Failed to insert email verification token", {
+      userId,
+      errorCode: error.code ?? null,
+      errorMessage: error.message ?? "Unknown insert error",
+    });
+  }
+
+  if (isMissingRelationError(error)) {
+    throw createHttpError(
+      500,
+      "EMAIL_VERIFICATION_SCHEMA_MISSING",
+      "Missing email_verification_tokens table required for email verification",
+    );
+  }
+
+  handleSupabaseError(error, "Failed to create email verification token");
+
+  console.log("[auth:register] Email verification token stored", {
+    userId,
+  });
+
+  return {
+    token,
+    expiresAt,
+  };
+}
+
+async function markVerificationEmailSent(supabase, userId) {
+  const userColumns = await getUserTableColumns(supabase);
+  ensureVerificationColumnsExist(userColumns);
+
+  const { error } = await supabase
+    .from("users")
+    .update({
+      verification_sent_at: new Date().toISOString(),
+    })
+    .eq("id", userId);
+
+  handleSupabaseError(error, "Failed to persist verification sent timestamp");
+}
+
+async function sendVerificationEmail({ email, username, token, expiresAt }) {
+  const verificationUrl = buildEmailVerificationUrl(token);
+  const expirationDate = new Date(expiresAt).toLocaleString("es-AR", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+  const transporter = getEmailTransporter();
+
+  if (!transporter) {
+    console.log("[auth] SMTP not configured, email verification link generated", {
+      email,
+      verificationUrl,
+      expiresAt,
+    });
+
+    return {
+      delivered: false,
+      verificationUrl,
+    };
+  }
+
+  await transporter.sendMail({
+    from: `"${SMTP_FROM_NAME}" <${SMTP_FROM_EMAIL}>`,
+    to: email,
+    subject: "Verifica tu cuenta de MusicDB",
+    text: [
+      `Hola ${username || "MusicDB User"},`,
+      "",
+      "Activa tu cuenta entrando en este enlace:",
+      verificationUrl,
+      "",
+      `El enlace vence el ${expirationDate}.`,
+      "",
+      "Si no creaste esta cuenta, puedes ignorar este mensaje.",
+    ].join("\n"),
+    html: `
+      <div style="font-family:Arial,sans-serif;line-height:1.6;color:#111827">
+        <h2 style="margin-bottom:8px;">Verifica tu cuenta de MusicDB</h2>
+        <p>Hola ${username || "MusicDB User"},</p>
+        <p>Confirma tu email para activar la cuenta y evitar registros masivos.</p>
+        <p>
+          <a href="${verificationUrl}" style="display:inline-block;padding:12px 18px;border-radius:999px;background:#111827;color:#ffffff;text-decoration:none;font-weight:700;">
+            Verificar email
+          </a>
+        </p>
+        <p>Si el boton no funciona, copia y pega este enlace:</p>
+        <p><a href="${verificationUrl}">${verificationUrl}</a></p>
+        <p>El enlace vence el ${expirationDate}.</p>
+      </div>
+    `,
+  });
+
+  return {
+    delivered: true,
+    verificationUrl,
+  };
+}
+
+async function issueVerificationEmail(supabase, user) {
+  const userColumns = await getUserTableColumns(supabase);
+  ensureVerificationColumnsExist(userColumns);
+
+  const isAlreadyVerified = Boolean(user?.is_verified ?? user?.auth_provider === "spotify");
+
+  if (isAlreadyVerified) {
+    return {
+      alreadyVerified: true,
+    };
+  }
+
+  const { token, expiresAt } = await createEmailVerificationToken(supabase, user.id);
+  const verificationUrl = buildEmailVerificationUrl(token);
+  const delivery = await sendVerificationEmail({
+    email: user.email,
+    username: user.username,
+    token,
+    expiresAt,
+  });
+
+  console.log("[auth:register] Verification link prepared", {
+    userId: user.id,
+    email: user.email,
+    verificationUrl,
+    delivery: delivery.delivered ? "smtp" : "logged",
+  });
+
+  await markVerificationEmailSent(supabase, user.id);
+
+  return {
+    alreadyVerified: false,
+    expiresAt,
+    delivery,
+  };
+}
+
+async function getEmailVerificationRecordByToken(supabase, token) {
+  const tokenHash = hashVerificationToken(token);
+  const { data, error } = await supabase
+    .from("email_verification_tokens")
+    .select("user_id, token_hash, expires_at, consumed_at, created_at")
+    .eq("token_hash", tokenHash)
+    .maybeSingle();
+
+  if (isMissingRelationError(error)) {
+    throw createHttpError(
+      500,
+      "EMAIL_VERIFICATION_SCHEMA_MISSING",
+      "Missing email_verification_tokens table required for email verification",
+    );
+  }
+
+  handleSupabaseError(error, "Failed to fetch email verification token");
+  return data;
+}
+
+async function markEmailVerificationTokenAsConsumed(supabase, token) {
+  const tokenHash = hashVerificationToken(token);
+  const { error } = await supabase
+    .from("email_verification_tokens")
+    .update({
+      consumed_at: new Date().toISOString(),
+    })
+    .eq("token_hash", tokenHash);
+
+  if (isMissingRelationError(error)) {
+    throw createHttpError(
+      500,
+      "EMAIL_VERIFICATION_SCHEMA_MISSING",
+      "Missing email_verification_tokens table required for email verification",
+    );
+  }
+
+  handleSupabaseError(error, "Failed to consume email verification token");
+}
+
+async function markUserEmailAsVerified(supabase, userId) {
+  const userColumns = await getUserTableColumns(supabase);
+  ensureVerificationColumnsExist(userColumns);
+  const userSelect = await buildUserSelect(supabase);
+  const payload = {
+    is_verified: true,
+    verified_at: new Date().toISOString(),
+  };
+
+  const { data, error } = await supabase
+    .from("users")
+    .update(payload)
+    .eq("id", userId)
+    .select(userSelect)
+    .single();
+
+  handleSupabaseError(error, "Failed to verify user email");
+  return data;
+}
+
 async function getSpotifyAccountBySpotifyUserId(supabase, spotifyUserId) {
   const { data, error } = await supabase
     .from("spotify_accounts")
@@ -492,16 +805,27 @@ async function buildUniqueUsername(supabase, seed) {
 
 async function createUserFromSpotifyProfile(supabase, { email, displayName, avatarUrl }) {
   const username = await buildUniqueUsername(supabase, displayName);
+  const userColumns = await getUserTableColumns(supabase);
   const userSelect = await buildUserSelect(supabase);
+  const payload = {
+    email,
+    username,
+    display_name: displayName,
+    avatar_url: avatarUrl,
+    auth_provider: "spotify",
+  };
+
+  if (userColumns.has("is_verified")) {
+    payload.is_verified = true;
+  }
+
+  if (userColumns.has("verified_at")) {
+    payload.verified_at = new Date().toISOString();
+  }
+
   const { data, error } = await supabase
     .from("users")
-    .insert({
-      email,
-      username,
-      display_name: displayName,
-      avatar_url: avatarUrl,
-      auth_provider: "spotify",
-    })
+    .insert(payload)
     .select(userSelect)
     .single();
 
@@ -516,14 +840,25 @@ async function ensureSpotifyAccountRecord(supabase, payload) {
 }
 
 async function updateUserForSpotify(supabase, user, { displayName, avatarUrl }) {
+  const userColumns = await getUserTableColumns(supabase);
   const userSelect = await buildUserSelect(supabase);
+  const payload = {
+    display_name: displayName,
+    avatar_url: avatarUrl,
+    auth_provider: "spotify",
+  };
+
+  if (userColumns.has("is_verified")) {
+    payload.is_verified = true;
+  }
+
+  if (userColumns.has("verified_at")) {
+    payload.verified_at = user?.verified_at ?? new Date().toISOString();
+  }
+
   const { data, error } = await supabase
     .from("users")
-    .update({
-      display_name: displayName,
-      avatar_url: avatarUrl,
-      auth_provider: "spotify",
-    })
+    .update(payload)
     .eq("id", user.id)
     .select(userSelect)
     .single();
@@ -645,6 +980,7 @@ async function createLocalUser(supabase, { email, username, password, phone }) {
 
   const hashedPassword = await bcrypt.hash(password, 10);
   const userColumns = await getUserTableColumns(supabase);
+  ensureVerificationColumnsExist(userColumns);
   const userSelect = await buildUserSelect(supabase);
   const payload = {
     email,
@@ -652,11 +988,20 @@ async function createLocalUser(supabase, { email, username, password, phone }) {
     password_hash: hashedPassword,
     display_name: username,
     auth_provider: "local",
+    is_verified: false,
+    verified_at: null,
+    verification_sent_at: null,
   };
 
   if (phone && userColumns.has("phone")) {
     payload.phone = phone;
   }
+
+  console.log("[auth:register] Creating local user", {
+    email,
+    username,
+    hasPhone: Boolean(phone),
+  });
 
   const { data, error } = await supabase
     .from("users")
@@ -665,6 +1010,11 @@ async function createLocalUser(supabase, { email, username, password, phone }) {
     .single();
 
   if (error?.message?.includes("phone")) {
+    console.warn("[auth:register] Retrying user creation without phone column", {
+      email,
+      username,
+    });
+
     const { data: fallbackData, error: fallbackError } = await supabase
       .from("users")
       .insert({
@@ -673,15 +1023,46 @@ async function createLocalUser(supabase, { email, username, password, phone }) {
         password_hash: hashedPassword,
         display_name: username,
         auth_provider: "local",
+        is_verified: false,
+        verified_at: null,
+        verification_sent_at: null,
       })
       .select(userSelect)
       .single();
 
+    if (fallbackError) {
+      console.error("[auth:register] Fallback local user insert failed", {
+        email,
+        username,
+        errorCode: fallbackError.code ?? null,
+        errorMessage: fallbackError.message ?? "Unknown insert error",
+      });
+    }
+
     handleSupabaseError(fallbackError, "Failed to create local user");
+    console.log("[auth:register] Local user created via fallback insert", {
+      userId: fallbackData?.id ?? null,
+      email,
+    });
     return fallbackData;
   }
 
+  if (error) {
+    console.error("[auth:register] Local user insert failed", {
+      email,
+      username,
+      errorCode: error.code ?? null,
+      errorMessage: error.message ?? "Unknown insert error",
+    });
+  }
+
   handleSupabaseError(error, "Failed to create local user");
+
+  console.log("[auth:register] Local user created", {
+    userId: data?.id ?? null,
+    email,
+    isVerified: data?.is_verified ?? null,
+  });
 
   return data;
 }
@@ -1551,6 +1932,51 @@ function asyncRoute(handler) {
   };
 }
 
+async function handleLocalRegister(req, res) {
+  const email = normalizeEmail(req.body.email);
+  const username = normalizeUsername(req.body.username);
+  const password = normalizePassword(req.body.password);
+  const phone = normalizePhone(req.body.phone);
+
+  if (!email || !username || !password) {
+    throw createHttpError(400, "INVALID_REGISTER_PAYLOAD", "email, username and password are required");
+  }
+
+  const supabase = getSupabaseAdmin();
+  const user = await createLocalUser(supabase, {
+    email,
+    username,
+    password,
+    phone,
+  });
+
+  if (!user?.id) {
+    console.error("[auth:register] User insert returned no UUID", {
+      email,
+      username,
+      userId: user?.id ?? null,
+    });
+    throw createHttpError(500, "REGISTER_USER_ID_MISSING", "User was created without a valid id");
+  }
+
+  console.log("[auth:register] Using user UUID for verification token", {
+    userId: user.id,
+    email,
+  });
+
+  const verification = await issueVerificationEmail(supabase, user);
+
+  res.status(201).json({
+    message: "Revisa tu email para verificar la cuenta",
+    user: mapUserRecord(user),
+    requires_email_verification: true,
+    verification_email_sent: true,
+    verification_expires_at: verification.expiresAt ?? null,
+    verification_delivery: verification.delivery?.delivered ? "smtp" : "logged",
+    verification_url: verification.delivery?.delivered ? null : verification.delivery?.verificationUrl ?? null,
+  });
+}
+
 app.get(
   "/api/search/artists",
   asyncRoute(async (req, res) => {
@@ -1633,29 +2059,12 @@ app.post(
 
 app.post(
   "/api/auth/register",
-  asyncRoute(async (req, res) => {
-    const email = normalizeEmail(req.body.email);
-    const username = normalizeUsername(req.body.username);
-    const password = normalizePassword(req.body.password);
-    const phone = normalizePhone(req.body.phone);
+  asyncRoute(handleLocalRegister),
+);
 
-    if (!email || !username || !password) {
-      throw createHttpError(400, "INVALID_REGISTER_PAYLOAD", "email, username and password are required");
-    }
-
-    const supabase = getSupabaseAdmin();
-    const user = await createLocalUser(supabase, {
-      email,
-      username,
-      password,
-      phone,
-    });
-
-    res.status(201).json({
-      user: mapUserRecord(user),
-      token: createAppSessionToken(user),
-    });
-  }),
+app.post(
+  "/api/register",
+  asyncRoute(handleLocalRegister),
 );
 
 app.post(
@@ -1670,6 +2079,7 @@ app.post(
 
     const supabase = getSupabaseAdmin();
     const user = await getUserAuthByEmail(supabase, email);
+    const userColumns = await getUserTableColumns(supabase);
 
     if (!user?.password_hash) {
       throw createHttpError(401, "LOCAL_LOGIN_INVALID", "Invalid email or password");
@@ -1681,9 +2091,80 @@ app.post(
       throw createHttpError(401, "LOCAL_LOGIN_INVALID", "Invalid email or password");
     }
 
+    if (userColumns.has("is_verified") && !user.is_verified) {
+      throw createHttpError(403, "EMAIL_NOT_VERIFIED", "Email verification is required before logging in");
+    }
+
     res.json({
       user: mapUserRecord(user),
       token: createAppSessionToken(user),
+    });
+  }),
+);
+
+app.post(
+  "/api/auth/verify-email",
+  asyncRoute(async (req, res) => {
+    const token = typeof req.body?.token === "string" ? req.body.token.trim() : "";
+
+    if (!token) {
+      throw createHttpError(400, "INVALID_EMAIL_VERIFICATION_TOKEN", "A valid verification token is required");
+    }
+
+    const supabase = getSupabaseAdmin();
+    const verificationRecord = await getEmailVerificationRecordByToken(supabase, token);
+
+    if (!verificationRecord) {
+      throw createHttpError(400, "EMAIL_VERIFICATION_INVALID", "The verification link is invalid");
+    }
+
+    if (verificationRecord.consumed_at) {
+      throw createHttpError(400, "EMAIL_VERIFICATION_ALREADY_USED", "The verification link was already used");
+    }
+
+    const expiresAt = new Date(verificationRecord.expires_at);
+
+    if (Number.isNaN(expiresAt.getTime()) || expiresAt.getTime() <= Date.now()) {
+      throw createHttpError(400, "EMAIL_VERIFICATION_EXPIRED", "The verification link expired");
+    }
+
+    await markEmailVerificationTokenAsConsumed(supabase, token);
+    const user = await markUserEmailAsVerified(supabase, verificationRecord.user_id);
+    await deleteEmailVerificationTokensForUser(supabase, verificationRecord.user_id);
+
+    res.json({
+      user: mapUserRecord(user),
+      token: createAppSessionToken(user),
+    });
+  }),
+);
+
+app.post(
+  "/api/auth/verify-email/resend",
+  asyncRoute(async (req, res) => {
+    const email = normalizeEmail(req.body?.email);
+
+    if (!email) {
+      throw createHttpError(400, "INVALID_EMAIL_VERIFICATION_RESEND_PAYLOAD", "A valid email is required");
+    }
+
+    const supabase = getSupabaseAdmin();
+    const user = await getUserByEmail(supabase, email);
+
+    if (!user?.id || user.auth_provider !== "local") {
+      res.status(200).json({
+        ok: true,
+      });
+      return;
+    }
+
+    const verification = await issueVerificationEmail(supabase, user);
+
+    res.status(200).json({
+      ok: true,
+      already_verified: Boolean(verification.alreadyVerified),
+      verification_delivery: verification.delivery?.delivered ? "smtp" : verification.delivery?.verificationUrl ? "logged" : null,
+      verification_url: verification.delivery?.delivered ? null : verification.delivery?.verificationUrl ?? null,
     });
   }),
 );

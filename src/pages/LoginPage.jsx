@@ -23,7 +23,7 @@ export default function LoginPage() {
         </div>
 
         <div className="rounded-2xl border border-border bg-background/60 p-4 text-sm text-muted-foreground">
-          La app ya no depende de Spotify para votar, crear resenas, usar rankings, navegar ni buscar.
+          La app ya no depende de Spotify para votar, crear resenas, usar rankings, navegar ni buscar. Si tu mail aun no esta verificado, el login queda bloqueado hasta confirmarlo.
         </div>
 
         <AuthDialog triggerLabel="Iniciar sesion" triggerClassName="mt-6 w-full justify-center" triggerSize="lg" autoOpen={shouldAutoOpen} />

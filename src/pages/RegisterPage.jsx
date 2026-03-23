@@ -16,7 +16,7 @@ export default function RegisterPage() {
         <div className="mb-8 text-center">
           <h1 className="text-3xl font-bold">Crear cuenta</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Crea una cuenta MusicDB con email y contrasena. Spotify queda como opcion adicional.
+            Crea una cuenta MusicDB con email y contrasena. Antes del primer acceso te pediremos verificar el mail.
           </p>
         </div>
 

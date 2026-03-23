@@ -20,12 +20,27 @@ TABLAS MINIMAS
 - auth_provider: varchar
   valores sugeridos: local, spotify, hybrid
 - is_verified: boolean default false
+- verified_at: timestamp, nullable
+- verification_sent_at: timestamp, nullable
 - created_at: timestamp
 - updated_at: timestamp
 
 USO
 - usuario base de la app
 - soporta login local o Spotify
+- para login local se recomienda exigir is_verified = true
+
+1.b email_verification_tokens
+- id: uuid, primary key
+- user_id: uuid, foreign key -> users.id
+- token_hash: varchar unique
+- expires_at: timestamp
+- consumed_at: timestamp, nullable
+- created_at: timestamp
+
+USO
+- guardar el token hash del enlace de verificacion
+- permitir reenviar mail invalidando el token anterior
 
 2. spotify_accounts
 - id: uuid, primary key
@@ -170,6 +185,8 @@ INDICES RECOMENDADOS
 - unique index spotify_accounts(user_id)
 - unique index spotify_accounts(spotify_user_id)
 - unique index entity_cache(entity_type, entity_id)
+- unique index email_verification_tokens(token_hash)
+- index email_verification_tokens(user_id)
 
 REGLAS DE NEGOCIO RECOMENDADAS
 
