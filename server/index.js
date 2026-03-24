@@ -51,6 +51,9 @@ let resendClient = null;
 const SPOTIFY_CACHE_TTL_MS = 5 * 60 * 1000;
 const spotifyTopArtistsCache = Object.create(null);
 const spotifyTopAlbumsCache = Object.create(null);
+const spotifyArtistCache = Object.create(null);
+const spotifyArtistAlbumsCache = Object.create(null);
+const spotifyAlbumCache = Object.create(null);
 
 function isAllowedOrigin(origin) {
   if (!origin) {
@@ -132,12 +135,34 @@ function getSpotifyCacheEntry(cache, key, { allowStale = false } = {}) {
 }
 
 function setSpotifyCacheEntry(cache, key, value) {
+  const currentEntry = cache[key] ?? {};
   cache[key] = {
+    ...currentEntry,
     value,
     expiresAt: Date.now() + SPOTIFY_CACHE_TTL_MS,
+    promise: null,
   };
 
   return value;
+}
+
+function setSpotifyCachePromise(cache, key, promise) {
+  const currentEntry = cache[key] ?? {};
+  cache[key] = {
+    ...currentEntry,
+    promise,
+  };
+
+  return promise;
+}
+
+function clearSpotifyCachePromise(cache, key, promise) {
+  if (cache[key]?.promise === promise) {
+    cache[key] = {
+      ...cache[key],
+      promise: null,
+    };
+  }
 }
 
 async function getCachedSpotifyResponse(cache, key, fetcher) {
@@ -147,18 +172,36 @@ async function getCachedSpotifyResponse(cache, key, fetcher) {
     return freshValue;
   }
 
-  try {
-    const value = await fetcher();
-    return setSpotifyCacheEntry(cache, key, value);
-  } catch (error) {
-    if (isSpotifyRateLimitError(error)) {
-      const cachedValue = getSpotifyCacheEntry(cache, key, { allowStale: true });
+  const inFlightPromise = cache[key]?.promise;
 
-      if (cachedValue) {
-        return cachedValue;
+  if (inFlightPromise) {
+    return inFlightPromise;
+  }
+
+  const requestPromise = (async () => {
+    try {
+      const value = await fetcher();
+      return setSpotifyCacheEntry(cache, key, value);
+    } catch (error) {
+      if (isSpotifyRateLimitError(error)) {
+        const cachedValue = getSpotifyCacheEntry(cache, key, { allowStale: true });
+
+        if (cachedValue) {
+          return cachedValue;
+        }
       }
-    }
 
+      throw error;
+    } finally {
+      clearSpotifyCachePromise(cache, key, requestPromise);
+    }
+  })();
+
+  setSpotifyCachePromise(cache, key, requestPromise);
+
+  try {
+    return await requestPromise;
+  } catch (error) {
     throw error;
   }
 }
@@ -2858,7 +2901,12 @@ app.get(
   asyncRoute(async (req, res) => {
     try {
       const token = await getAppAccessToken();
-      const data = await spotifyRequest(`/artists/${req.params.id}`, { token });
+      const cacheKey = buildSpotifyCacheKey("artist", req.params.id, {
+        market: req.query.market || "US",
+      });
+      const data = await getCachedSpotifyResponse(spotifyArtistCache, cacheKey, async () =>
+        spotifyRequest(`/artists/${req.params.id}`, { token }),
+      );
       res.json(data);
     } catch (error) {
       return sendSpotifyEndpointError(res, error);
@@ -2871,7 +2919,16 @@ app.get(
   asyncRoute(async (req, res) => {
     try {
       const token = await getAppAccessToken();
-      const data = await getAllArtistAlbums(req.params.id, token, req.query);
+      const normalizedQuery = {
+        include_groups: req.query.include_groups || "album,single",
+        limit: Math.min(Number(req.query.limit) || 50, 50),
+        market: req.query.market || "US",
+        offset: Number(req.query.offset) || 0,
+      };
+      const cacheKey = buildSpotifyCacheKey("artist-albums", req.params.id, normalizedQuery);
+      const data = await getCachedSpotifyResponse(spotifyArtistAlbumsCache, cacheKey, async () =>
+        getAllArtistAlbums(req.params.id, token, normalizedQuery),
+      );
       res.json(data);
     } catch (error) {
       return sendSpotifyEndpointError(res, error);
@@ -2884,12 +2941,16 @@ app.get(
   asyncRoute(async (req, res) => {
     try {
       const token = await getAppAccessToken();
-      const data = await spotifyRequest(`/albums/${req.params.id}`, {
-        token,
-        query: {
-          market: req.query.market || "US",
-        },
-      });
+      const normalizedQuery = {
+        market: req.query.market || "US",
+      };
+      const cacheKey = buildSpotifyCacheKey("album", req.params.id, normalizedQuery);
+      const data = await getCachedSpotifyResponse(spotifyAlbumCache, cacheKey, async () =>
+        spotifyRequest(`/albums/${req.params.id}`, {
+          token,
+          query: normalizedQuery,
+        }),
+      );
       res.json(data);
     } catch (error) {
       return sendSpotifyEndpointError(res, error);
