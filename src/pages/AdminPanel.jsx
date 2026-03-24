@@ -184,7 +184,16 @@ function UsersTable({ users, openUserId, onToggleUser, onViewProfile, onViewRank
                   >
                     <td className="px-5 py-4 font-medium text-foreground">
                       <div className="flex items-center justify-between gap-3">
-                        <span>{user.username || "-"}</span>
+                        <div className="flex min-w-0 items-center gap-3">
+                          {user.avatar_url ? (
+                            <img src={user.avatar_url} alt={user.username || "Usuario"} className="h-10 w-10 shrink-0 rounded-full object-cover" />
+                          ) : (
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary text-muted-foreground">
+                              <UserRound className="h-4 w-4" />
+                            </div>
+                          )}
+                          <span className="truncate">{user.username || "-"}</span>
+                        </div>
                         <ChevronDown className={`h-4 w-4 text-muted-foreground transition ${isOpen ? "rotate-180" : ""}`} />
                       </div>
                     </td>

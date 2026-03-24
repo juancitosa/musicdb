@@ -121,9 +121,13 @@ export default function AdminUserProfilePage() {
         ) : (
           <div className="mt-8 grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
             <section className="rounded-[1.75rem] border border-border bg-card/80 p-6">
-              <div className="flex h-24 w-24 items-center justify-center rounded-full bg-secondary">
-                <UserRound className="h-10 w-10 text-muted-foreground" />
-              </div>
+              {userRecord.avatar_url ? (
+                <img src={userRecord.avatar_url} alt={userRecord.username || "Usuario"} className="h-24 w-24 rounded-full object-cover" />
+              ) : (
+                <div className="flex h-24 w-24 items-center justify-center rounded-full bg-secondary">
+                  <UserRound className="h-10 w-10 text-muted-foreground" />
+                </div>
+              )}
               <h1 className="mt-5 text-3xl font-black text-foreground">{userRecord.username || "Sin username"}</h1>
               <p className="mt-2 text-sm text-muted-foreground">{userRecord.email || "Sin email"}</p>
               <div className="mt-4 flex flex-wrap gap-2">
