@@ -1,5 +1,27 @@
 import { clearStoredSpotifySession } from "./spotifyAuth";
 
+const ENTITY_REQUEST_DELAY_MS = 150;
+let entityRequestQueue = Promise.resolve();
+
+function delay(ms) {
+  return new Promise((resolve) => {
+    globalThis.setTimeout(resolve, ms);
+  });
+}
+
+function enqueueEntityRequest(task) {
+  const nextRequest = entityRequestQueue.then(async () => {
+    try {
+      return await task();
+    } finally {
+      await delay(ENTITY_REQUEST_DELAY_MS);
+    }
+  });
+
+  entityRequestQueue = nextRequest.catch(() => undefined);
+  return nextRequest;
+}
+
 async function apiFetch(path, { token, query } = {}) {
   const url = new URL(`${import.meta.env.VITE_API_URL}${path}`);
 
@@ -152,7 +174,7 @@ export function getNewReleases(_token, limit = 12) {
 }
 
 export function getArtist(artistId) {
-  return apiFetch(`/artist/${artistId}`);
+  return enqueueEntityRequest(() => apiFetch(`/artist/${artistId}`));
 }
 
 export const getArtistById = getArtist;
@@ -178,11 +200,13 @@ export function getArtistAlbumsByGroups(artistId, includeGroups = "album,single,
 }
 
 export function getAlbum(albumId) {
-  return apiFetch(`/album/${albumId}`, {
-    query: {
-      market: "US",
-    },
-  });
+  return enqueueEntityRequest(() =>
+    apiFetch(`/album/${albumId}`, {
+      query: {
+        market: "US",
+      },
+    }),
+  );
 }
 
 export const getAlbumById = getAlbum;

@@ -114,12 +114,12 @@ export default function AdminUserRankingsPage() {
           throw ratingsError;
         }
 
-        const hydratedEntries = await Promise.all(
-          (ratingsData ?? []).map(async (rating) => {
-            const entity = await getEntityDetails(rating);
-            return normalizeRatingEntry(rating, entity);
-          }),
-        );
+        const hydratedEntries = [];
+
+        for (const rating of ratingsData ?? []) {
+          const entity = await getEntityDetails(rating);
+          hydratedEntries.push(normalizeRatingEntry(rating, entity));
+        }
 
         if (!cancelled) {
           setUserRecord(userData ?? null);

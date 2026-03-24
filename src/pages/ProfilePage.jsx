@@ -766,12 +766,12 @@ export default function ProfilePage() {
 
       try {
         const ratings = await getMyRatings(appToken);
-        const hydratedEntries = await Promise.all(
-          ratings.map(async (rating) => {
-            const entity = await getEntityDetails(rating);
-            return normalizeRatingEntry(rating, entity);
-          }),
-        );
+        const hydratedEntries = [];
+
+        for (const rating of ratings) {
+          const entity = await getEntityDetails(rating);
+          hydratedEntries.push(normalizeRatingEntry(rating, entity));
+        }
 
         if (!cancelled) {
           setHistoryEntries(hydratedEntries);

@@ -59,16 +59,16 @@ function RankingSection({ filter }) {
 
       try {
         const rankings = await getRankings(filter.key, RANKING_LIMIT);
-        const hydratedEntries = await Promise.all(
-          rankings.map(async (ranking) => {
-            const entity =
-              filter.key === "artist"
-                ? await getArtistById(ranking.entity_id)
-                : await getAlbumById(ranking.entity_id);
+        const hydratedEntries = [];
 
-            return normalizeRankingEntry(filter.key, ranking, entity);
-          }),
-        );
+        for (const ranking of rankings) {
+          const entity =
+            filter.key === "artist"
+              ? await getArtistById(ranking.entity_id)
+              : await getAlbumById(ranking.entity_id);
+
+          hydratedEntries.push(normalizeRankingEntry(filter.key, ranking, entity));
+        }
 
         if (!cancelled) {
           setEntries(hydratedEntries.slice(0, RANKING_LIMIT));
