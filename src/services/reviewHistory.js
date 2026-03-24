@@ -7,6 +7,10 @@ async function parseJsonResponse(response) {
 }
 
 export async function createReview({ session_token, entity_type, entity_id, review_text, rating_value }) {
+  if (!session_token) {
+    throw new Error("Tenes que iniciar sesion");
+  }
+
   let response;
 
   try {
@@ -63,6 +67,10 @@ export async function getReviews(entity_type, entity_id) {
 }
 
 export async function deleteReview(review_id, session_token) {
+  if (!session_token) {
+    throw new Error("Tenes que iniciar sesion");
+  }
+
   let response;
 
   try {

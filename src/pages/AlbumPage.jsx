@@ -23,7 +23,7 @@ function formatReviewDate(value) {
 
 export default function AlbumPage() {
   const { id } = useParams();
-  const { isLoggedIn, user, appToken } = useAuth();
+  const { hasActiveSession, isLoggedIn, user, appToken } = useAuth();
   const { toast } = useToast();
   const [album, setAlbum] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -40,7 +40,7 @@ export default function AlbumPage() {
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [reviewError, setReviewError] = useState("");
   const [deletingReviewId, setDeletingReviewId] = useState(null);
-  const canInteract = isLoggedIn;
+  const canInteract = hasActiveSession && isLoggedIn;
   const currentUserId = user?.id ?? null;
 
   useEffect(() => {
@@ -185,8 +185,9 @@ export default function AlbumPage() {
   const primaryArtist = album ? (isLocal ? localArtist : album.artists?.[0]) : null;
 
   async function handleRateAlbum(nextRating) {
-    if (!album || !currentUserId || !appToken) {
-      throw new Error("RATING_AUTH_REQUIRED");
+    if (!hasActiveSession || !album || !currentUserId || !appToken) {
+      setRatingsError("Tenes que iniciar sesion");
+      throw new Error("AUTH_REQUIRED");
     }
 
     setIsSubmittingRating(true);
@@ -211,7 +212,7 @@ export default function AlbumPage() {
     } catch (ratingError) {
       if (ratingError?.message === "DAILY_RATING_LIMIT_REACHED") {
         setRatingsError("Alcanzaste el límite de 10 ranks en 24 horas. Hazte PRO para desbloquear más.");
-      } else {
+      } else if (ratingError?.message !== "AUTH_REQUIRED") {
         setRatingsError("No pudimos guardar tu voto. Intenta nuevamente.");
       }
       throw ratingError;
@@ -223,7 +224,12 @@ export default function AlbumPage() {
   async function handleSubmitReview(event) {
     event.preventDefault();
 
-    if (!reviewText.trim() || !canInteract || !album || !currentUserId || !appToken) {
+    if (!canInteract || !album || !currentUserId || !appToken) {
+      setReviewError("Tenes que iniciar sesion");
+      return;
+    }
+
+    if (!reviewText.trim()) {
       return;
     }
 
@@ -262,7 +268,8 @@ export default function AlbumPage() {
   }
 
   async function handleDeleteReview(reviewId) {
-    if (!currentUserId || !reviewId || !appToken) {
+    if (!canInteract || !currentUserId || !reviewId || !appToken) {
+      setReviewError("Tenes que iniciar sesion");
       return;
     }
 

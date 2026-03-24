@@ -37,12 +37,13 @@ function mapSupabaseUser(user) {
     return null;
   }
 
-  const fallbackUsername = user.email?.split("@")[0] ?? "";
+  const metadataUsername = typeof user.user_metadata?.username === "string" ? user.user_metadata.username.trim() : "";
+  const fallbackUsername = metadataUsername || user.email?.split("@")[0] || "";
 
   return {
     id: user.id,
     email: user.email ?? "",
-    username: "",
+    username: metadataUsername,
     phone: user.phone ?? "",
     display_name: fallbackUsername || "MusicDB User",
     auth_provider: "local",
@@ -52,6 +53,133 @@ function mapSupabaseUser(user) {
     verified_at: user.email_confirmed_at ?? null,
     name: fallbackUsername || "MusicDB User",
   };
+}
+
+function sanitizeCredentials(payload = {}) {
+  return {
+    ...payload,
+    email: payload.email?.trim().toLowerCase() ?? "",
+    password: payload.password?.trim() ?? "",
+    username: payload.username?.trim() ?? "",
+  };
+}
+
+function isNotFoundError(error) {
+  return error?.code === "PGRST116";
+}
+
+async function findUserRecord(supabase, column, value) {
+  if (!value) {
+    return null;
+  }
+
+  const { data, error } = await supabase.from("users").select("*").eq(column, value).maybeSingle();
+
+  if (error && !isNotFoundError(error)) {
+    throw new Error(error.message || "APP_AUTH_ERROR");
+  }
+
+  return data ?? null;
+}
+
+function mapUsersTableError(error) {
+  const message = (error?.message || "").toLowerCase();
+
+  if (message.includes("username")) {
+    return "USERNAME_ALREADY_EXISTS";
+  }
+
+  if (message.includes("email")) {
+    return "EMAIL_ALREADY_EXISTS";
+  }
+
+  return error?.message || "APP_AUTH_ERROR";
+}
+
+async function ensureUserTableRecord(supabase, authUser, payload = {}) {
+  if (!authUser?.id || !authUser?.email) {
+    throw new Error("No se pudo crear la cuenta");
+  }
+
+  const email = payload.email?.trim().toLowerCase() || authUser.email?.trim().toLowerCase() || "";
+  const username = payload.username?.trim() || authUser.user_metadata?.username?.trim() || "";
+  const displayName = username || email.split("@")[0] || "MusicDB User";
+  const existingById = await findUserRecord(supabase, "id", authUser.id);
+  const existingByEmail = await findUserRecord(supabase, "email", email);
+
+  if (existingByEmail && existingByEmail.id !== authUser.id) {
+    throw new Error("EMAIL_ALREADY_EXISTS");
+  }
+
+  if (username) {
+    const existingByUsername = await findUserRecord(supabase, "username", username);
+
+    if (existingByUsername && existingByUsername.id !== authUser.id) {
+      throw new Error("USERNAME_ALREADY_EXISTS");
+    }
+  }
+
+  if (existingById) {
+    const nextPayload = {};
+
+    if (!existingById.email && email) {
+      nextPayload.email = email;
+    }
+
+    if (username && existingById.username !== username) {
+      nextPayload.username = username;
+    }
+
+    if (!existingById.display_name && displayName) {
+      nextPayload.display_name = displayName;
+    }
+
+    if (!existingById.auth_provider) {
+      nextPayload.auth_provider = "local";
+    }
+
+    if (existingById.is_verified === null || existingById.is_verified === undefined) {
+      nextPayload.is_verified = Boolean(authUser.email_confirmed_at);
+    }
+
+    if (!existingById.verified_at && authUser.email_confirmed_at) {
+      nextPayload.verified_at = authUser.email_confirmed_at;
+    }
+
+    if (!Object.keys(nextPayload).length) {
+      return existingById;
+    }
+
+    const { data, error } = await supabase.from("users").update(nextPayload).eq("id", authUser.id).select("*").single();
+
+    if (error) {
+      throw new Error(mapUsersTableError(error));
+    }
+
+    return data;
+  }
+
+  const insertPayload = {
+    id: authUser.id,
+    email,
+    created_at: new Date().toISOString(),
+    display_name: displayName,
+    auth_provider: "local",
+    is_verified: Boolean(authUser.email_confirmed_at),
+    verified_at: authUser.email_confirmed_at ?? null,
+  };
+
+  if (username) {
+    insertPayload.username = username;
+  }
+
+  const { data, error } = await supabase.from("users").insert(insertPayload).select("*").single();
+
+  if (error) {
+    throw new Error(mapUsersTableError(error));
+  }
+
+  return data;
 }
 
 export async function fetchSpotifyProfile(accessToken) {
@@ -89,13 +217,45 @@ export function syncSpotifyUser(payload) {
 
 export async function registerLocalUser(payload) {
   const supabase = getSupabaseClient();
+  const sanitizedPayload = sanitizeCredentials(payload);
   const { data, error } = await supabase.auth.signUp({
-    email: payload.email,
-    password: payload.password,
+    email: sanitizedPayload.email,
+    password: sanitizedPayload.password,
+    options: {
+      data: {
+        username: sanitizedPayload.username || undefined,
+      },
+    },
   });
 
   if (error) {
+    console.error("SIGNUP ERROR:", error);
+
+    if (error.status === 429) {
+      throw new Error("TOO_MANY_SIGNUP_ATTEMPTS");
+    }
+
     throw new Error(error.message || "APP_AUTH_ERROR");
+  }
+
+  if (!data?.user) {
+    throw new Error("No se pudo crear la cuenta");
+  }
+
+  const { error: insertError } = await supabase.from("users").insert({
+    id: data.user.id,
+    email: data.user.email,
+    username: sanitizedPayload.username || null,
+    created_at: new Date().toISOString(),
+  });
+
+  if (insertError) {
+    console.error("Insert user error:", insertError);
+
+    await ensureUserTableRecord(supabase, data.user, {
+      email: sanitizedPayload.email,
+      username: sanitizedPayload.username,
+    });
   }
 
   return data;
@@ -103,9 +263,10 @@ export async function registerLocalUser(payload) {
 
 export async function loginLocalUser(payload) {
   const supabase = getSupabaseClient();
+  const sanitizedPayload = sanitizeCredentials(payload);
   const { data, error } = await supabase.auth.signInWithPassword({
-    email: payload.email,
-    password: payload.password,
+    email: sanitizedPayload.email,
+    password: sanitizedPayload.password,
   });
 
   if (error) {
@@ -116,12 +277,28 @@ export async function loginLocalUser(payload) {
       throw new Error("EMAIL_NOT_VERIFIED");
     }
 
-    throw new Error("LOCAL_LOGIN_INVALID");
+    if (
+      message.includes("invalid login credentials") ||
+      message.includes("invalid credentials") ||
+      code === "invalid_credentials"
+    ) {
+      throw new Error("LOCAL_LOGIN_INVALID");
+    }
+
+    throw new Error(error.message || "LOCAL_LOGIN_INVALID");
   }
+
+  if (!data?.session || !data?.user) {
+    throw new Error("No se pudo iniciar sesion");
+  }
+
+  const ensuredUserRecord = await ensureUserTableRecord(supabase, data.user, {
+    email: sanitizedPayload.email,
+  });
 
   const authUser = mapSupabaseUser(data.user);
   const profile = authUser?.id ? await fetchSupabaseProfile(authUser.id).catch(() => null) : null;
-  const resolvedUsername = profile?.username ?? authUser?.username ?? "";
+  const resolvedUsername = profile?.username ?? ensuredUserRecord?.username ?? authUser?.username ?? "";
   const resolvedAvatar = profile?.avatar_url ?? authUser?.avatar_url ?? "";
 
   return {
@@ -136,6 +313,17 @@ export async function loginLocalUser(payload) {
       name: resolvedUsername || authUser?.name || "MusicDB User",
     },
   };
+}
+
+export async function fetchLocalSession() {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.auth.getSession();
+
+  if (error) {
+    throw new Error(error.message || "APP_AUTH_ERROR");
+  }
+
+  return data?.session ?? null;
 }
 
 export async function fetchLocalSupabaseUser(token) {

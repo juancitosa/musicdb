@@ -13,11 +13,11 @@ export default function RatingStars({
   size = "default",
   disabled = false,
 }) {
-  const { isLoggedIn } = useAuth();
+  const { hasActiveSession, isLoggedIn } = useAuth();
   const { toast } = useToast();
   const [hovered, setHovered] = useState(0);
   const [rating, setRating] = useState(initialRating);
-  const canRate = isLoggedIn;
+  const canRate = hasActiveSession && isLoggedIn;
   const iconClassName = size === "sm" ? "h-4 w-4" : "h-6 w-6";
 
   useEffect(() => {
@@ -32,7 +32,7 @@ export default function RatingStars({
     if (!canRate) {
       toast({
         title: "Accion requerida",
-        description: "Debes iniciar sesion para puntuar",
+        description: "Tenes que iniciar sesion",
         variant: "destructive",
       });
       return;
@@ -45,7 +45,11 @@ export default function RatingStars({
         title: "Puntuacion guardada",
         description: `Has calificado con ${nextRating}/${max}`,
       });
-    } catch {
+    } catch (error) {
+      if (error?.message === "AUTH_REQUIRED") {
+        return;
+      }
+
       setRating(initialRating);
       toast({
         title: "No se pudo guardar la puntuacion",

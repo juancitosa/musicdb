@@ -85,7 +85,7 @@ function getArtistRankingBadge(position) {
 
 export default function ArtistPage() {
   const { id } = useParams();
-  const { isLoggedIn, user, appToken, isSpotifyUser } = useAuth();
+  const { hasActiveSession, isLoggedIn, user, appToken, isSpotifyUser } = useAuth();
   const { isSpotifyConnected, spotifyToken } = useSpotifyAuth();
   const { toast } = useToast();
   const hasSpotifyFeatures = isSpotifyUser && isSpotifyConnected && Boolean(spotifyToken);
@@ -111,7 +111,7 @@ export default function ArtistPage() {
   const [deletingReviewId, setDeletingReviewId] = useState(null);
   const [releaseFilter, setReleaseFilter] = useState("all");
   const [artistRankingPosition, setArtistRankingPosition] = useState(null);
-  const canInteract = isLoggedIn;
+  const canInteract = hasActiveSession && isLoggedIn;
   const currentUserId = user?.id ?? null;
 
   useEffect(() => {
@@ -352,8 +352,9 @@ export default function ArtistPage() {
   const rankingBadge = artistRankingPosition ? getArtistRankingBadge(artistRankingPosition) : null;
 
   async function handleRateArtist(nextRating) {
-    if (!artist || !currentUserId || !appToken) {
-      throw new Error("RATING_AUTH_REQUIRED");
+    if (!hasActiveSession || !artist || !currentUserId || !appToken) {
+      setRatingsError("Tenes que iniciar sesion");
+      throw new Error("AUTH_REQUIRED");
     }
 
     setIsSubmittingRating(true);
@@ -378,7 +379,7 @@ export default function ArtistPage() {
     } catch (ratingError) {
       if (ratingError?.message === "DAILY_RATING_LIMIT_REACHED") {
         setRatingsError("Alcanzaste el límite de 10 ranks en 24 horas. Hazte PRO para desbloquear más.");
-      } else {
+      } else if (ratingError?.message !== "AUTH_REQUIRED") {
         setRatingsError("No pudimos guardar tu voto. Intenta nuevamente.");
       }
       throw ratingError;
@@ -390,7 +391,12 @@ export default function ArtistPage() {
   async function handleSubmitReview(event) {
     event.preventDefault();
 
-    if (!reviewText.trim() || !canInteract || !artist || !currentUserId || !appToken) {
+    if (!canInteract || !artist || !currentUserId || !appToken) {
+      setReviewError("Tenes que iniciar sesion");
+      return;
+    }
+
+    if (!reviewText.trim()) {
       return;
     }
 
@@ -429,7 +435,8 @@ export default function ArtistPage() {
   }
 
   async function handleDeleteReview(reviewId) {
-    if (!currentUserId || !reviewId || !appToken) {
+    if (!canInteract || !currentUserId || !reviewId || !appToken) {
+      setReviewError("Tenes que iniciar sesion");
       return;
     }
 

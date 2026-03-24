@@ -41,8 +41,10 @@ function mapAuthError(errorCode) {
       return "No pudimos conectar con el backend de la app.";
     case "SUPABASE_CLIENT_CONFIG_MISSING":
       return "Falta configurar Supabase en el frontend.";
+    case "TOO_MANY_SIGNUP_ATTEMPTS":
+      return "Demasiados intentos, intenta mas tarde";
     default:
-      return "No pudimos completar la autenticacion. Intenta nuevamente.";
+      return errorCode || "No pudimos completar la autenticacion. Intenta nuevamente.";
   }
 }
 
@@ -92,6 +94,7 @@ export default function AuthDialog({
   const [mode, setMode] = useState(initialMode);
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState("");
+  const [statusMessage, setStatusMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState("");
@@ -101,6 +104,7 @@ export default function AuthDialog({
       setMode(initialMode);
       setForm(emptyForm());
       setError("");
+      setStatusMessage("");
       setIsSubmitting(false);
       setIsResending(false);
       setPendingVerificationEmail("");
@@ -144,6 +148,7 @@ export default function AuthDialog({
   function switchMode(nextMode) {
     setMode(nextMode);
     setError("");
+    setStatusMessage("");
     setPendingVerificationEmail("");
   }
 
@@ -151,22 +156,24 @@ export default function AuthDialog({
     event.preventDefault();
     setIsSubmitting(true);
     setError("");
+    setStatusMessage("");
 
     try {
       if (mode === "register") {
-        await registerLocalUser({
+        const response = await registerLocalUser({
           email: form.email,
           username: form.username,
           password: form.password,
           phone: form.phone || undefined,
         });
 
-        setPendingVerificationEmail("");
-        setMode("login");
+        setPendingVerificationEmail(response?.user?.email ?? form.email.trim().toLowerCase());
+        setMode("verify-pending");
         setForm((current) => ({
           ...current,
           password: "",
         }));
+        setStatusMessage("Revisa tu email para confirmar");
 
         toast({
           title: "Registro completado",
@@ -192,9 +199,10 @@ export default function AuthDialog({
     } catch (requestError) {
       const nextError = mapAuthError(requestError?.message);
       setError(nextError);
+      setStatusMessage("");
 
       if (requestError?.message === "EMAIL_NOT_VERIFIED") {
-        setPendingVerificationEmail(form.email);
+        setPendingVerificationEmail(form.email.trim().toLowerCase());
       }
     } finally {
       setIsSubmitting(false);
@@ -211,6 +219,7 @@ export default function AuthDialog({
 
     setIsResending(true);
     setError("");
+    setStatusMessage("");
 
     try {
       const response = await resendVerificationEmail({ email });
@@ -235,6 +244,7 @@ export default function AuthDialog({
 
   async function handleSpotify() {
     setError("");
+    setStatusMessage("");
     await connectSpotify({ forcePrompt: true });
   }
 
@@ -384,6 +394,7 @@ export default function AuthDialog({
                           ) : null}
 
                           {error ? <p className="rounded-2xl border border-destructive/25 bg-destructive/8 px-4 py-3 text-sm text-destructive">{error}</p> : null}
+                          {!error && statusMessage ? <p className="rounded-2xl border border-emerald-400/25 bg-emerald-500/8 px-4 py-3 text-sm text-emerald-300">{statusMessage}</p> : null}
 
                           {mode === "login" && pendingVerificationEmail ? (
                             <button
@@ -391,6 +402,7 @@ export default function AuthDialog({
                               onClick={() => {
                                 setMode("verify-pending");
                                 setError("");
+                                setStatusMessage("");
                               }}
                               className="inline-flex items-center gap-2 text-sm font-medium text-primary transition hover:opacity-80"
                             >
@@ -425,7 +437,7 @@ export default function AuthDialog({
                         isResending={isResending}
                         onResend={handleResendVerification}
                         onBackToLogin={() => switchMode("login")}
-                        error={error}
+                        error={error || statusMessage}
                       />
                     )}
                   </div>

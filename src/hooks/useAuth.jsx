@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
-import { fetchAuthenticatedUser, fetchCurrentUserByEmail, fetchLocalSupabaseUser, fetchSupabaseProfile } from "../services/appAuth";
+import { fetchAuthenticatedUser, fetchCurrentUserByEmail, fetchLocalSession, fetchLocalSupabaseUser, fetchSupabaseProfile } from "../services/appAuth";
 
 const SESSION_KEY = "musicdb_app_session";
 
@@ -138,6 +138,7 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [appToken, setAppToken] = useState(null);
+  const [hasActiveSession, setHasActiveSession] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isCurrentUserLoading, setIsCurrentUserLoading] = useState(true);
 
@@ -152,12 +153,28 @@ export function AuthProvider({ children }) {
     async function hydrateUserFromBackend() {
       if (!session?.token) {
         if (!cancelled) {
+          setHasActiveSession(false);
           setIsLoading(false);
         }
         return;
       }
 
       try {
+        if (session.user?.authProvider === "local") {
+          const activeSession = await fetchLocalSession();
+
+          if (!activeSession) {
+            if (!cancelled) {
+              setUser(null);
+              setCurrentUser(null);
+              setAppToken(null);
+              setHasActiveSession(false);
+              persistSession(null);
+            }
+            return;
+          }
+        }
+
         let normalizedUser = null;
 
         try {
@@ -171,6 +188,7 @@ export function AuthProvider({ children }) {
 
         if (!cancelled && normalizedUser) {
           setUser(normalizedUser);
+          setHasActiveSession(true);
           persistSession({
             token: session.token,
             user: normalizedUser,
@@ -178,7 +196,11 @@ export function AuthProvider({ children }) {
         }
       } catch {
         if (!cancelled) {
-          setUser(session?.user ?? null);
+          setUser(null);
+          setCurrentUser(null);
+          setAppToken(null);
+          setHasActiveSession(false);
+          persistSession(null);
         }
       } finally {
         if (!cancelled) {
@@ -282,6 +304,7 @@ export function AuthProvider({ children }) {
     const normalizedSession = normalizeSession(session);
     setUser(normalizedSession?.user ?? null);
     setAppToken(normalizedSession?.token ?? null);
+    setHasActiveSession(Boolean(normalizedSession?.user && normalizedSession?.token));
     persistSession(normalizedSession);
     return normalizedSession?.user ?? null;
   }, []);
@@ -310,6 +333,7 @@ export function AuthProvider({ children }) {
     setUser(null);
     setCurrentUser(null);
     setAppToken(null);
+    setHasActiveSession(false);
     setIsCurrentUserLoading(false);
     persistSession(null);
   }, []);
@@ -319,16 +343,17 @@ export function AuthProvider({ children }) {
       user,
       currentUser,
       appToken,
+      hasActiveSession,
       isLoading,
       isCurrentUserLoading,
-      isLoggedIn: Boolean(user),
+      isLoggedIn: Boolean(user && hasActiveSession),
       isSpotifyUser: user?.authProvider === "spotify",
       isLocalUser: user?.authProvider === "local",
       setAuthenticatedSession,
       setAuthenticatedUser,
       clearAuthenticatedUser,
     }),
-    [appToken, clearAuthenticatedUser, currentUser, isCurrentUserLoading, isLoading, setAuthenticatedSession, setAuthenticatedUser, user],
+    [appToken, clearAuthenticatedUser, currentUser, hasActiveSession, isCurrentUserLoading, isLoading, setAuthenticatedSession, setAuthenticatedUser, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

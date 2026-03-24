@@ -12,6 +12,10 @@ async function parseJsonResponse(response) {
 }
 
 export async function submitRating({ session_token, entity_type, entity_id, rating_value }) {
+  if (!session_token) {
+    throw new Error("Tenes que iniciar sesion");
+  }
+
   let response;
 
   try {
@@ -62,6 +66,10 @@ export async function getRatings(entity_type, entity_id) {
 }
 
 export async function getUserRating(session_token, entity_type, entity_id) {
+  if (!session_token) {
+    throw new Error("Tenes que iniciar sesion");
+  }
+
   let response;
 
   try {
@@ -86,6 +94,10 @@ export async function getUserRating(session_token, entity_type, entity_id) {
 }
 
 export async function getMyRatings(session_token) {
+  if (!session_token) {
+    throw new Error("Tenes que iniciar sesion");
+  }
+
   let response;
 
   try {
