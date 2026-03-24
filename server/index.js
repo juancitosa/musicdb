@@ -54,6 +54,7 @@ const spotifyTopAlbumsCache = Object.create(null);
 const spotifyArtistCache = Object.create(null);
 const spotifyArtistAlbumsCache = Object.create(null);
 const spotifyAlbumCache = Object.create(null);
+const spotifyEnrichedRankingsCache = Object.create(null);
 
 function isAllowedOrigin(origin) {
   if (!origin) {
@@ -1842,6 +1843,139 @@ async function getSavedTracksByArtist(token, artistId, query = {}) {
   }
 }
 
+async function getArtistsByIds(token, artistIds = []) {
+  const normalizedIds = [...new Set((artistIds ?? []).map((artistId) => normalizeEntityId(artistId)).filter(Boolean))];
+
+  if (normalizedIds.length === 0) {
+    return [];
+  }
+
+  const cachedArtists = new Map();
+  const missingIds = [];
+
+  normalizedIds.forEach((artistId) => {
+    const cacheKey = buildSpotifyCacheKey("artist", artistId, { market: "US" });
+    const cachedArtist = getSpotifyCacheEntry(spotifyArtistCache, cacheKey, { allowStale: true });
+
+    if (cachedArtist) {
+      cachedArtists.set(artistId, cachedArtist);
+      return;
+    }
+
+    missingIds.push(artistId);
+  });
+
+  if (missingIds.length > 0) {
+    const data = await spotifyRequest("/artists", {
+      token,
+      query: {
+        ids: missingIds.join(","),
+      },
+    });
+
+    (data?.artists ?? []).forEach((artist) => {
+      if (!artist?.id) {
+        return;
+      }
+
+      const cacheKey = buildSpotifyCacheKey("artist", artist.id, { market: "US" });
+      cachedArtists.set(artist.id, setSpotifyCacheEntry(spotifyArtistCache, cacheKey, artist));
+    });
+  }
+
+  return normalizedIds.map((artistId) => cachedArtists.get(artistId)).filter(Boolean);
+}
+
+async function getAlbumsByIds(token, albumIds = [], market = "US") {
+  const normalizedIds = [...new Set((albumIds ?? []).map((albumId) => normalizeEntityId(albumId)).filter(Boolean))];
+
+  if (normalizedIds.length === 0) {
+    return [];
+  }
+
+  const cachedAlbums = new Map();
+  const missingIds = [];
+
+  normalizedIds.forEach((albumId) => {
+    const cacheKey = buildSpotifyCacheKey("album", albumId, { market });
+    const cachedAlbum = getSpotifyCacheEntry(spotifyAlbumCache, cacheKey, { allowStale: true });
+
+    if (cachedAlbum) {
+      cachedAlbums.set(albumId, cachedAlbum);
+      return;
+    }
+
+    missingIds.push(albumId);
+  });
+
+  if (missingIds.length > 0) {
+    const data = await spotifyRequest("/albums", {
+      token,
+      query: {
+        ids: missingIds.join(","),
+        market,
+      },
+    });
+
+    (data?.albums ?? []).forEach((album) => {
+      if (!album?.id) {
+        return;
+      }
+
+      const cacheKey = buildSpotifyCacheKey("album", album.id, { market });
+      cachedAlbums.set(album.id, setSpotifyCacheEntry(spotifyAlbumCache, cacheKey, album));
+    });
+  }
+
+  return normalizedIds.map((albumId) => cachedAlbums.get(albumId)).filter(Boolean);
+}
+
+function buildEnrichedRankingEntry(entityType, ranking, entity) {
+  if (entityType === "artist") {
+    return {
+      entity_id: ranking.entity_id,
+      average_rating: ranking.average_rating,
+      ratings_count: ranking.ratings_count,
+      name: entity?.name ?? "Artista no disponible",
+      subtitle: entity?.genres?.slice(0, 2).join(" · ") || "Artista",
+      image: entity?.images?.[0]?.url ?? "",
+      href: `/artist/${entity?.id ?? ranking.entity_id}`,
+    };
+  }
+
+  return {
+    entity_id: ranking.entity_id,
+    average_rating: ranking.average_rating,
+    ratings_count: ranking.ratings_count,
+    name: entity?.name ?? "Album no disponible",
+    subtitle: `${entity?.artists?.[0]?.name ?? "Album"}${entity?.release_date ? ` · ${String(entity.release_date).slice(0, 4)}` : ""}`,
+    image: entity?.images?.[0]?.url ?? "",
+    href: `/album/${entity?.id ?? ranking.entity_id}`,
+  };
+}
+
+async function getEnrichedRankings(supabase, entityType, limit = 10) {
+  const rankings = await getRankingsSummary(supabase, entityType, limit);
+
+  if (rankings.length === 0) {
+    return [];
+  }
+
+  const token = await getAppAccessToken();
+
+  if (entityType === "artist") {
+    const artists = await getArtistsByIds(token, rankings.map((entry) => entry.entity_id));
+    const artistMap = new Map(artists.map((artist) => [String(artist.id), artist]));
+
+    return rankings.map((ranking) => buildEnrichedRankingEntry(entityType, ranking, artistMap.get(String(ranking.entity_id))));
+  }
+
+  const albums = await getAlbumsByIds(token, rankings.map((entry) => entry.entity_id), "US");
+  const albumMap = new Map(albums.map((album) => [String(album.id), album]));
+
+  return rankings.map((ranking) => buildEnrichedRankingEntry(entityType, ranking, albumMap.get(String(ranking.entity_id))));
+}
+
 function buildTopAlbumsFromTracksResponse(data, maxAlbums = 10) {
   const items = data?.items ?? [];
   const albumMap = new Map();
@@ -2702,9 +2836,9 @@ app.get(
   }),
 );
 
-  app.get(
+app.get(
     "/api/rankings/:entity_type",
-    asyncRoute(async (req, res) => {
+  asyncRoute(async (req, res) => {
       const entityType = normalizeEntityType(req.params.entity_type);
       const requestedLimit = Number(req.query.limit);
       const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(Math.trunc(requestedLimit), 1), 50) : 10;
@@ -2814,6 +2948,41 @@ app.delete(
     await deleteReviewById(supabase, reviewId);
 
     res.status(204).send();
+  }),
+);
+
+app.get(
+  "/api/rankings/:entity_type/enriched",
+  asyncRoute(async (req, res) => {
+    try {
+      const entityType = normalizeEntityType(req.params.entity_type);
+      const limit = Math.min(Math.max(Number(req.query.limit) || 10, 1), 20);
+
+      if (!entityType) {
+        throw createHttpError(400, "INVALID_ENTITY_TYPE", "entity_type must be artist or album");
+      }
+
+      const supabase = getSupabaseAdmin();
+      const cacheKey = buildSpotifyCacheKey("rankings-enriched", entityType, { limit });
+      const rankings = await getCachedSpotifyResponse(spotifyEnrichedRankingsCache, cacheKey, async () =>
+        getEnrichedRankings(supabase, entityType, limit),
+      );
+
+      res.json(rankings);
+    } catch (error) {
+      if (isSpotifyRateLimitError(error)) {
+        const entityType = normalizeEntityType(req.params.entity_type);
+        const limit = Math.min(Math.max(Number(req.query.limit) || 10, 1), 20);
+        const cacheKey = buildSpotifyCacheKey("rankings-enriched", entityType, { limit });
+        const cachedRankings = getSpotifyCacheEntry(spotifyEnrichedRankingsCache, cacheKey, { allowStale: true });
+
+        if (cachedRankings) {
+          return res.json(cachedRankings);
+        }
+      }
+
+      return sendSpotifyEndpointError(res, error);
+    }
   }),
 );
 

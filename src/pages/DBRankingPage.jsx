@@ -2,8 +2,7 @@ import { Disc3, Medal, Mic2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { getRankings } from "../services/ratingHistory";
-import { getAlbumById, getArtistById } from "../services/spotify";
+import { getEnrichedRankings } from "../services/ratingHistory";
 
 const RANKING_LIMIT = 10;
 
@@ -17,32 +16,6 @@ const podiumStyles = [
   "border-slate-300/45 bg-linear-to-r from-slate-200/18 via-zinc-200/10 to-card",
   "border-orange-500/45 bg-linear-to-r from-orange-700/18 via-amber-700/10 to-card",
 ];
-
-function normalizeRankingEntry(entityType, ranking, entity) {
-  if (entityType === "artist") {
-    return {
-      entityType,
-      entityId: ranking.entity_id,
-      title: entity.name,
-      subtitle: entity.genres?.slice(0, 2).join(" · ") || "Artista",
-      image: entity.images?.[0]?.url ?? "",
-      href: `/artist/${entity.id}`,
-      average: ranking.average_rating,
-      count: ranking.ratings_count,
-    };
-  }
-
-  return {
-    entityType,
-    entityId: ranking.entity_id,
-    title: entity.name,
-    subtitle: `${entity.artists?.[0]?.name ?? "Album"}${entity.release_date ? ` · ${entity.release_date.slice(0, 4)}` : ""}`,
-    image: entity.images?.[0]?.url ?? "",
-    href: `/album/${entity.id}`,
-    average: ranking.average_rating,
-    count: ranking.ratings_count,
-  };
-}
 
 function RankingSection({ filter }) {
   const Icon = filter.icon;
@@ -58,17 +31,17 @@ function RankingSection({ filter }) {
       setError("");
 
       try {
-        const rankings = await getRankings(filter.key, RANKING_LIMIT);
-        const hydratedEntries = [];
-
-        for (const ranking of rankings) {
-          const entity =
-            filter.key === "artist"
-              ? await getArtistById(ranking.entity_id)
-              : await getAlbumById(ranking.entity_id);
-
-          hydratedEntries.push(normalizeRankingEntry(filter.key, ranking, entity));
-        }
+        const enrichedRankings = await getEnrichedRankings(filter.key, RANKING_LIMIT);
+        const hydratedEntries = enrichedRankings.map((entry) => ({
+          entityType: filter.key,
+          entityId: entry.entity_id,
+          title: entry.name,
+          subtitle: entry.subtitle,
+          image: entry.image,
+          href: entry.href,
+          average: entry.average_rating,
+          count: entry.ratings_count,
+        }));
 
         if (!cancelled) {
           setEntries(hydratedEntries.slice(0, RANKING_LIMIT));

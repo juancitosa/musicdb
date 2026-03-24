@@ -153,3 +153,33 @@ export async function getRankings(entity_type, limit = 10) {
       }))
     : [];
 }
+
+export async function getEnrichedRankings(entity_type, limit = 10) {
+  let response;
+
+  try {
+    response = await fetch(
+      `${import.meta.env.VITE_API_URL}/rankings/${encodeURIComponent(entity_type)}/enriched?limit=${encodeURIComponent(limit)}`,
+    );
+  } catch {
+    throw new Error("RATINGS_BACKEND_UNAVAILABLE");
+  }
+
+  const data = await parseJsonResponse(response);
+
+  if (!response.ok) {
+    throw new Error(data?.error?.code || data?.error || "RANKINGS_FETCH_ERROR");
+  }
+
+  return Array.isArray(data)
+    ? data.map((entry) => ({
+        entity_id: String(entry.entity_id),
+        average_rating: Number(entry.average_rating ?? 0),
+        ratings_count: Number(entry.ratings_count ?? 0),
+        name: entry.name ?? "",
+        subtitle: entry.subtitle ?? "",
+        image: entry.image ?? "",
+        href: entry.href ?? "",
+      }))
+    : [];
+}
