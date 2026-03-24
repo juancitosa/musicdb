@@ -666,12 +666,21 @@ export default function ArtistPage() {
                 reviews.map((review) => (
                   <div key={review.id} className={`rounded-2xl border border-transparent pb-6 last:border-0 last:pb-0 ${review.is_pro ? "pro-review-card px-4 pt-4" : ""}`}>
                     <div className="mb-2 flex items-start justify-between gap-4">
-                      <div>
-                        <span className={`font-semibold ${review.is_pro ? "pro-username" : ""}`}>
-                          {review.username}
-                        </span>
-                        {review.is_pro ? <Star className="ml-2 inline h-4 w-4 fill-current pro-username" /> : null}
-                        <span className="ml-2 text-xs text-muted-foreground">{formatReviewDate(review.created_at)}</span>
+                      <div className="flex min-w-0 items-start gap-3">
+                        {review.avatar_url ? (
+                          <img src={review.avatar_url} alt={review.username} className="h-10 w-10 shrink-0 rounded-full object-cover" />
+                        ) : (
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-semibold text-muted-foreground">
+                            {(review.username ?? "U").charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <span className={`font-semibold ${review.is_pro ? "pro-username" : ""}`}>
+                            {review.username}
+                          </span>
+                          {review.is_pro ? <Star className="ml-2 inline h-4 w-4 fill-current pro-username" /> : null}
+                          <span className="ml-2 text-xs text-muted-foreground">{formatReviewDate(review.created_at)}</span>
+                        </div>
                       </div>
                       {review.user_id === currentUserId ? (
                         <button

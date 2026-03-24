@@ -1404,6 +1404,10 @@ async function getReviewsForEntityFromDb(supabase, { entityType, entityId }) {
   const userColumns = await getUserTableColumns(supabase);
   const reviewUserFields = ["username"];
 
+  if (userColumns.has("avatar_url")) {
+    reviewUserFields.push("avatar_url");
+  }
+
   if (userColumns.has("is_pro")) {
     reviewUserFields.push("is_pro");
   }
@@ -1425,6 +1429,7 @@ async function getReviewsForEntityFromDb(supabase, { entityType, entityId }) {
     id: review.id,
     user_id: review.user_id,
     username: review.users?.username ?? "Usuario",
+    avatar_url: review.users?.avatar_url ?? "",
     is_pro: mapUserRecord(review.users ?? {}).is_pro,
     review_text: review.review_text,
     rating_value: review.rating_value,
