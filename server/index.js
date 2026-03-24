@@ -1666,6 +1666,175 @@ function buildSpotifyCacheKey(prefix, token, params = {}) {
   return `${prefix}:${token}:${normalizedParams}`;
 }
 
+function normalizeReleaseDate(value) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmedValue = value.trim();
+  return trimmedValue || null;
+}
+
+function buildEntityCacheUpsertPayload({ entityType, entityId, payload, name, imageUrl, subtitle, popularity, releaseDate }) {
+  return {
+    entity_type: entityType,
+    entity_id: entityId,
+    source: "spotify",
+    payload_json: payload,
+    image_url: imageUrl ?? null,
+    name: name ?? null,
+    subtitle: subtitle ?? null,
+    popularity: Number.isFinite(Number(popularity)) ? Number(popularity) : null,
+    release_date: normalizeReleaseDate(releaseDate),
+    updated_at: new Date().toISOString(),
+  };
+}
+
+async function readEntityCacheRecord(supabase, entityType, entityId) {
+  const { data, error } = await supabase
+    .from("entity_cache")
+    .select("entity_type, entity_id, payload_json, image_url, name, subtitle, popularity, release_date, updated_at")
+    .eq("entity_type", entityType)
+    .eq("entity_id", entityId)
+    .maybeSingle();
+
+  if (isMissingRelationError(error) || isNotFoundError(error)) {
+    return null;
+  }
+
+  handleSupabaseError(error, "Failed to read entity cache");
+  return data ?? null;
+}
+
+async function upsertEntityCacheRecord(supabase, payload) {
+  const { error } = await supabase
+    .from("entity_cache")
+    .upsert(payload, { onConflict: "entity_type,entity_id" });
+
+  if (isMissingRelationError(error)) {
+    return;
+  }
+
+  if (error) {
+    console.error("[entity-cache] upsert failed", {
+      entityType: payload.entity_type,
+      entityId: payload.entity_id,
+      errorCode: error.code ?? null,
+      errorMessage: error.message ?? "Unknown upsert error",
+    });
+  }
+}
+
+async function upsertEntityCacheRecords(supabase, payloads = []) {
+  if (payloads.length === 0) {
+    return;
+  }
+
+  const { error } = await supabase
+    .from("entity_cache")
+    .upsert(payloads, { onConflict: "entity_type,entity_id" });
+
+  if (isMissingRelationError(error)) {
+    return;
+  }
+
+  if (error) {
+    console.error("[entity-cache] batch upsert failed", {
+      count: payloads.length,
+      errorCode: error.code ?? null,
+      errorMessage: error.message ?? "Unknown batch upsert error",
+    });
+  }
+}
+
+function buildArtistCachePayload(artist) {
+  return buildEntityCacheUpsertPayload({
+    entityType: "artist",
+    entityId: String(artist.id),
+    payload: artist,
+    name: artist.name ?? null,
+    imageUrl: artist.images?.[0]?.url ?? null,
+    subtitle: artist.genres?.slice(0, 2).join(" · ") || "Artista",
+    popularity: artist.popularity ?? null,
+    releaseDate: null,
+  });
+}
+
+function buildAlbumCachePayload(album) {
+  return buildEntityCacheUpsertPayload({
+    entityType: "album",
+    entityId: String(album.id),
+    payload: album,
+    name: album.name ?? null,
+    imageUrl: album.images?.[0]?.url ?? null,
+    subtitle: `${album.artists?.[0]?.name ?? "Album"}${album.release_date ? ` · ${String(album.release_date).slice(0, 4)}` : ""}`,
+    popularity: album.popularity ?? null,
+    releaseDate: album.release_date ?? null,
+  });
+}
+
+function buildArtistAlbumsCachePayload(artistId, response) {
+  return buildEntityCacheUpsertPayload({
+    entityType: "artist_albums",
+    entityId: String(artistId),
+    payload: response,
+    name: null,
+    imageUrl: null,
+    subtitle: null,
+    popularity: null,
+    releaseDate: null,
+  });
+}
+
+function mapEntityCacheRecordToArtist(record, fallbackId) {
+  const payload = record?.payload_json;
+
+  if (payload && typeof payload === "object") {
+    return payload;
+  }
+
+  return {
+    id: fallbackId,
+    name: record?.name ?? "Artista no disponible",
+    genres: record?.subtitle ? record.subtitle.split(" · ").filter(Boolean) : [],
+    images: record?.image_url ? [{ url: record.image_url }] : [],
+    followers: { total: 0 },
+    popularity: record?.popularity ?? 0,
+    external_urls: {},
+  };
+}
+
+function mapEntityCacheRecordToAlbum(record, fallbackId) {
+  const payload = record?.payload_json;
+
+  if (payload && typeof payload === "object") {
+    return payload;
+  }
+
+  return {
+    id: fallbackId,
+    name: record?.name ?? "Album no disponible",
+    artists: record?.subtitle ? [{ name: record.subtitle.split(" · ")[0] || "Album" }] : [{ name: "Album" }],
+    images: record?.image_url ? [{ url: record.image_url }] : [],
+    release_date: record?.release_date ?? "",
+    tracks: { items: [] },
+    external_urls: {},
+  };
+}
+
+function mapEntityCacheRecordToArtistAlbums(record) {
+  const payload = record?.payload_json;
+
+  if (payload && typeof payload === "object") {
+    return payload;
+  }
+
+  return {
+    items: [],
+    total: 0,
+  };
+}
+
 async function spotifyRequest(path, { token, query } = {}) {
   try {
     const url = new URL(`${SPOTIFY_API_BASE_URL}${path}`);
@@ -1873,6 +2042,9 @@ async function getArtistsByIds(token, artistIds = []) {
       },
     });
 
+    const supabase = getSupabaseAdmin();
+    const cachePayloads = [];
+
     (data?.artists ?? []).forEach((artist) => {
       if (!artist?.id) {
         return;
@@ -1880,7 +2052,10 @@ async function getArtistsByIds(token, artistIds = []) {
 
       const cacheKey = buildSpotifyCacheKey("artist", artist.id, { market: "US" });
       cachedArtists.set(artist.id, setSpotifyCacheEntry(spotifyArtistCache, cacheKey, artist));
+      cachePayloads.push(buildArtistCachePayload(artist));
     });
+
+    await upsertEntityCacheRecords(supabase, cachePayloads);
   }
 
   return normalizedIds.map((artistId) => cachedArtists.get(artistId)).filter(Boolean);
@@ -1917,6 +2092,9 @@ async function getAlbumsByIds(token, albumIds = [], market = "US") {
       },
     });
 
+    const supabase = getSupabaseAdmin();
+    const cachePayloads = [];
+
     (data?.albums ?? []).forEach((album) => {
       if (!album?.id) {
         return;
@@ -1924,7 +2102,10 @@ async function getAlbumsByIds(token, albumIds = [], market = "US") {
 
       const cacheKey = buildSpotifyCacheKey("album", album.id, { market });
       cachedAlbums.set(album.id, setSpotifyCacheEntry(spotifyAlbumCache, cacheKey, album));
+      cachePayloads.push(buildAlbumCachePayload(album));
     });
+
+    await upsertEntityCacheRecords(supabase, cachePayloads);
   }
 
   return normalizedIds.map((albumId) => cachedAlbums.get(albumId)).filter(Boolean);
@@ -1958,24 +2139,43 @@ function buildFallbackRankingEntity(entityType, entityId) {
   if (entityType === "artist") {
     const cacheKey = buildSpotifyCacheKey("artist", entityId, { market: "US" });
     const cachedArtist = getSpotifyCacheEntry(spotifyArtistCache, cacheKey, { allowStale: true });
-    return cachedArtist ?? null;
+    if (cachedArtist) {
+      return cachedArtist;
+    }
+
+    return null;
   }
 
   const cacheKey = buildSpotifyCacheKey("album", entityId, { market: "US" });
   const cachedAlbum = getSpotifyCacheEntry(spotifyAlbumCache, cacheKey, { allowStale: true });
-  return cachedAlbum ?? null;
+  if (cachedAlbum) {
+    return cachedAlbum;
+  }
+
+  return null;
 }
 
 async function getFallbackEnrichedRankings(supabase, entityType, limit = 10) {
   const rankings = await getRankingsSummary(supabase, entityType, limit);
 
-  return rankings.map((ranking) =>
-    buildEnrichedRankingEntry(
-      entityType,
-      ranking,
-      buildFallbackRankingEntity(entityType, String(ranking.entity_id)),
-    ),
-  );
+  const enrichedEntries = [];
+
+  for (const ranking of rankings) {
+    const entityId = String(ranking.entity_id);
+    let entity = buildFallbackRankingEntity(entityType, entityId);
+
+    if (!entity) {
+      const record = await readEntityCacheRecord(supabase, entityType, entityId);
+      entity =
+        entityType === "artist"
+          ? mapEntityCacheRecordToArtist(record, entityId)
+          : mapEntityCacheRecordToAlbum(record, entityId);
+    }
+
+    enrichedEntries.push(buildEnrichedRankingEntry(entityType, ranking, entity));
+  }
+
+  return enrichedEntries;
 }
 
 async function getEnrichedRankings(supabase, entityType, limit = 10) {
@@ -3095,16 +3295,31 @@ app.get(
 app.get(
   "/api/artist/:id",
   asyncRoute(async (req, res) => {
+    const artistId = normalizeEntityId(req.params.id);
+
     try {
+      if (!artistId) {
+        throw createHttpError(400, "INVALID_ARTIST_ID", "artist id is required");
+      }
+
       const token = await getAppAccessToken();
-      const cacheKey = buildSpotifyCacheKey("artist", req.params.id, {
+      const cacheKey = buildSpotifyCacheKey("artist", artistId, {
         market: req.query.market || "US",
       });
       const data = await getCachedSpotifyResponse(spotifyArtistCache, cacheKey, async () =>
-        spotifyRequest(`/artists/${req.params.id}`, { token }),
+        spotifyRequest(`/artists/${artistId}`, { token }),
       );
+      await upsertEntityCacheRecord(getSupabaseAdmin(), buildArtistCachePayload(data));
       res.json(data);
     } catch (error) {
+      if (isSpotifyRateLimitError(error) && artistId) {
+        const record = await readEntityCacheRecord(getSupabaseAdmin(), "artist", artistId);
+
+        if (record) {
+          return res.json(mapEntityCacheRecordToArtist(record, artistId));
+        }
+      }
+
       return sendSpotifyEndpointError(res, error);
     }
   }),
@@ -3113,7 +3328,13 @@ app.get(
 app.get(
   "/api/artist/:id/albums",
   asyncRoute(async (req, res) => {
+    const artistId = normalizeEntityId(req.params.id);
+
     try {
+      if (!artistId) {
+        throw createHttpError(400, "INVALID_ARTIST_ID", "artist id is required");
+      }
+
       const token = await getAppAccessToken();
       const normalizedQuery = {
         include_groups: req.query.include_groups || "album,single",
@@ -3121,12 +3342,26 @@ app.get(
         market: req.query.market || "US",
         offset: Number(req.query.offset) || 0,
       };
-      const cacheKey = buildSpotifyCacheKey("artist-albums", req.params.id, normalizedQuery);
+      const cacheKey = buildSpotifyCacheKey("artist-albums", artistId, normalizedQuery);
       const data = await getCachedSpotifyResponse(spotifyArtistAlbumsCache, cacheKey, async () =>
-        getAllArtistAlbums(req.params.id, token, normalizedQuery),
+        getAllArtistAlbums(artistId, token, normalizedQuery),
+      );
+      const supabase = getSupabaseAdmin();
+      await upsertEntityCacheRecord(supabase, buildArtistAlbumsCachePayload(artistId, data));
+      await upsertEntityCacheRecords(
+        supabase,
+        (data.items ?? []).filter((album) => album?.id).map((album) => buildAlbumCachePayload(album)),
       );
       res.json(data);
     } catch (error) {
+      if (isSpotifyRateLimitError(error) && artistId) {
+        const record = await readEntityCacheRecord(getSupabaseAdmin(), "artist_albums", artistId);
+
+        if (record) {
+          return res.json(mapEntityCacheRecordToArtistAlbums(record));
+        }
+      }
+
       return sendSpotifyEndpointError(res, error);
     }
   }),
@@ -3135,20 +3370,35 @@ app.get(
 app.get(
   "/api/album/:id",
   asyncRoute(async (req, res) => {
+    const albumId = normalizeEntityId(req.params.id);
+
     try {
+      if (!albumId) {
+        throw createHttpError(400, "INVALID_ALBUM_ID", "album id is required");
+      }
+
       const token = await getAppAccessToken();
       const normalizedQuery = {
         market: req.query.market || "US",
       };
-      const cacheKey = buildSpotifyCacheKey("album", req.params.id, normalizedQuery);
+      const cacheKey = buildSpotifyCacheKey("album", albumId, normalizedQuery);
       const data = await getCachedSpotifyResponse(spotifyAlbumCache, cacheKey, async () =>
-        spotifyRequest(`/albums/${req.params.id}`, {
+        spotifyRequest(`/albums/${albumId}`, {
           token,
           query: normalizedQuery,
         }),
       );
+      await upsertEntityCacheRecord(getSupabaseAdmin(), buildAlbumCachePayload(data));
       res.json(data);
     } catch (error) {
+      if (isSpotifyRateLimitError(error) && albumId) {
+        const record = await readEntityCacheRecord(getSupabaseAdmin(), "album", albumId);
+
+        if (record) {
+          return res.json(mapEntityCacheRecordToAlbum(record, albumId));
+        }
+      }
+
       return sendSpotifyEndpointError(res, error);
     }
   }),
