@@ -1,5 +1,5 @@
 ﻿import { motion } from "framer-motion";
-import { ChevronDown, ChevronUp, Disc3, ExternalLink, Flame, Gem, Heart, MessageSquareText, Music4, Star, Trash2, Users } from "lucide-react";
+import { ChevronDown, ChevronUp, Disc3, ExternalLink, Flame, Gem, Heart, MessageSquareText, Music4, Star, Trash2, UserRound, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
@@ -664,22 +664,22 @@ export default function ArtistPage() {
                 </div>
               ) : reviews.length > 0 ? (
                 reviews.map((review) => (
-                  <div key={review.id} className={`rounded-2xl border border-transparent pb-6 last:border-0 last:pb-0 ${review.is_pro ? "pro-review-card px-4 pt-4" : ""}`}>
-                    <div className="mb-2 flex items-start justify-between gap-4">
+                  <div key={review.id} className={`rounded-2xl border p-4 ${review.is_pro ? "pro-review-card" : "border-border/70 bg-background/50"}`}>
+                    <div className="mb-3 flex items-start justify-between gap-4">
                       <div className="flex min-w-0 items-start gap-3">
                         {review.avatar_url ? (
                           <img src={review.avatar_url} alt={review.username} className="h-10 w-10 shrink-0 rounded-full object-cover" />
                         ) : (
                           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-semibold text-muted-foreground">
-                            {(review.username ?? "U").charAt(0).toUpperCase()}
+                            {(review.username ?? "").trim() ? (review.username ?? "U").charAt(0).toUpperCase() : <UserRound className="h-4 w-4" />}
                           </div>
                         )}
-                        <div className="min-w-0">
-                          <span className={`font-semibold ${review.is_pro ? "pro-username" : ""}`}>
-                            {review.username}
-                          </span>
-                          {review.is_pro ? <Star className="ml-2 inline h-4 w-4 fill-current pro-username" /> : null}
-                          <span className="ml-2 text-xs text-muted-foreground">{formatReviewDate(review.created_at)}</span>
+                        <div className="min-w-0 pt-0.5">
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                            <span className={`font-semibold ${review.is_pro ? "pro-username" : ""}`}>{review.username}</span>
+                            {review.is_pro ? <Star className="h-4 w-4 fill-current pro-username" /> : null}
+                            <span className="text-xs text-muted-foreground">{formatReviewDate(review.created_at)}</span>
+                          </div>
                         </div>
                       </div>
                       {review.user_id === currentUserId ? (
@@ -695,7 +695,7 @@ export default function ArtistPage() {
                       ) : null}
                     </div>
                     {review.rating_value ? (
-                      <div className="mb-2 origin-left scale-75">
+                      <div className="mb-3 origin-left scale-75">
                         <RatingStars initialRating={review.rating_value} readonly max={10} size="sm" />
                       </div>
                     ) : null}

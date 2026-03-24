@@ -2299,6 +2299,48 @@ app.get(
   }),
 );
 
+app.patch(
+  "/api/auth/profile",
+  authenticateAppUser,
+  asyncRoute(async (req, res) => {
+    const userId = normalizeUserId(req.user_id);
+    const avatarUrl = normalizeAvatarUrl(req.body?.avatar_url);
+
+    if (!userId) {
+      throw createHttpError(400, "INVALID_PROFILE_UPDATE", "valid user_id is required");
+    }
+
+    if (req.body?.avatar_url !== undefined && !avatarUrl) {
+      throw createHttpError(400, "INVALID_PROFILE_UPDATE", "avatar_url must be a valid URL");
+    }
+
+    const supabase = getSupabaseAdmin();
+    const updatePayload = {};
+
+    if (req.body?.avatar_url !== undefined) {
+      updatePayload.avatar_url = avatarUrl;
+    }
+
+    if (Object.keys(updatePayload).length === 0) {
+      throw createHttpError(400, "INVALID_PROFILE_UPDATE", "No supported profile fields were provided");
+    }
+
+    const userSelect = await buildUserSelect(supabase);
+    const { data, error } = await supabase
+      .from("users")
+      .update(updatePayload)
+      .eq("id", userId)
+      .select(userSelect)
+      .single();
+
+    handleSupabaseError(error, "Failed to update authenticated profile");
+
+    res.json({
+      user: mapUserRecord(data),
+    });
+  }),
+);
+
 app.post(
   "/api/auth/token",
   asyncRoute(async (req, res) => {

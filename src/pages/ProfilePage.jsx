@@ -913,8 +913,8 @@ export default function ProfilePage() {
     setProfileSaveError("");
 
     try {
-      const response = await uploadProfileAvatar(user.id, pendingAvatarFile);
-      const nextAvatar = response?.profile?.avatar_url ?? response?.publicUrl ?? "";
+      const response = await uploadProfileAvatar(user.id, pendingAvatarFile, appToken);
+      const nextAvatar = response?.user?.avatar_url ?? response?.profile?.avatar_url ?? response?.publicUrl ?? "";
 
       setAuthenticatedUser({
         ...user,

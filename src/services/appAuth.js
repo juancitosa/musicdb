@@ -32,6 +32,31 @@ async function postAuthRequest(path, payload) {
   return data;
 }
 
+async function patchAuthenticatedRequest(path, token, payload) {
+  let response;
+
+  try {
+    response = await fetch(`${import.meta.env.VITE_API_URL}${path}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    throw new Error("APP_BACKEND_UNAVAILABLE");
+  }
+
+  const data = await parseJsonResponse(response);
+
+  if (!response.ok) {
+    throw new Error(data?.error?.code || "APP_AUTH_ERROR");
+  }
+
+  return data;
+}
+
 function mapSupabaseUser(user) {
   if (!user) {
     return null;
@@ -548,7 +573,7 @@ export async function updateSupabaseProfile(userId, payload) {
   return data;
 }
 
-export async function uploadProfileAvatar(userId, file) {
+export async function uploadProfileAvatar(userId, file, sessionToken) {
   const supabase = getSupabaseClient();
 
   if (!file) {
@@ -560,7 +585,7 @@ export async function uploadProfileAvatar(userId, file) {
   }
 
   const fileExt = file.name.split(".").pop();
-  const filePath = `${userId}/avatar.${fileExt}`;
+  const filePath = `${userId}/avatar-${Date.now()}.${fileExt}`;
   const { error: uploadError } = await supabase.storage
     .from("avatars")
     .upload(filePath, file, {
@@ -574,11 +599,12 @@ export async function uploadProfileAvatar(userId, file) {
   }
 
   const { data } = supabase.storage.from("avatars").getPublicUrl(filePath);
+  const publicUrl = data?.publicUrl ?? "";
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .upsert({
       id: userId,
-      avatar_url: data?.publicUrl ?? "",
+      avatar_url: publicUrl,
     }, {
       onConflict: "id",
     })
@@ -589,10 +615,20 @@ export async function uploadProfileAvatar(userId, file) {
     throw new Error(profileError.message || "APP_AUTH_ERROR");
   }
 
+  let user = null;
+
+  if (sessionToken && publicUrl) {
+    const response = await patchAuthenticatedRequest("/auth/profile", sessionToken, {
+      avatar_url: publicUrl,
+    });
+    user = response?.user ?? null;
+  }
+
   return {
     path: filePath,
-    publicUrl: data?.publicUrl ?? "",
+    publicUrl,
     profile,
+    user,
   };
 }
 
