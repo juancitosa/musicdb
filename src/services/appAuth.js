@@ -82,6 +82,20 @@ async function findUserRecord(supabase, column, value) {
   return data ?? null;
 }
 
+async function findProfileRecord(supabase, profileId) {
+  if (!profileId) {
+    return null;
+  }
+
+  const { data, error } = await supabase.from("profiles").select("*").eq("id", profileId).maybeSingle();
+
+  if (error && !isNotFoundError(error)) {
+    throw new Error(error.message || "APP_AUTH_ERROR");
+  }
+
+  return data ?? null;
+}
+
 function mapUsersTableError(error) {
   const message = (error?.message || "").toLowerCase();
 
@@ -182,6 +196,64 @@ async function ensureUserTableRecord(supabase, authUser, payload = {}) {
   return data;
 }
 
+async function ensureProfileRecord(supabase, authUser, payload = {}) {
+  if (!authUser?.id) {
+    return null;
+  }
+
+  const username = payload.username?.trim() || authUser.user_metadata?.username?.trim() || "";
+  const existingProfile = await findProfileRecord(supabase, authUser.id);
+
+  if (existingProfile) {
+    const nextPayload = {};
+
+    if (username && existingProfile.username !== username) {
+      nextPayload.username = username;
+    }
+
+    if (!existingProfile.phone) {
+      nextPayload.phone = "";
+    }
+
+    if (!existingProfile.avatar_url) {
+      nextPayload.avatar_url = "";
+    }
+
+    if (existingProfile.is_admin === null || existingProfile.is_admin === undefined) {
+      nextPayload.is_admin = false;
+    }
+
+    if (!Object.keys(nextPayload).length) {
+      return existingProfile;
+    }
+
+    const { data, error } = await supabase.from("profiles").update(nextPayload).eq("id", authUser.id).select("*").single();
+
+    if (error) {
+      console.error(error);
+      return existingProfile;
+    }
+
+    return data;
+  }
+
+  const { data, error } = await supabase.from("profiles").insert({
+    id: authUser.id,
+    username: username || "usuario",
+    phone: "",
+    avatar_url: "",
+    created_at: new Date().toISOString(),
+    is_admin: false,
+  }).select("*").single();
+
+  if (error) {
+    console.error(error);
+    return null;
+  }
+
+  return data;
+}
+
 export async function fetchSpotifyProfile(accessToken) {
   const response = await fetch("https://api.spotify.com/v1/me", {
     headers: {
@@ -254,6 +326,22 @@ export async function registerLocalUser(payload) {
 
     await ensureUserTableRecord(supabase, data.user, {
       email: sanitizedPayload.email,
+      username: sanitizedPayload.username,
+    });
+  }
+
+  const { error: profileInsertError } = await supabase.from("profiles").insert({
+    id: data.user.id,
+    username: sanitizedPayload.username || "usuario",
+    phone: "",
+    avatar_url: "",
+    created_at: new Date().toISOString(),
+    is_admin: false,
+  });
+
+  if (profileInsertError) {
+    console.error(profileInsertError);
+    await ensureProfileRecord(supabase, data.user, {
       username: sanitizedPayload.username,
     });
   }
