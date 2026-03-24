@@ -1,6 +1,6 @@
 import { clearStoredSpotifySession } from "./spotifyAuth";
 
-const ENTITY_REQUEST_DELAY_MS = 150;
+const ENTITY_REQUEST_DELAY_MS = 400;
 let entityRequestQueue = Promise.resolve();
 
 function delay(ms) {
