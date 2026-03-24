@@ -80,6 +80,40 @@ function createHttpError(status, code, message) {
   return error;
 }
 
+function isSpotifyRateLimitError(error) {
+  return Number(error?.status || error?.statusCode) === 429;
+}
+
+function normalizeSpotifyError(error, fallbackCode = "SPOTIFY_REQUEST_FAILED", fallbackMessage = "Spotify request failed") {
+  if (isSpotifyRateLimitError(error)) {
+    return createHttpError(429, "SPOTIFY_RATE_LIMIT", "Spotify rate limit exceeded");
+  }
+
+  if (error?.status) {
+    return error;
+  }
+
+  if (error?.statusCode) {
+    return createHttpError(error.statusCode, error.code || fallbackCode, error.message || fallbackMessage);
+  }
+
+  return createHttpError(500, error?.code || fallbackCode, error?.message || fallbackMessage);
+}
+
+function sendSpotifyEndpointError(res, error) {
+  const normalizedError = normalizeSpotifyError(error);
+
+  if (normalizedError.status === 429) {
+    return res.status(429).json({ error: "spotify_rate_limit" });
+  }
+
+  if (normalizedError.status >= 400 && normalizedError.status < 500 && normalizedError.status !== 429) {
+    return res.status(normalizedError.status).json({ error: normalizedError.code || "spotify_request_error" });
+  }
+
+  return res.status(500).json({ error: "internal_error" });
+}
+
 function normalizeEmail(email) {
   if (typeof email !== "string") {
     return null;
@@ -952,7 +986,7 @@ async function resolveAuthenticatedUserFromToken(token) {
       }
 
       throw spotifyError?.status
-        ? spotifyError
+        ? normalizeSpotifyError(spotifyError, "SPOTIFY_AUTH_INVALID", "Spotify authentication failed")
         : createHttpError(401, "APP_AUTH_INVALID", "Authentication failed");
     }
   }
@@ -1459,56 +1493,64 @@ async function deleteReviewById(supabase, reviewId) {
 }
 
 async function getAppAccessToken() {
-  ensureSpotifyCredentials();
+  try {
+    ensureSpotifyCredentials();
 
-  if (cachedAppToken && Date.now() < cachedAppToken.expiresAt - 60_000) {
+    if (cachedAppToken && Date.now() < cachedAppToken.expiresAt - 60_000) {
+      return cachedAppToken.accessToken;
+    }
+
+    const basicAuth = Buffer.from(`${SPOTIFY_CLIENT_ID}:${SPOTIFY_CLIENT_SECRET}`).toString("base64");
+    const response = await fetch(SPOTIFY_TOKEN_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${basicAuth}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        grant_type: "client_credentials",
+      }),
+    });
+
+    if (!response.ok) {
+      throw createHttpError(response.status, "SPOTIFY_TOKEN_ERROR", "Failed to get Spotify app token");
+    }
+
+    const data = await response.json();
+    cachedAppToken = {
+      accessToken: data.access_token,
+      expiresAt: Date.now() + data.expires_in * 1000,
+    };
+
     return cachedAppToken.accessToken;
+  } catch (error) {
+    throw normalizeSpotifyError(error, "SPOTIFY_TOKEN_ERROR", "Failed to get Spotify app token");
   }
-
-  const basicAuth = Buffer.from(`${SPOTIFY_CLIENT_ID}:${SPOTIFY_CLIENT_SECRET}`).toString("base64");
-  const response = await fetch(SPOTIFY_TOKEN_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Basic ${basicAuth}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: new URLSearchParams({
-      grant_type: "client_credentials",
-    }),
-  });
-
-  if (!response.ok) {
-    throw createHttpError(response.status, "SPOTIFY_TOKEN_ERROR", "Failed to get Spotify app token");
-  }
-
-  const data = await response.json();
-  cachedAppToken = {
-    accessToken: data.access_token,
-    expiresAt: Date.now() + data.expires_in * 1000,
-  };
-
-  return cachedAppToken.accessToken;
 }
 
 async function requestSpotifyToken(params) {
-  ensureSpotifyCredentials();
+  try {
+    ensureSpotifyCredentials();
 
-  const basicAuth = Buffer.from(`${SPOTIFY_CLIENT_ID}:${SPOTIFY_CLIENT_SECRET}`).toString("base64");
-  const response = await fetch(SPOTIFY_TOKEN_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Basic ${basicAuth}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: new URLSearchParams(params),
-  });
+    const basicAuth = Buffer.from(`${SPOTIFY_CLIENT_ID}:${SPOTIFY_CLIENT_SECRET}`).toString("base64");
+    const response = await fetch(SPOTIFY_TOKEN_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Basic ${basicAuth}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams(params),
+    });
 
-  if (!response.ok) {
-    const message = await response.text();
-    throw createHttpError(response.status, "SPOTIFY_TOKEN_EXCHANGE_ERROR", message || "Failed to exchange Spotify token");
+    if (!response.ok) {
+      const message = await response.text();
+      throw createHttpError(response.status, "SPOTIFY_TOKEN_EXCHANGE_ERROR", message || "Failed to exchange Spotify token");
+    }
+
+    return response.json();
+  } catch (error) {
+    throw normalizeSpotifyError(error, "SPOTIFY_TOKEN_EXCHANGE_ERROR", "Failed to exchange Spotify token");
   }
-
-  return response.json();
 }
 
 function getUserAccessToken(req) {
@@ -1522,32 +1564,36 @@ function getUserAccessToken(req) {
 }
 
 async function spotifyRequest(path, { token, query } = {}) {
-  const url = new URL(`${SPOTIFY_API_BASE_URL}${path}`);
+  try {
+    const url = new URL(`${SPOTIFY_API_BASE_URL}${path}`);
 
-  if (query) {
-    Object.entries(query).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== "") {
-        url.searchParams.set(key, String(value));
-      }
+    if (query) {
+      Object.entries(query).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== "") {
+          url.searchParams.set(key, String(value));
+        }
+      });
+    }
+
+    const response = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
     });
+
+    if (response.status === 204) {
+      return null;
+    }
+
+    if (!response.ok) {
+      const message = await response.text();
+      throw createHttpError(response.status, "SPOTIFY_API_ERROR", message || `Spotify request failed with status ${response.status}`);
+    }
+
+    return response.json();
+  } catch (error) {
+    throw normalizeSpotifyError(error, "SPOTIFY_API_ERROR", "Spotify request failed");
   }
-
-  const response = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
-  if (response.status === 204) {
-    return null;
-  }
-
-  if (!response.ok) {
-    const message = await response.text();
-    throw createHttpError(response.status, "SPOTIFY_API_ERROR", message || `Spotify request failed with status ${response.status}`);
-  }
-
-  return response.json();
 }
 
 function parseSpotifyEmbedState(html) {
@@ -1561,70 +1607,30 @@ function parseSpotifyEmbedState(html) {
 }
 
 async function getGlobalTrendingTracks(limit = 10) {
-  const playlistId = "37i9dQZEVXbMDoHDwVN2tF";
-  const response = await fetch(`https://open.spotify.com/embed/playlist/${playlistId}`);
+  try {
+    const playlistId = "37i9dQZEVXbMDoHDwVN2tF";
+    const response = await fetch(`https://open.spotify.com/embed/playlist/${playlistId}`);
 
-  if (!response.ok) {
-    throw createHttpError(response.status, "SPOTIFY_TRENDING_UNAVAILABLE", "Spotify trending playlist is unavailable");
-  }
+    if (!response.ok) {
+      throw createHttpError(response.status, "SPOTIFY_TRENDING_UNAVAILABLE", "Spotify trending playlist is unavailable");
+    }
 
-  const html = await response.text();
-  const payload = parseSpotifyEmbedState(html);
-  const entity = payload?.props?.pageProps?.state?.data?.entity;
-  const tracks = entity?.trackList ?? [];
-  const limitedTracks = tracks.slice(0, Math.min(Number(limit) || 10, 50));
-  const token = await getAppAccessToken();
-  const enrichedTracks = await Promise.all(
-    limitedTracks.map(async (track) => {
-      const trackId = track.uri?.split(":").pop();
+    const html = await response.text();
+    const payload = parseSpotifyEmbedState(html);
+    const entity = payload?.props?.pageProps?.state?.data?.entity;
+    const tracks = entity?.trackList ?? [];
+    const limitedTracks = tracks.slice(0, Math.min(Number(limit) || 10, 50));
 
-      if (!trackId) {
-        return null;
-      }
+    return limitedTracks
+      .map((track, index) => {
+        const trackId = track.uri?.split(":").pop();
 
-      let oEmbedThumbnailUrl = null;
-
-      try {
-        const oEmbedResponse = await fetch(`https://open.spotify.com/oembed?url=https://open.spotify.com/track/${trackId}`);
-        if (oEmbedResponse.ok) {
-          const oEmbedData = await oEmbedResponse.json();
-          oEmbedThumbnailUrl = oEmbedData?.thumbnail_url ?? null;
+        if (!trackId) {
+          return null;
         }
-      } catch {
-        oEmbedThumbnailUrl = null;
-      }
-
-      try {
-        const spotifyTrack = await spotifyRequest(`/tracks/${trackId}`, {
-          token,
-          query: {
-            market: "US",
-          },
-        });
 
         return {
-          id: spotifyTrack.id,
-          name: spotifyTrack.name,
-          artists: (spotifyTrack.artists ?? []).map((artist) => ({
-            id: artist.id,
-            name: artist.name,
-          })),
-          duration_ms: spotifyTrack.duration_ms ?? track.duration ?? null,
-          preview_url: spotifyTrack.preview_url ?? track.audioPreview?.url ?? null,
-          album: {
-            id: spotifyTrack.album?.id ?? playlistId,
-            name: spotifyTrack.album?.name ?? entity?.title ?? "Top 50 - Global",
-            images:
-              spotifyTrack.album?.images?.length > 0
-                ? spotifyTrack.album.images
-                : oEmbedThumbnailUrl
-                  ? [{ url: oEmbedThumbnailUrl }]
-                  : [],
-          },
-        };
-      } catch {
-        return {
-          id: trackId,
+          id: trackId || randomUUID(),
           name: track.title,
           artists: String(track.subtitle || "")
             .split(",")
@@ -1636,25 +1642,18 @@ async function getGlobalTrendingTracks(limit = 10) {
             })),
           duration_ms: track.duration ?? null,
           preview_url: track.audioPreview?.url ?? null,
+          _rank: index + 1,
           album: {
             id: playlistId,
             name: entity?.title ?? "Top 50 - Global",
-            images: oEmbedThumbnailUrl ? [{ url: oEmbedThumbnailUrl }] : [],
+            images: [],
           },
         };
-      }
-    }),
-  );
-
-  return enrichedTracks.filter(Boolean).map((track, index) => ({
-    id: track.id ?? randomUUID(),
-    name: track.name,
-    artists: track.artists,
-    duration_ms: track.duration_ms,
-    preview_url: track.preview_url,
-    _rank: index + 1,
-    album: track.album,
-  }));
+      })
+      .filter(Boolean);
+  } catch (error) {
+    throw normalizeSpotifyError(error, "SPOTIFY_TRENDING_UNAVAILABLE", "Spotify trending playlist is unavailable");
+  }
 }
 
 async function authenticateSpotifyUser(req, _res, next) {
@@ -1678,90 +1677,67 @@ async function authenticateSpotifyUser(req, _res, next) {
     req.spotify_user_id = spotifyUserId;
     next();
   } catch (error) {
-    next(error?.status ? error : createHttpError(401, "SPOTIFY_AUTH_INVALID", "Spotify authentication failed"));
+    next(normalizeSpotifyError(error, "SPOTIFY_AUTH_INVALID", "Spotify authentication failed"));
   }
 }
 
 async function getAllArtistAlbums(artistId, token, query = {}) {
-  const collectedItems = [];
-  let offset = 0;
-  const limit = Math.min(Number(query.limit) || 50, 50);
-  let total = Infinity;
-
-  while (offset < total) {
+  try {
+    const limit = Math.min(Number(query.limit) || 50, 50);
     const data = await spotifyRequest(`/artists/${artistId}/albums`, {
       token,
       query: {
         include_groups: query.include_groups || "album,single",
         market: query.market || "US",
         limit,
-        offset,
+        offset: Number(query.offset) || 0,
       },
     });
 
-    collectedItems.push(...(data.items ?? []));
-    total = data.total ?? collectedItems.length;
-    offset += limit;
+    const uniqueAlbums = new Map();
 
-    if (!data.next) {
-      break;
-    }
+    (data.items ?? []).forEach((album) => {
+      const key = `${album.name}-${album.album_group}-${album.release_date}`;
+
+      if (!uniqueAlbums.has(key)) {
+        uniqueAlbums.set(key, album);
+      }
+    });
+
+    return {
+      ...data,
+      items: Array.from(uniqueAlbums.values()),
+      total: data.total ?? uniqueAlbums.size,
+    };
+  } catch (error) {
+    throw normalizeSpotifyError(error, "SPOTIFY_API_ERROR", "Failed to fetch artist albums");
   }
-
-  const uniqueAlbums = new Map();
-
-  collectedItems.forEach((album) => {
-    const key = `${album.name}-${album.album_group}-${album.release_date}`;
-
-    if (!uniqueAlbums.has(key)) {
-      uniqueAlbums.set(key, album);
-    }
-  });
-
-  return {
-    items: Array.from(uniqueAlbums.values()),
-    total: uniqueAlbums.size,
-  };
 }
 
 async function getSavedTracksByArtist(token, artistId, query = {}) {
-  const collectedItems = [];
-  let offset = 0;
-  const limit = Math.min(Number(query.limit) || 50, 50);
-  let total = Infinity;
-
-  while (offset < total) {
+  try {
+    const limit = Math.min(Number(query.limit) || 50, 50);
     const data = await spotifyRequest("/me/tracks", {
       token,
       query: {
         limit,
-        offset,
+        offset: Number(query.offset) || 0,
         market: query.market || "US",
       },
     });
 
-    collectedItems.push(...(data.items ?? []));
-    total = data.total ?? collectedItems.length;
-    offset += limit;
+    const filteredItems = (data.items ?? []).filter((item) =>
+      item.track?.artists?.some((artist) => artist.id === artistId),
+    );
 
-    if (!data.next) {
-      break;
-    }
+    return {
+      ...data,
+      items: filteredItems,
+      total: filteredItems.length,
+    };
+  } catch (error) {
+    throw normalizeSpotifyError(error, "SPOTIFY_API_ERROR", "Failed to fetch saved tracks");
   }
-
-  const filteredItems = collectedItems.filter((item) =>
-    item.track?.artists?.some((artist) => artist.id === artistId),
-  );
-
-  return {
-    href: null,
-    items: filteredItems,
-    limit,
-    next: null,
-    offset: 0,
-    previous: null,
-    total: filteredItems.length,
-  };
 }
 
 async function createMercadoPagoPreference({ user, plan }) {
@@ -2089,16 +2065,20 @@ async function handleResendVerificationEmail(req, res) {
 app.get(
   "/api/search/artists",
   asyncRoute(async (req, res) => {
-    const token = await getAppAccessToken();
-    const data = await spotifyRequest("/search", {
-      token,
-      query: {
-        q: req.query.q,
-        type: "artist",
-        limit: req.query.limit || 20,
-      },
-    });
-    res.json(data);
+    try {
+      const token = await getAppAccessToken();
+      const data = await spotifyRequest("/search", {
+        token,
+        query: {
+          q: req.query.q,
+          type: "artist",
+          limit: req.query.limit || 20,
+        },
+      });
+      res.json(data);
+    } catch (error) {
+      return sendSpotifyEndpointError(res, error);
+    }
   }),
 );
 
@@ -2377,24 +2357,32 @@ app.patch(
 app.post(
   "/api/auth/token",
   asyncRoute(async (req, res) => {
-    const data = await requestSpotifyToken({
-      grant_type: "authorization_code",
-      code: req.body.code,
-      redirect_uri: req.body.redirect_uri,
-      code_verifier: req.body.code_verifier,
-    });
-    res.json(data);
+    try {
+      const data = await requestSpotifyToken({
+        grant_type: "authorization_code",
+        code: req.body.code,
+        redirect_uri: req.body.redirect_uri,
+        code_verifier: req.body.code_verifier,
+      });
+      res.json(data);
+    } catch (error) {
+      return sendSpotifyEndpointError(res, error);
+    }
   }),
 );
 
 app.post(
   "/api/auth/refresh",
   asyncRoute(async (req, res) => {
-    const data = await requestSpotifyToken({
-      grant_type: "refresh_token",
-      refresh_token: req.body.refresh_token,
-    });
-    res.json(data);
+    try {
+      const data = await requestSpotifyToken({
+        grant_type: "refresh_token",
+        refresh_token: req.body.refresh_token,
+      });
+      res.json(data);
+    } catch (error) {
+      return sendSpotifyEndpointError(res, error);
+    }
   }),
 );
 
@@ -2687,181 +2675,237 @@ app.delete(
 app.get(
   "/api/search/albums",
   asyncRoute(async (req, res) => {
-    const token = await getAppAccessToken();
-    const data = await spotifyRequest("/search", {
-      token,
-      query: {
-        q: req.query.q,
-        type: "album",
-        limit: req.query.limit || 20,
-      },
-    });
-    res.json(data);
+    try {
+      const token = await getAppAccessToken();
+      const data = await spotifyRequest("/search", {
+        token,
+        query: {
+          q: req.query.q,
+          type: "album",
+          limit: req.query.limit || 20,
+        },
+      });
+      res.json(data);
+    } catch (error) {
+      return sendSpotifyEndpointError(res, error);
+    }
   }),
 );
 
 app.get(
   "/api/search/playlists",
   asyncRoute(async (req, res) => {
-    const token = await getAppAccessToken();
-    const data = await spotifyRequest("/search", {
-      token,
-      query: {
-        q: req.query.q,
-        type: "playlist",
-        limit: req.query.limit || 20,
-      },
-    });
-    res.json(data);
+    try {
+      const token = await getAppAccessToken();
+      const data = await spotifyRequest("/search", {
+        token,
+        query: {
+          q: req.query.q,
+          type: "playlist",
+          limit: req.query.limit || 20,
+        },
+      });
+      res.json(data);
+    } catch (error) {
+      return sendSpotifyEndpointError(res, error);
+    }
   }),
 );
 
 app.get(
   "/api/search",
   asyncRoute(async (req, res) => {
-    const token = await getAppAccessToken();
-    const data = await spotifyRequest("/search", {
-      token,
-      query: {
-        q: req.query.q,
-        type: "artist,album",
-        limit: req.query.limit || 20,
-      },
-    });
-    res.json(data);
+    try {
+      const token = await getAppAccessToken();
+      const data = await spotifyRequest("/search", {
+        token,
+        query: {
+          q: req.query.q,
+          type: "artist,album",
+          limit: req.query.limit || 20,
+        },
+      });
+      res.json(data);
+    } catch (error) {
+      return sendSpotifyEndpointError(res, error);
+    }
   }),
 );
 
 app.get(
   "/api/playlists/:id/tracks",
   asyncRoute(async (req, res) => {
-    const token = await getAppAccessToken();
-    const data = await spotifyRequest(`/playlists/${req.params.id}/tracks`, {
-      token,
-      query: {
-        limit: req.query.limit || 50,
-        market: req.query.market || "US",
-      },
-    });
-    res.json(data);
+    try {
+      const token = await getAppAccessToken();
+      const data = await spotifyRequest(`/playlists/${req.params.id}/tracks`, {
+        token,
+        query: {
+          limit: req.query.limit || 50,
+          market: req.query.market || "US",
+        },
+      });
+      res.json(data);
+    } catch (error) {
+      return sendSpotifyEndpointError(res, error);
+    }
   }),
 );
 
 app.get(
   "/api/artist/:id",
   asyncRoute(async (req, res) => {
-    const token = await getAppAccessToken();
-    const data = await spotifyRequest(`/artists/${req.params.id}`, { token });
-    res.json(data);
+    try {
+      const token = await getAppAccessToken();
+      const data = await spotifyRequest(`/artists/${req.params.id}`, { token });
+      res.json(data);
+    } catch (error) {
+      return sendSpotifyEndpointError(res, error);
+    }
   }),
 );
 
 app.get(
   "/api/artist/:id/albums",
   asyncRoute(async (req, res) => {
-    const token = await getAppAccessToken();
-    const data = await getAllArtistAlbums(req.params.id, token, req.query);
-    res.json(data);
+    try {
+      const token = await getAppAccessToken();
+      const data = await getAllArtistAlbums(req.params.id, token, req.query);
+      res.json(data);
+    } catch (error) {
+      return sendSpotifyEndpointError(res, error);
+    }
   }),
 );
 
 app.get(
   "/api/album/:id",
   asyncRoute(async (req, res) => {
-    const token = await getAppAccessToken();
-    const data = await spotifyRequest(`/albums/${req.params.id}`, {
-      token,
-      query: {
-        market: req.query.market || "US",
-      },
-    });
-    res.json(data);
+    try {
+      const token = await getAppAccessToken();
+      const data = await spotifyRequest(`/albums/${req.params.id}`, {
+        token,
+        query: {
+          market: req.query.market || "US",
+        },
+      });
+      res.json(data);
+    } catch (error) {
+      return sendSpotifyEndpointError(res, error);
+    }
   }),
 );
 
 app.get(
   "/api/new-releases",
   asyncRoute(async (req, res) => {
-    const token = await getAppAccessToken();
-    const data = await spotifyRequest("/browse/new-releases", {
-      token,
-      query: {
-        limit: req.query.limit || 12,
-        country: req.query.country || "US",
-      },
-    });
-    res.json(data);
+    try {
+      const token = await getAppAccessToken();
+      const data = await spotifyRequest("/browse/new-releases", {
+        token,
+        query: {
+          limit: req.query.limit || 12,
+          country: req.query.country || "US",
+        },
+      });
+      res.json(data);
+    } catch (error) {
+      return sendSpotifyEndpointError(res, error);
+    }
   }),
 );
 
 app.get(
   "/api/trending/global",
   asyncRoute(async (req, res) => {
-    const tracks = await getGlobalTrendingTracks(req.query.limit || 10);
-    res.json({ tracks });
+    try {
+      const tracks = await getGlobalTrendingTracks(req.query.limit || 10);
+      res.json({ tracks });
+    } catch (error) {
+      return sendSpotifyEndpointError(res, error);
+    }
   }),
 );
 
 app.get(
   "/api/me",
   asyncRoute(async (req, res) => {
-    const token = getUserAccessToken(req);
-    const data = await spotifyRequest("/me", { token });
-    res.json(data);
+    try {
+      const token = getUserAccessToken(req);
+      const data = await spotifyRequest("/me", { token });
+      res.json(data);
+    } catch (error) {
+      return sendSpotifyEndpointError(res, error);
+    }
   }),
 );
 
 app.get(
   "/api/me/top-artists",
   asyncRoute(async (req, res) => {
-    const token = getUserAccessToken(req);
-    const data = await spotifyRequest("/me/top/artists", {
-      token,
-      query: {
-        limit: req.query.limit || 10,
-        time_range: req.query.time_range || "medium_term",
-      },
-    });
-    res.json(data);
+    try {
+      const token = getUserAccessToken(req);
+      const data = await spotifyRequest("/me/top/artists", {
+        token,
+        query: {
+          limit: req.query.limit || 10,
+          time_range: req.query.time_range || "medium_term",
+        },
+      });
+      res.json(data);
+    } catch (error) {
+      return sendSpotifyEndpointError(res, error);
+    }
   }),
 );
 
 app.get(
   "/api/me/top-tracks",
   asyncRoute(async (req, res) => {
-    const token = getUserAccessToken(req);
-    const data = await spotifyRequest("/me/top/tracks", {
-      token,
-      query: {
-        limit: req.query.limit || 10,
-        time_range: req.query.time_range || "medium_term",
-      },
-    });
-    res.json(data);
+    try {
+      const token = getUserAccessToken(req);
+      const data = await spotifyRequest("/me/top/tracks", {
+        token,
+        query: {
+          limit: req.query.limit || 10,
+          time_range: req.query.time_range || "medium_term",
+        },
+      });
+      res.json(data);
+    } catch (error) {
+      return sendSpotifyEndpointError(res, error);
+    }
   }),
 );
 
 app.get(
   "/api/me/player/currently-playing",
   asyncRoute(async (req, res) => {
-    const token = getUserAccessToken(req);
-    const data = await spotifyRequest("/me/player/currently-playing", { token });
+    try {
+      const token = getUserAccessToken(req);
+      const data = await spotifyRequest("/me/player/currently-playing", { token });
 
-    if (!data) {
-      res.status(204).send();
-      return;
+      if (!data) {
+        res.status(204).send();
+        return;
+      }
+
+      res.json(data);
+    } catch (error) {
+      return sendSpotifyEndpointError(res, error);
     }
-
-    res.json(data);
   }),
 );
 
 app.get(
   "/api/me/liked-tracks/by-artist/:artistId",
   asyncRoute(async (req, res) => {
-    const token = getUserAccessToken(req);
-    const data = await getSavedTracksByArtist(token, req.params.artistId, req.query);
-    res.json(data);
+    try {
+      const token = getUserAccessToken(req);
+      const data = await getSavedTracksByArtist(token, req.params.artistId, req.query);
+      res.json(data);
+    } catch (error) {
+      return sendSpotifyEndpointError(res, error);
+    }
   }),
 );
 
@@ -2874,6 +2918,11 @@ app.use((error, _req, res, _next) => {
   const statusCode = [400, 401, 403, 404, 409, 429].includes(status) ? status : status >= 400 && status < 600 ? status : 500;
 
   console.error("[spotify-backend]", error.code || "INTERNAL_SERVER_ERROR", error.message);
+
+  if (statusCode === 429 && (error.code === "SPOTIFY_RATE_LIMIT" || error.code === "SPOTIFY_API_ERROR" || isSpotifyRateLimitError(error))) {
+    res.status(429).json({ error: "spotify_rate_limit" });
+    return;
+  }
 
   res.status(statusCode).json({
     error: {
