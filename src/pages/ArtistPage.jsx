@@ -313,8 +313,8 @@ export default function ArtistPage() {
   if (isLoading) {
     return (
       <div className="animate-in pb-12 duration-300">
-        <div className="relative mx-4 mt-4 h-[40vh] min-h-[320px] animate-pulse rounded-3xl bg-secondary sm:mx-6 lg:mx-8" />
-        <div className="mt-12 grid grid-cols-1 gap-12 px-4 sm:px-6 lg:grid-cols-3 lg:px-8">
+        <div className="relative mx-4 mt-4 h-[38vh] min-h-[280px] animate-pulse rounded-3xl bg-secondary sm:mx-6 sm:min-h-[320px] lg:mx-8" />
+        <div className="mt-10 grid grid-cols-1 gap-8 px-4 sm:px-6 lg:grid-cols-3 lg:gap-12 lg:px-8">
           <div className="space-y-4 rounded-2xl border border-border bg-card p-6">
             {Array.from({ length: 4 }).map((_, index) => (
               <div key={index} className="h-4 rounded bg-secondary" />
@@ -322,7 +322,7 @@ export default function ArtistPage() {
           </div>
           <div className="lg:col-span-2">
             <div className="mb-6 h-8 w-48 rounded bg-secondary" />
-            <div className="grid grid-cols-2 gap-6 sm:grid-cols-3">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-6">
               {Array.from({ length: 6 }).map((_, index) => (
                 <SkeletonCard key={index} />
               ))}
@@ -455,15 +455,15 @@ export default function ArtistPage() {
 
   return (
     <div className="animate-in pb-12 duration-500">
-      <div className="relative mx-4 mt-4 h-[40vh] min-h-[350px] overflow-hidden rounded-3xl shadow-2xl sm:mx-6 lg:mx-8">
+      <div className="relative mx-4 mt-4 h-[42vh] min-h-[320px] overflow-hidden rounded-3xl shadow-2xl sm:mx-6 sm:min-h-[350px] lg:mx-8">
         <div className="absolute inset-0">
           <img src={image} alt={artist.name} className="h-full w-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-background via-background/40 to-transparent" />
           <div className="absolute inset-0 bg-black/20" />
         </div>
 
-        <div className="absolute right-0 bottom-0 left-0 flex flex-col items-end justify-between gap-6 p-8 md:flex-row md:p-12">
-          <div>
+        <div className="absolute right-0 bottom-0 left-0 flex flex-col items-start justify-between gap-6 p-5 sm:p-8 md:flex-row md:items-end md:p-12">
+          <div className="max-w-3xl">
             <div className="mb-3 flex flex-wrap gap-2">
               {genres.slice(0, 3).map((genre) => (
                 <span key={genre} className="rounded-full bg-primary px-3 py-1 text-xs font-bold uppercase tracking-wider text-primary-foreground shadow-lg shadow-primary/30 capitalize">
@@ -471,22 +471,22 @@ export default function ArtistPage() {
                 </span>
               ))}
             </div>
-            <h1 className="text-5xl font-black leading-tight text-white md:text-7xl">{artist.name}</h1>
+            <h1 className="text-3xl font-black leading-tight text-white sm:text-5xl md:text-7xl">{artist.name}</h1>
           </div>
 
-          <div className="flex flex-wrap gap-4 text-white/90">
-            <div className="rounded-xl border border-white/10 bg-black/30 p-4 backdrop-blur-md">
+          <div className="grid w-full grid-cols-2 gap-3 text-white/90 sm:flex sm:w-auto sm:flex-wrap sm:gap-4">
+            <div className="rounded-xl border border-white/10 bg-black/30 p-3 backdrop-blur-md sm:p-4">
               <Users className="mb-1 h-6 w-6 text-primary" />
               <span className="block text-xl font-bold">{(followers / 1e6).toFixed(1)}M</span>
               <span className="text-xs uppercase tracking-wider text-white/60">Seguidores</span>
             </div>
-            <div className="rounded-xl border border-white/10 bg-black/30 p-4 backdrop-blur-md">
+            <div className="rounded-xl border border-white/10 bg-black/30 p-3 backdrop-blur-md sm:p-4">
               <Disc3 className="mb-1 h-6 w-6 text-primary" />
               <span className="block text-xl font-bold">{popularity}</span>
               <span className="text-xs uppercase tracking-wider text-white/60">Popular.</span>
             </div>
             {artistRankingPosition ? (
-              <div className={`rounded-xl border p-4 backdrop-blur-md ${rankingBadge.wrapperClass}`}>
+              <div className={`col-span-2 rounded-xl border p-3 backdrop-blur-md sm:col-span-1 sm:p-4 ${rankingBadge.wrapperClass}`}>
                 <Flame className={`mb-1 h-6 w-6 ${rankingBadge.iconClass}`} />
                 <span className={`block text-xl font-black ${rankingBadge.numberClass}`}>#{artistRankingPosition}</span>
                 <span className="flex items-center gap-1 text-xs uppercase tracking-wider text-white/70">
@@ -499,7 +499,7 @@ export default function ArtistPage() {
         </div>
       </div>
 
-      <div className="mt-12 grid grid-cols-1 gap-12 px-4 sm:px-6 lg:grid-cols-3 lg:px-8">
+      <div className="mt-10 grid grid-cols-1 gap-8 px-4 sm:px-6 lg:grid-cols-3 lg:gap-12 lg:px-8">
         <div className="space-y-6">
           <section className="rounded-2xl border border-border bg-card p-6 shadow-lg shadow-black/5">
             <h3 className="mb-5 text-xl font-bold">Informacion</h3>
@@ -704,10 +704,10 @@ export default function ArtistPage() {
 
         <div className="space-y-6 lg:col-span-2">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <Disc3 className="h-8 w-8 text-primary" />
-              <h2 className="text-3xl font-bold">Discografia</h2>
-              <span className="ml-1 text-sm text-muted-foreground">{filteredAlbums.length} lanzamientos</span>
+              <h2 className="text-2xl font-bold sm:text-3xl">Discografia</h2>
+              <span className="text-sm text-muted-foreground">{filteredAlbums.length} lanzamientos</span>
             </div>
 
             <div className="flex flex-wrap gap-2">
@@ -729,7 +729,7 @@ export default function ArtistPage() {
           </div>
 
           {filteredAlbums.length > 0 ? (
-            <motion.div initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.07 } } }} className="grid grid-cols-2 gap-6 sm:grid-cols-3">
+            <motion.div initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.07 } } }} className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-6">
               {filteredAlbums.map((album) => (
                 <motion.div key={album.id} variants={{ hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0 } }}>
                   {isLocal ? <LocalAlbumCard album={album} compact /> : <SpotifyAlbumCard album={album} />}

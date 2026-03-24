@@ -50,10 +50,10 @@ export default function MediaCard({
         {overlay}
       </div>
       {showBody ? (
-        <div>
+        <div className="min-w-0">
           {badge}
-          <p className="truncate text-sm font-semibold transition group-hover:text-primary">{title}</p>
-          {subtitle ? <p className="truncate text-xs text-muted-foreground">{subtitle}</p> : null}
+          <p className="line-clamp-2 text-sm font-semibold transition group-hover:text-primary">{title}</p>
+          {subtitle ? <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-muted-foreground">{subtitle}</p> : null}
         </div>
       ) : null}
     </Link>

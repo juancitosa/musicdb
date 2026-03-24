@@ -288,9 +288,9 @@ export default function AlbumPage() {
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-6xl animate-pulse px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-6xl animate-pulse px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
         <div className="mb-12 flex flex-col gap-8 md:flex-row">
-          <div className="aspect-square w-full rounded-2xl bg-secondary md:w-[280px]" />
+          <div className="aspect-square w-full max-w-[320px] rounded-2xl bg-secondary md:w-[280px]" />
           <div className="flex-1 space-y-4 pt-4">
             <div className="h-4 w-16 rounded bg-secondary" />
             <div className="h-10 w-3/4 rounded bg-secondary" />
@@ -320,9 +320,9 @@ export default function AlbumPage() {
   const totalDuration = isLocal ? null : Math.floor((album.tracks?.items ?? []).reduce((sum, track) => sum + track.duration_ms, 0) / 60000);
 
   return (
-    <div className="mx-auto max-w-6xl animate-in px-4 py-8 duration-500 sm:px-6 lg:px-8">
-      <div className="mb-14 flex flex-col items-start gap-8 md:flex-row md:gap-12">
-        <div className="group w-full max-w-[280px] shrink-0">
+    <div className="mx-auto max-w-6xl animate-in px-4 py-6 duration-500 sm:px-6 sm:py-8 lg:px-8">
+      <div className="mb-10 flex flex-col items-start gap-6 md:mb-14 md:flex-row md:gap-12">
+        <div className="group w-full max-w-[320px] shrink-0 md:max-w-[280px]">
           <div className="relative aspect-square overflow-hidden rounded-2xl border border-white/5 shadow-2xl shadow-black/30">
             <img src={cover} alt={isLocal ? album.title : album.name} className="h-full w-full object-cover transition duration-700 group-hover:scale-105" />
           </div>
@@ -332,7 +332,7 @@ export default function AlbumPage() {
           <div className="mb-2 text-sm font-bold uppercase tracking-widest text-primary">
             {isLocal ? "Álbum" : album.album_type === "single" ? "Single" : "Álbum"}
           </div>
-          <h1 className="mb-4 text-4xl font-black leading-tight md:text-5xl">{isLocal ? album.title : album.name}</h1>
+          <h1 className="mb-4 text-3xl font-black leading-tight sm:text-4xl md:text-5xl">{isLocal ? album.title : album.name}</h1>
 
           <div className="mb-4 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
             {primaryArtist ? (
@@ -340,13 +340,13 @@ export default function AlbumPage() {
                 {primaryArtist.name}
               </Link>
             ) : null}
-            <span>·</span>
+            <span className="hidden sm:inline">·</span>
             <span>{releaseYear}</span>
-            <span>·</span>
+            <span className="hidden sm:inline">·</span>
             <span>{isLocal ? album.trackCount : album.total_tracks} canciones</span>
             {!isLocal && totalDuration ? (
               <>
-                <span>·</span>
+                <span className="hidden sm:inline">·</span>
                 <span>{totalDuration} min</span>
               </>
             ) : null}
@@ -360,7 +360,7 @@ export default function AlbumPage() {
             ))}
           </div>
 
-          <div className="mb-4 flex flex-wrap items-center gap-6 rounded-2xl border border-border bg-card p-5">
+          <div className="mb-4 grid grid-cols-1 gap-5 rounded-2xl border border-border bg-card p-4 sm:grid-cols-2 sm:p-5 lg:grid-cols-3">
             <div className="flex flex-col">
               <span className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{isLocal ? "Calificación" : "Popularidad"}</span>
               {isLocal ? (
@@ -373,8 +373,6 @@ export default function AlbumPage() {
                 <PopularityBar value={album.popularity || 0} />
               )}
             </div>
-
-            <div className="hidden h-10 w-px bg-border sm:block" />
 
             <div className="flex flex-col">
               <span className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Rating en MusicDB</span>
@@ -392,8 +390,6 @@ export default function AlbumPage() {
               </div>
               {ratingsError ? <p className="mt-2 text-xs text-destructive">{ratingsError}</p> : null}
             </div>
-
-            <div className="hidden h-10 w-px bg-border sm:block" />
 
             <div className="flex flex-col">
               <span className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Tu puntuacion</span>
@@ -420,7 +416,7 @@ export default function AlbumPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-12 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-3 lg:gap-12">
         <div className="lg:col-span-2">
           <div className="mb-4 flex items-center space-x-2 border-b border-border px-4 pb-2 text-xs font-semibold uppercase tracking-widest text-muted-foreground">
             <span className="w-8 text-center">#</span>

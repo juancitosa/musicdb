@@ -100,7 +100,7 @@ export default function HomePage() {
 
   return (
     <div className="animate-in pb-12 duration-500">
-      <section className="relative mx-4 mt-4 mb-16 flex min-h-[400px] items-end overflow-hidden rounded-3xl shadow-2xl sm:mx-6 lg:mx-8">
+      <section className="relative mx-4 mt-4 mb-12 flex min-h-[380px] items-end overflow-hidden rounded-3xl shadow-2xl sm:mx-6 sm:mb-16 lg:mx-8">
         {featuredArtist ? (
           <>
             <div className="absolute inset-0">
@@ -118,12 +118,12 @@ export default function HomePage() {
                 </>
               )}
             </div>
-            <div className="relative flex max-w-2xl flex-col items-start px-6 py-16 sm:py-20 lg:px-12 lg:py-24">
-              <span className="mb-4 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/20 px-3 py-1 text-sm font-medium text-primary backdrop-blur-md">
+            <div className="relative flex max-w-2xl flex-col items-start px-5 py-10 sm:px-6 sm:py-16 lg:px-12 lg:py-24">
+              <span className="mb-4 inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/20 px-3 py-1 text-xs font-medium text-primary backdrop-blur-md sm:text-sm">
                 <Flame className="h-4 w-4" />
                 Artista destacado
               </span>
-              <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-4 text-4xl font-extrabold leading-tight text-white sm:text-5xl lg:text-7xl">
+              <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-4 text-3xl font-extrabold leading-tight text-white sm:text-5xl lg:text-7xl">
                 {featuredArtist.name}
               </motion.h1>
               <div className="mb-6 flex flex-wrap gap-2">
@@ -135,7 +135,7 @@ export default function HomePage() {
               </div>
               <Link
                 to={`/artist/${featuredArtist.id}`}
-                className="inline-flex items-center rounded-full bg-primary px-6 py-3 text-lg font-semibold text-primary-foreground shadow-lg shadow-primary/25 transition hover:scale-105 hover:bg-primary/90"
+                className="inline-flex items-center rounded-full bg-primary px-5 py-3 text-base font-semibold text-primary-foreground shadow-lg shadow-primary/25 transition hover:scale-105 hover:bg-primary/90 sm:px-6 sm:text-lg"
               >
                 <Play className="mr-2 h-5 w-5 fill-current" />
                 Ver perfil
@@ -147,7 +147,7 @@ export default function HomePage() {
         )}
       </section>
 
-      <div className="space-y-16 px-4 sm:px-6 lg:px-8">
+      <div className="space-y-14 px-4 sm:px-6 lg:px-8">
         {topArtists.length > 0 ? (
           <section>
             <SectionHeader
@@ -156,13 +156,13 @@ export default function HomePage() {
               subtitle="Descubrí artistas populares del catálogo de Spotify"
             />
             {loadingSections ? (
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 sm:gap-6">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-6 lg:grid-cols-5">
                 {Array.from({ length: 5 }).map((_, index) => (
                   <SkeletonCard key={index} />
                 ))}
               </div>
             ) : (
-              <motion.div variants={containerVariants} initial="hidden" whileInView="show" viewport={{ once: true, margin: "-100px" }} className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 sm:gap-6">
+              <motion.div variants={containerVariants} initial="hidden" whileInView="show" viewport={{ once: true, margin: "-100px" }} className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-6 lg:grid-cols-5">
                 {topArtists.map((artist) => (
                   <motion.div key={artist.id} variants={itemVariants}>
                     <SpotifyArtistCard artist={artist} />
@@ -181,10 +181,10 @@ export default function HomePage() {
         )}
 
         <section>
-          <div className="mb-6 flex items-center justify-between gap-4">
+          <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <SectionHeader icon={<Disc3 className="h-6 w-6 text-primary" />} title="Nuevos Lanzamientos" subtitle="Los álbumes más recientes del catálogo" />
             {featuredAlbums.length > newReleasesPageSize ? (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 self-end sm:self-auto">
                 <button
                   type="button"
                   onClick={() => {
@@ -211,7 +211,7 @@ export default function HomePage() {
             ) : null}
           </div>
           {loadingSections ? (
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 sm:gap-6">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-6 lg:grid-cols-5">
               {Array.from({ length: 5 }).map((_, index) => (
                 <SkeletonCard key={index} />
               ))}
@@ -226,7 +226,7 @@ export default function HomePage() {
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: newReleasesDirection > 0 ? -60 : 60 }}
                   transition={{ duration: 0.32, ease: "easeOut" }}
-                  className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 sm:gap-6"
+                  className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-6 lg:grid-cols-5"
                 >
                   {visibleAlbums.map((album) => renderAlbumCard(album))}
                 </motion.div>

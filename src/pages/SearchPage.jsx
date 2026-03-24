@@ -217,7 +217,7 @@ export default function SearchPage() {
   const visibleDiscoverArtists = discoverArtists.slice(artistCarouselIndex, artistCarouselIndex + DISCOVER_PAGE_SIZE);
 
   return (
-    <div className="animate-in px-4 py-8 duration-300 sm:px-6 lg:px-8">
+    <div className="animate-in px-4 py-6 duration-300 sm:px-6 sm:py-8 lg:px-8">
       {hasSearched ? (
         <div className="mb-8 flex flex-wrap justify-center gap-2">
           {[
@@ -228,7 +228,7 @@ export default function SearchPage() {
             <button
               key={item.id}
               onClick={() => setFilter(item.id)}
-              className={`rounded-full px-6 py-2 text-sm font-medium transition ${
+              className={`rounded-full px-4 py-2 text-sm font-medium transition sm:px-6 ${
                 filter === item.id ? "bg-primary text-primary-foreground shadow-md" : "bg-secondary text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -242,7 +242,7 @@ export default function SearchPage() {
         <div className="space-y-10">
           <div>
             <div className="mb-6 h-8 w-32 animate-pulse rounded-lg bg-secondary" />
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
               {Array.from({ length: 5 }).map((_, index) => (
                 <SkeletonCard key={index} />
               ))}
@@ -257,15 +257,15 @@ export default function SearchPage() {
         <div className="space-y-12">
           <div className="py-6 text-center">
             <Disc3 className="mx-auto mb-4 h-16 w-16 text-primary/30" />
-            <p className="text-xl text-muted-foreground">Encuentra tus artistas y albumes favoritos.</p>
+            <p className="mx-auto max-w-xl text-lg text-muted-foreground sm:text-xl">Encuentra tus artistas y albumes favoritos.</p>
           </div>
 
           {discoveryError ? <div className="rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-5 text-center text-destructive">{discoveryError}</div> : null}
 
           <motion.section initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-            <div className="mb-6 flex items-center justify-between gap-4">
+            <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <h2 className="text-2xl font-bold">Artistas para explorar</h2>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 self-end sm:self-auto">
                 <button
                   type="button"
                   onClick={() => setArtistCarouselIndex((current) => Math.max(current - DISCOVER_PAGE_SIZE, 0))}
@@ -342,7 +342,7 @@ export default function SearchPage() {
           {visibleArtists.length > 0 ? (
             <motion.section initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
               <h2 className="mb-6 text-2xl font-bold">Artistas</h2>
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5 sm:gap-6">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-6 lg:grid-cols-5">
                 {usingLocalResults
                   ? visibleArtists.map((artist) => <LocalArtistCard key={artist.id} artist={artist} />)
                   : visibleArtists.map((artist) => <SpotifyArtistCard key={artist.id} artist={artist} />)}
@@ -353,7 +353,7 @@ export default function SearchPage() {
           {visibleAlbums.length > 0 ? (
             <motion.section initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
               <h2 className="mb-6 text-2xl font-bold">Albumes</h2>
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6 sm:gap-6">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-6 lg:grid-cols-6">
                 {usingLocalResults
                   ? visibleAlbums.map((album) => <LocalAlbumCard key={album.id} album={album} compact />)
                   : visibleAlbums.map((album) => <SpotifyAlbumCard key={album.id} album={album} />)}

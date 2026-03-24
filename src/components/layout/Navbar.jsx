@@ -18,11 +18,11 @@ const navigationItems = [
 
 function Brand() {
   return (
-    <Link to="/" className="group flex items-center gap-2">
-      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary shadow-lg shadow-primary/20 transition group-hover:rotate-12">
+    <Link to="/" className="group flex min-w-0 items-center gap-2">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary shadow-lg shadow-primary/20 transition group-hover:rotate-12">
         <Disc3 className="h-5 w-5 text-primary-foreground" />
       </div>
-      <span className="font-display text-xl font-bold tracking-tight">
+      <span className="truncate font-display text-lg font-bold tracking-tight sm:text-xl">
         Music<span className="text-primary">DB</span>
       </span>
     </Link>
@@ -31,13 +31,13 @@ function Brand() {
 
 function NavLinks() {
   return (
-    <nav className="flex gap-1">
+    <nav className="flex w-max gap-1.5">
       {navigationItems.map((item) => (
         <NavLink
           key={item.path}
           to={item.path}
           className={({ isActive }) =>
-            `rounded-full px-4 py-2 text-sm font-medium transition ${
+            `shrink-0 rounded-full px-3 py-2 text-sm font-medium transition sm:px-4 ${
               isActive ? "bg-secondary text-foreground" : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
             }`
           }
@@ -48,7 +48,7 @@ function NavLinks() {
       <NavLink
         to="/dbranking"
         className={({ isActive }) =>
-          `inline-flex min-w-fit shrink-0 whitespace-nowrap rounded-full border px-4 py-2 text-sm font-semibold leading-none transition ${
+          `inline-flex min-w-fit shrink-0 whitespace-nowrap rounded-full border px-3 py-2 text-sm font-semibold leading-none transition sm:px-4 ${
             isActive
               ? "border-yellow-300/65 bg-linear-to-r from-[#231a06] via-[#1a150c] to-[#141311] text-yellow-50 shadow-[0_0_24px_rgba(250,204,21,0.16)]"
               : "border-yellow-400/38 bg-linear-to-r from-[#171206] via-[#121111] to-[#101012] text-yellow-100/95 shadow-[0_0_16px_rgba(250,204,21,0.08)] hover:-translate-y-0.5 hover:border-yellow-300/65 hover:from-[#241b08] hover:via-[#17130f] hover:to-[#141311] hover:text-yellow-50 hover:shadow-[0_0_28px_rgba(250,204,21,0.16)]"
@@ -60,7 +60,7 @@ function NavLinks() {
       <NavLink
         to="/pro"
         className={({ isActive }) =>
-          `inline-flex min-w-fit shrink-0 whitespace-nowrap rounded-full border px-4 py-2 text-sm font-semibold leading-none transition ${
+          `inline-flex min-w-fit shrink-0 whitespace-nowrap rounded-full border px-3 py-2 text-sm font-semibold leading-none transition sm:px-4 ${
             isActive
               ? "border-amber-300/65 bg-linear-to-r from-[#261807] via-[#1d1510] to-[#141311] text-amber-50 shadow-[0_0_24px_rgba(245,158,11,0.18)]"
               : "border-amber-300/40 bg-linear-to-r from-[#191106] via-[#121111] to-[#101012] text-amber-100/95 shadow-[0_0_16px_rgba(245,158,11,0.08)] hover:-translate-y-0.5 hover:border-amber-200/68 hover:from-[#251807] hover:via-[#18130f] hover:to-[#141311] hover:text-amber-50 hover:shadow-[0_0_28px_rgba(245,158,11,0.18)]"
@@ -164,7 +164,7 @@ function SearchBox() {
   }
 
   return (
-    <div data-searchbox className="relative mx-4 w-full max-w-md">
+    <div data-searchbox className="relative w-full min-w-0 max-w-full md:max-w-md">
       <form onSubmit={submitSearch} className="group relative">
         <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground transition group-focus-within:text-primary" />
         <input
@@ -178,7 +178,7 @@ function SearchBox() {
             }
           }}
           placeholder="Buscar artistas, álbumes..."
-          className="w-full rounded-full bg-secondary py-2 pr-4 pl-10 text-sm outline-none transition focus:ring-2 focus:ring-primary"
+          className="w-full min-w-0 rounded-full bg-secondary py-2 pr-4 pl-10 text-sm outline-none transition focus:ring-2 focus:ring-primary"
         />
         {isLoadingSuggestions ? <LoaderCircle className="absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 animate-spin text-primary" /> : null}
       </form>
@@ -346,8 +346,8 @@ function UserActions() {
 
                   setShowProfileMenu((current) => !current);
                 }}
-                className={`relative flex items-center rounded-full border border-white/5 bg-zinc-900 py-1.5 pr-10 pl-3 text-sm font-medium text-foreground transition hover:bg-zinc-800 ${
-                  activeTrack ? "min-w-[220px] border-white/10 bg-zinc-950/95" : ""
+                className={`relative flex max-w-[min(72vw,260px)] items-center rounded-full border border-white/5 bg-zinc-900 py-1.5 pr-10 pl-3 text-sm font-medium text-foreground transition hover:bg-zinc-800 sm:max-w-none ${
+                  activeTrack ? "border-white/10 bg-zinc-950/95 sm:min-w-[220px]" : ""
                 }`}
                 title={profileUser?.name ?? "Perfil"}
                 aria-haspopup="menu"
@@ -365,7 +365,7 @@ function UserActions() {
                       className="flex min-w-0 items-center gap-2"
                     >
                       <img src={getImageUrl(activeTrack.album?.images)} alt={activeTrack.name} className="h-7 w-7 rounded-full object-cover" />
-                      <span className="max-w-28 truncate">{activeTrack.name}</span>
+                      <span className="max-w-20 truncate sm:max-w-28">{activeTrack.name}</span>
                     </motion.div>
                   ) : (
                     <motion.div
@@ -383,7 +383,7 @@ function UserActions() {
                           <UserRound className="h-4 w-4" />
                         </div>
                       )}
-                      <span className={`max-w-28 truncate ${user?.isPro ? "pro-username pro-username-shimmer" : ""}`}>
+                      <span className={`max-w-20 truncate sm:max-w-28 ${user?.isPro ? "pro-username pro-username-shimmer" : ""}`}>
                         {profileUser?.name ?? "Mi perfil"}
                       </span>
                     </motion.div>
@@ -399,7 +399,7 @@ function UserActions() {
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -8 }}
                     transition={{ duration: 0.2, ease: "easeOut" }}
-                    className="absolute top-full left-1/2 z-50 mt-2 w-72 -translate-x-1/2 overflow-hidden rounded-2xl border border-white/12 bg-zinc-950/95 p-4 shadow-2xl shadow-black/35 ring-1 ring-white/8 backdrop-blur-xl"
+                    className="absolute top-full right-0 z-50 mt-2 w-[min(20rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-white/12 bg-zinc-950/95 p-4 shadow-2xl shadow-black/35 ring-1 ring-white/8 backdrop-blur-xl sm:left-1/2 sm:right-auto sm:w-72 sm:-translate-x-1/2"
                   >
                     <div className="flex items-center gap-3">
                       <img src={getImageUrl(activeTrack.album?.images)} alt={activeTrack.name} className="h-14 w-14 rounded-2xl object-cover" />
@@ -428,7 +428,7 @@ function UserActions() {
             </div>
 
             {showProfileMenu && !isCurrentUserLoading ? (
-              <div className="absolute right-0 z-50 mt-2 w-56 overflow-hidden rounded-2xl border border-border bg-card p-2 shadow-2xl shadow-black/25">
+              <div className="absolute right-0 z-50 mt-2 w-[min(14rem,calc(100vw-1.5rem))] overflow-hidden rounded-2xl border border-border bg-card p-2 shadow-2xl shadow-black/25 sm:w-56">
                 <Link
                   to="/profile"
                   className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm transition hover:bg-secondary"
@@ -521,7 +521,7 @@ function UserActions() {
         <AuthDialog triggerLabel="Iniciar sesión" triggerClassName="px-4 py-2 text-sm" />
       </div>
       <div className="flex items-center gap-2 md:hidden">
-        <AuthDialog triggerLabel="Entrar" triggerSize="default" triggerClassName="px-3 py-2 text-xs" />
+        <AuthDialog triggerLabel="Entrar" triggerSize="default" triggerClassName="px-2.5 py-2 text-xs" />
       </div>
     </>
   );
@@ -531,7 +531,7 @@ export default function Navbar() {
   return (
     <header className="glass-effect sticky top-0 z-50">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="flex h-16 items-center justify-between gap-4">
+        <div className="flex min-h-16 items-center justify-between gap-3 py-2 md:h-16 md:py-0">
           <Brand />
 
           <div className="hidden flex-1 items-center justify-between gap-6 md:flex">
@@ -543,7 +543,7 @@ export default function Navbar() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 md:hidden">
+          <div className="flex shrink-0 items-center gap-1.5 md:hidden">
             <ThemeToggle />
             <UserActions />
           </div>
@@ -556,7 +556,7 @@ export default function Navbar() {
                 <NavLinks />
               </div>
             </div>
-            <div className="-mx-4 px-0 sm:-mx-6 sm:px-0">
+            <div>
               <SearchBox />
             </div>
           </div>
