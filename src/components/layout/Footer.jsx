@@ -17,7 +17,7 @@ export default function Footer() {
           <Instagram className="h-4 w-4" />
         </a>
         <p className="footer-neon-text text-[11px] font-semibold tracking-[0.28em] uppercase text-white/72">
-          Beta 1.0.2
+          Beta 1.0.3
         </p>
       </div>
     </footer>

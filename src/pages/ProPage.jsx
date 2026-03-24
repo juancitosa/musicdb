@@ -219,6 +219,9 @@ export default function ProPage() {
           <p className="mt-4 max-w-2xl text-base text-white/72 sm:text-lg">
             Lleva tu experiencia musical al siguiente nivel.
           </p>
+          <p className="mt-2 text-sm font-medium text-amber-200/78">
+            Todos los precios y divisas mostrados en MusicDB PRO están expresados en ARS.
+          </p>
 
           <div className="mt-8 flex flex-wrap items-center gap-4">
             {isPro ? (
@@ -300,6 +303,9 @@ export default function ProPage() {
         <h2 className="mt-3 text-3xl font-black text-white">Haz que tu perfil se vea premium</h2>
         <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-white/68 sm:text-base">
           MusicDB PRO es la forma de destacar tu identidad musical en la app. Por ahora el flujo de pagos es placeholder, pero la experiencia visual ya está lista.
+        </p>
+        <p className="mx-auto mt-2 max-w-2xl text-xs font-medium uppercase tracking-[0.18em] text-amber-200/72">
+          Todos los importes están expresados en ARS
         </p>
         <div className="mt-6">
           {isPro ? (

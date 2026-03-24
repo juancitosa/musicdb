@@ -69,6 +69,9 @@ export default function PricingModal({
             <p className="mt-3 text-sm leading-relaxed text-white/68 sm:text-base">
               Desbloquea reseñas y puntuaciones ilimitadas, nombre dorado, estadísticas Spotify PRO y una presencia mucho más premium dentro de MusicDB.
             </p>
+            <p className="mt-2 text-xs font-medium uppercase tracking-[0.18em] text-amber-200/72">
+              Todos los importes están expresados en ARS
+            </p>
           </div>
 
           <button
