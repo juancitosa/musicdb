@@ -98,6 +98,7 @@ export default function AuthDialog({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [pendingVerificationEmail, setPendingVerificationEmail] = useState("");
+  const [isSpotifyNoticeOpen, setIsSpotifyNoticeOpen] = useState(false);
 
   useEffect(() => {
     if (!isOpen) {
@@ -108,6 +109,7 @@ export default function AuthDialog({
       setIsSubmitting(false);
       setIsResending(false);
       setPendingVerificationEmail("");
+      setIsSpotifyNoticeOpen(false);
     }
   }, [initialMode, isOpen]);
 
@@ -127,6 +129,10 @@ export default function AuthDialog({
 
     function handleEscape(event) {
       if (event.key === "Escape") {
+        if (isSpotifyNoticeOpen) {
+          setIsSpotifyNoticeOpen(false);
+          return;
+        }
         setIsOpen(false);
       }
     }
@@ -136,7 +142,7 @@ export default function AuthDialog({
       document.body.style.overflow = previousOverflow;
       document.removeEventListener("keydown", handleEscape);
     };
-  }, [isOpen]);
+  }, [isOpen, isSpotifyNoticeOpen]);
 
   function updateField(field, value) {
     setForm((current) => ({
@@ -245,7 +251,14 @@ export default function AuthDialog({
   async function handleSpotify() {
     setError("");
     setStatusMessage("");
+    setIsSpotifyNoticeOpen(false);
     await connectSpotify({ forcePrompt: true });
+  }
+
+  function handleOpenSpotifyNotice() {
+    setError("");
+    setStatusMessage("");
+    setIsSpotifyNoticeOpen(true);
   }
 
   const connectedName = spotifyUser?.name ?? "tu cuenta de Spotify";
@@ -297,7 +310,7 @@ export default function AuthDialog({
                         Mantiene el flujo actual y desbloquea top artistas, top canciones, top albumes y escuchando ahora.
                       </p>
                       {isSpotifyConnected ? <p className="mt-3 text-xs text-green-200/90">Spotify ya esta conectado como {connectedName}.</p> : null}
-                      <SpotifyConnectButton onClick={handleSpotify} disabled={isLoadingSpotify} size="lg" className="mt-5 w-full justify-center">
+                      <SpotifyConnectButton onClick={handleOpenSpotifyNotice} disabled={isLoadingSpotify} size="lg" className="mt-5 w-full justify-center">
                         {isLoadingSpotify ? "Conectando..." : isSpotifyConnected ? "Reconectar con Spotify" : "Continuar con Spotify"}
                       </SpotifyConnectButton>
                     </div>
@@ -443,6 +456,40 @@ export default function AuthDialog({
                   </div>
                 </div>
               </div>
+
+              {isSpotifyNoticeOpen ? (
+                <div
+                  className="absolute inset-0 flex items-center justify-center bg-black/35 p-4 backdrop-blur-md"
+                  onClick={() => setIsSpotifyNoticeOpen(false)}
+                >
+                  <div
+                    className="w-full max-w-lg rounded-[1.75rem] border border-white/18 bg-white/12 p-5 text-white shadow-[0_24px_80px_rgba(0,0,0,0.45)] ring-1 ring-white/12 backdrop-blur-3xl sm:p-6"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <div className="rounded-[1.35rem] border border-white/12 bg-black/18 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] sm:p-5">
+                      <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/55">Antes de iniciar sesion</p>
+                      <p className="mt-3 text-base font-semibold leading-relaxed text-white/92 sm:text-lg">
+                        MusicDB aun esta en fase Beta, por lo que solo usuarios registrados en la whitelist de MusicDB pueden iniciar sesion con Spotify.
+                      </p>
+                    </div>
+
+                    <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="lg"
+                        className="border border-white/14 bg-white/8 text-white hover:bg-white/12"
+                        onClick={() => setIsSpotifyNoticeOpen(false)}
+                      >
+                        Cancelar
+                      </Button>
+                      <SpotifyConnectButton onClick={handleSpotify} disabled={isLoadingSpotify} size="lg" className="justify-center px-6">
+                        {isLoadingSpotify ? "Conectando..." : "Iniciar sesion con Spotify"}
+                      </SpotifyConnectButton>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
             </div>,
             document.body,
           )
