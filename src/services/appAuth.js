@@ -280,11 +280,17 @@ async function ensureProfileRecord(supabase, authUser, payload = {}) {
 }
 
 export async function fetchSpotifyProfile(accessToken) {
-  const response = await fetch("https://api.spotify.com/v1/me", {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
-  });
+  let response;
+
+  try {
+    response = await fetch(`${import.meta.env.VITE_API_URL}/me`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+  } catch {
+    throw new Error("SPOTIFY_BACKEND_UNAVAILABLE");
+  }
 
   if (response.status === 401) {
     throw new Error("TOKEN_EXPIRED");

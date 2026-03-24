@@ -48,6 +48,9 @@ let cachedUserTableColumns = null;
 let mercadoPagoClient = null;
 let mercadoPagoPaymentClient = null;
 let resendClient = null;
+const SPOTIFY_CACHE_TTL_MS = 5 * 60 * 1000;
+const spotifyTopArtistsCache = Object.create(null);
+const spotifyTopAlbumsCache = Object.create(null);
 
 function isAllowedOrigin(origin) {
   if (!origin) {
@@ -112,6 +115,52 @@ function sendSpotifyEndpointError(res, error) {
   }
 
   return res.status(500).json({ error: "internal_error" });
+}
+
+function getSpotifyCacheEntry(cache, key, { allowStale = false } = {}) {
+  const entry = cache[key];
+
+  if (!entry) {
+    return null;
+  }
+
+  if (!allowStale && Date.now() > entry.expiresAt) {
+    return null;
+  }
+
+  return entry.value;
+}
+
+function setSpotifyCacheEntry(cache, key, value) {
+  cache[key] = {
+    value,
+    expiresAt: Date.now() + SPOTIFY_CACHE_TTL_MS,
+  };
+
+  return value;
+}
+
+async function getCachedSpotifyResponse(cache, key, fetcher) {
+  const freshValue = getSpotifyCacheEntry(cache, key);
+
+  if (freshValue) {
+    return freshValue;
+  }
+
+  try {
+    const value = await fetcher();
+    return setSpotifyCacheEntry(cache, key, value);
+  } catch (error) {
+    if (isSpotifyRateLimitError(error)) {
+      const cachedValue = getSpotifyCacheEntry(cache, key, { allowStale: true });
+
+      if (cachedValue) {
+        return cachedValue;
+      }
+    }
+
+    throw error;
+  }
 }
 
 function normalizeEmail(email) {
@@ -1563,6 +1612,16 @@ function getUserAccessToken(req) {
   return token;
 }
 
+function buildSpotifyCacheKey(prefix, token, params = {}) {
+  const normalizedParams = Object.entries(params)
+    .filter(([, value]) => value !== undefined && value !== null && value !== "")
+    .sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey))
+    .map(([key, value]) => `${key}:${value}`)
+    .join("|");
+
+  return `${prefix}:${token}:${normalizedParams}`;
+}
+
 async function spotifyRequest(path, { token, query } = {}) {
   try {
     const url = new URL(`${SPOTIFY_API_BASE_URL}${path}`);
@@ -1738,6 +1797,49 @@ async function getSavedTracksByArtist(token, artistId, query = {}) {
   } catch (error) {
     throw normalizeSpotifyError(error, "SPOTIFY_API_ERROR", "Failed to fetch saved tracks");
   }
+}
+
+function buildTopAlbumsFromTracksResponse(data, maxAlbums = 10) {
+  const items = data?.items ?? [];
+  const albumMap = new Map();
+
+  items.forEach((track, index) => {
+    const album = track.album;
+
+    if (!album?.id || album.album_type !== "album") {
+      return;
+    }
+
+    const weight = items.length - index;
+    const currentAlbum = albumMap.get(album.id);
+
+    if (!currentAlbum) {
+      albumMap.set(album.id, {
+        ...album,
+        _score: weight,
+        _trackCount: 1,
+      });
+      return;
+    }
+
+    albumMap.set(album.id, {
+      ...currentAlbum,
+      _score: currentAlbum._score + weight,
+      _trackCount: currentAlbum._trackCount + 1,
+    });
+  });
+
+  return {
+    items: Array.from(albumMap.values())
+      .sort((left, right) => {
+        if (right._score !== left._score) {
+          return right._score - left._score;
+        }
+
+        return right._trackCount - left._trackCount;
+      })
+      .slice(0, Math.min(Number(maxAlbums) || 10, 30)),
+  };
 }
 
 async function createMercadoPagoPreference({ user, plan }) {
@@ -2820,6 +2922,68 @@ app.get(
     try {
       const tracks = await getGlobalTrendingTracks(req.query.limit || 10);
       res.json({ tracks });
+    } catch (error) {
+      return sendSpotifyEndpointError(res, error);
+    }
+  }),
+);
+
+app.get(
+  "/api/top-artists",
+  asyncRoute(async (req, res) => {
+    try {
+      const token = getUserAccessToken(req);
+      const limit = Math.min(Number(req.query.limit) || 10, 50);
+      const timeRange = req.query.time_range || "medium_term";
+      const cacheKey = buildSpotifyCacheKey("top-artists", token, {
+        limit,
+        time_range: timeRange,
+      });
+
+      const data = await getCachedSpotifyResponse(spotifyTopArtistsCache, cacheKey, async () =>
+        spotifyRequest("/me/top/artists", {
+          token,
+          query: {
+            limit,
+            time_range: timeRange,
+          },
+        }),
+      );
+
+      res.json(data);
+    } catch (error) {
+      return sendSpotifyEndpointError(res, error);
+    }
+  }),
+);
+
+app.get(
+  "/api/top-albums",
+  asyncRoute(async (req, res) => {
+    try {
+      const token = getUserAccessToken(req);
+      const maxAlbums = Math.min(Number(req.query.limit) || 10, 30);
+      const trackLimit = Math.min(Number(req.query.track_limit) || 50, 50);
+      const timeRange = req.query.time_range || "medium_term";
+      const cacheKey = buildSpotifyCacheKey("top-albums", token, {
+        limit: maxAlbums,
+        time_range: timeRange,
+        track_limit: trackLimit,
+      });
+
+      const data = await getCachedSpotifyResponse(spotifyTopAlbumsCache, cacheKey, async () => {
+        const topTracks = await spotifyRequest("/me/top/tracks", {
+          token,
+          query: {
+            limit: trackLimit,
+            time_range: timeRange,
+          },
+        });
+
+        return buildTopAlbumsFromTracksResponse(topTracks, maxAlbums);
+      });
+
+      res.json(data);
     } catch (error) {
       return sendSpotifyEndpointError(res, error);
     }

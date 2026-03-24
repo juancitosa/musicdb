@@ -129,7 +129,7 @@ export function getCurrentUser(token) {
 }
 
 export function getTopArtists(token, limit = 10, timeRange = "medium_term") {
-  return apiFetch("/me/top-artists", {
+  return apiFetch("/top-artists", {
     token,
     query: {
       limit,
@@ -146,6 +146,19 @@ export function getTopTracks(token, limit = 10, timeRange = "medium_term") {
       time_range: timeRange,
     },
   });
+}
+
+export async function getTopAlbums(token, limit = 10, trackLimit = 50, timeRange = "medium_term") {
+  const response = await apiFetch("/top-albums", {
+    token,
+    query: {
+      limit,
+      track_limit: trackLimit,
+      time_range: timeRange,
+    },
+  });
+
+  return response.items ?? [];
 }
 
 export async function getCurrentlyPlayingTrack(token) {
@@ -298,45 +311,7 @@ export async function getFeaturedNewReleases(_token, maxPoolSize = 50) {
 }
 
 export async function getTopAlbumsFromTopTracks(token, maxAlbums = 30, trackLimit = 50, timeRange = "medium_term") {
-  const response = await getTopTracks(token, trackLimit, timeRange);
-  const tracks = response.items ?? [];
-  const albumMap = new Map();
-
-  tracks.forEach((track, index) => {
-    const album = track.album;
-
-    if (!album?.id || album.album_type !== "album") {
-      return;
-    }
-
-    const weight = trackLimit - index;
-    const current = albumMap.get(album.id);
-
-    if (!current) {
-      albumMap.set(album.id, {
-        ...album,
-        _score: weight,
-        _trackCount: 1,
-      });
-      return;
-    }
-
-    albumMap.set(album.id, {
-      ...current,
-      _score: current._score + weight,
-      _trackCount: current._trackCount + 1,
-    });
-  });
-
-  return Array.from(albumMap.values())
-    .sort((left, right) => {
-      if (right._score !== left._score) {
-        return right._score - left._score;
-      }
-
-      return right._trackCount - left._trackCount;
-    })
-    .slice(0, Math.min(maxAlbums, 30));
+  return getTopAlbums(token, maxAlbums, trackLimit, timeRange);
 }
 
 export async function getGlobalTrendingTracks(limit = 10) {
