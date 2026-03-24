@@ -2304,10 +2304,20 @@ app.patch(
   authenticateAppUser,
   asyncRoute(async (req, res) => {
     const userId = normalizeUserId(req.user_id);
+    const username = normalizeUsername(req.body?.username);
+    const phone = normalizePhone(req.body?.phone);
     const avatarUrl = normalizeAvatarUrl(req.body?.avatar_url);
 
     if (!userId) {
       throw createHttpError(400, "INVALID_PROFILE_UPDATE", "valid user_id is required");
+    }
+
+    if (req.body?.username !== undefined && !username) {
+      throw createHttpError(400, "INVALID_PROFILE_UPDATE", "username is required");
+    }
+
+    if (req.body?.phone !== undefined && req.body?.phone !== "" && phone === null) {
+      throw createHttpError(400, "INVALID_PROFILE_UPDATE", "phone must be a valid string");
     }
 
     if (req.body?.avatar_url !== undefined && !avatarUrl) {
@@ -2315,7 +2325,30 @@ app.patch(
     }
 
     const supabase = getSupabaseAdmin();
+    const userColumns = await getUserTableColumns(supabase);
     const updatePayload = {};
+
+    if (req.body?.username !== undefined) {
+      const { data: existingUsername, error: usernameError } = await supabase
+        .from("users")
+        .select("id")
+        .eq("username", username)
+        .neq("id", userId)
+        .maybeSingle();
+
+      handleSupabaseError(usernameError, "Failed to validate username uniqueness");
+
+      if (existingUsername?.id) {
+        throw createHttpError(409, "USERNAME_ALREADY_EXISTS", "That username is already in use");
+      }
+
+      updatePayload.username = username;
+      updatePayload.display_name = username;
+    }
+
+    if (req.body?.phone !== undefined && userColumns.has("phone")) {
+      updatePayload.phone = phone;
+    }
 
     if (req.body?.avatar_url !== undefined) {
       updatePayload.avatar_url = avatarUrl;

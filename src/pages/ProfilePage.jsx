@@ -9,7 +9,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useSpotifyAuth } from "../hooks/useSpotifyAuth";
 import { useToast } from "../hooks/useToast";
 import { getMockAlbum, getMockArtist } from "../services/catalog";
-import { fetchSupabaseProfile, updateAuthenticatedPassword, updateSupabaseProfile, uploadProfileAvatar } from "../services/appAuth";
+import { fetchSupabaseProfile, updateAuthenticatedPassword, updateAuthenticatedProfile, updateSupabaseProfile, uploadProfileAvatar } from "../services/appAuth";
 import { getMyRatings } from "../services/ratingHistory";
 import {
   formatTrackDuration,
@@ -974,6 +974,10 @@ export default function ProfilePage() {
         username: trimmedUsername,
         phone: trimmedPhone,
       });
+      const backendUser = await updateAuthenticatedProfile(appToken, {
+        username: trimmedUsername,
+        phone: trimmedPhone,
+      });
 
       if (trimmedPassword) {
         await updateAuthenticatedPassword(trimmedPassword);
@@ -981,18 +985,18 @@ export default function ProfilePage() {
 
       setAuthenticatedUser({
         ...user,
-        username: profile?.username ?? trimmedUsername,
-        phone: profile?.phone ?? trimmedPhone,
-        avatar_url: profile?.avatar_url ?? user.avatar ?? "",
-        avatar: profile?.avatar_url ?? user.avatar ?? "",
-        display_name: profile?.username ?? trimmedUsername,
-        displayName: profile?.username ?? trimmedUsername,
-        name: profile?.username ?? trimmedUsername,
+        username: backendUser?.username ?? profile?.username ?? trimmedUsername,
+        phone: backendUser?.phone ?? profile?.phone ?? trimmedPhone,
+        avatar_url: backendUser?.avatar_url ?? profile?.avatar_url ?? user.avatar ?? "",
+        avatar: backendUser?.avatar_url ?? profile?.avatar_url ?? user.avatar ?? "",
+        display_name: backendUser?.display_name ?? profile?.username ?? trimmedUsername,
+        displayName: backendUser?.display_name ?? profile?.username ?? trimmedUsername,
+        name: backendUser?.display_name ?? profile?.username ?? trimmedUsername,
       });
       setProfileForm((current) => ({
         ...current,
-        username: profile?.username ?? trimmedUsername,
-        phone: profile?.phone ?? trimmedPhone,
+        username: backendUser?.username ?? profile?.username ?? trimmedUsername,
+        phone: backendUser?.phone ?? profile?.phone ?? trimmedPhone,
         password: "",
       }));
 

@@ -573,6 +573,15 @@ export async function updateSupabaseProfile(userId, payload) {
   return data;
 }
 
+export async function updateAuthenticatedProfile(sessionToken, payload) {
+  if (!sessionToken) {
+    throw new Error("APP_AUTH_REQUIRED");
+  }
+
+  const response = await patchAuthenticatedRequest("/auth/profile", sessionToken, payload);
+  return response?.user ?? null;
+}
+
 export async function uploadProfileAvatar(userId, file, sessionToken) {
   const supabase = getSupabaseClient();
 
