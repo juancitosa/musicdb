@@ -310,40 +310,38 @@ export async function registerLocalUser(payload) {
     throw new Error(error.message || "APP_AUTH_ERROR");
   }
 
-  if (!data?.user) {
-    throw new Error("No se pudo crear la cuenta");
-  }
-
-  const { error: insertError } = await supabase.from("users").insert({
-    id: data.user.id,
-    email: data.user.email,
-    username: sanitizedPayload.username || null,
-    created_at: new Date().toISOString(),
-  });
-
-  if (insertError) {
-    console.error(insertError);
-
-    await ensureUserTableRecord(supabase, data.user, {
-      email: sanitizedPayload.email,
-      username: sanitizedPayload.username,
+  if (data?.user?.id) {
+    const { error: insertError } = await supabase.from("users").insert({
+      id: data.user.id,
+      email: data.user.email,
+      username: sanitizedPayload.username || null,
+      created_at: new Date().toISOString(),
     });
-  }
 
-  const { error: profileInsertError } = await supabase.from("profiles").insert({
-    id: data.user.id,
-    username: sanitizedPayload.username || "usuario",
-    phone: "",
-    avatar_url: "",
-    created_at: new Date().toISOString(),
-    is_admin: false,
-  });
+    if (insertError) {
+      console.error(insertError);
 
-  if (profileInsertError) {
-    console.error(profileInsertError);
-    await ensureProfileRecord(supabase, data.user, {
-      username: sanitizedPayload.username,
+      await ensureUserTableRecord(supabase, data.user, {
+        email: sanitizedPayload.email,
+        username: sanitizedPayload.username,
+      });
+    }
+
+    const { error: profileInsertError } = await supabase.from("profiles").insert({
+      id: data.user.id,
+      username: sanitizedPayload.username || "usuario",
+      phone: "",
+      avatar_url: "",
+      created_at: new Date().toISOString(),
+      is_admin: false,
     });
+
+    if (profileInsertError) {
+      console.error(profileInsertError);
+      await ensureProfileRecord(supabase, data.user, {
+        username: sanitizedPayload.username,
+      });
+    }
   }
 
   return data;
