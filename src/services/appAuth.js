@@ -229,7 +229,7 @@ export async function registerLocalUser(payload) {
   });
 
   if (error) {
-    console.error("SIGNUP ERROR:", error);
+    console.error(error);
 
     if (error.status === 429) {
       throw new Error("TOO_MANY_SIGNUP_ATTEMPTS");
@@ -250,7 +250,7 @@ export async function registerLocalUser(payload) {
   });
 
   if (insertError) {
-    console.error("Insert user error:", insertError);
+    console.error(insertError);
 
     await ensureUserTableRecord(supabase, data.user, {
       email: sanitizedPayload.email,
