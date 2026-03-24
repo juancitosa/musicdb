@@ -1954,6 +1954,30 @@ function buildEnrichedRankingEntry(entityType, ranking, entity) {
   };
 }
 
+function buildFallbackRankingEntity(entityType, entityId) {
+  if (entityType === "artist") {
+    const cacheKey = buildSpotifyCacheKey("artist", entityId, { market: "US" });
+    const cachedArtist = getSpotifyCacheEntry(spotifyArtistCache, cacheKey, { allowStale: true });
+    return cachedArtist ?? null;
+  }
+
+  const cacheKey = buildSpotifyCacheKey("album", entityId, { market: "US" });
+  const cachedAlbum = getSpotifyCacheEntry(spotifyAlbumCache, cacheKey, { allowStale: true });
+  return cachedAlbum ?? null;
+}
+
+async function getFallbackEnrichedRankings(supabase, entityType, limit = 10) {
+  const rankings = await getRankingsSummary(supabase, entityType, limit);
+
+  return rankings.map((ranking) =>
+    buildEnrichedRankingEntry(
+      entityType,
+      ranking,
+      buildFallbackRankingEntity(entityType, String(ranking.entity_id)),
+    ),
+  );
+}
+
 async function getEnrichedRankings(supabase, entityType, limit = 10) {
   const rankings = await getRankingsSummary(supabase, entityType, limit);
 
@@ -2954,10 +2978,10 @@ app.delete(
 app.get(
   "/api/rankings/:entity_type/enriched",
   asyncRoute(async (req, res) => {
-    try {
-      const entityType = normalizeEntityType(req.params.entity_type);
-      const limit = Math.min(Math.max(Number(req.query.limit) || 10, 1), 20);
+    const entityType = normalizeEntityType(req.params.entity_type);
+    const limit = Math.min(Math.max(Number(req.query.limit) || 10, 1), 20);
 
+    try {
       if (!entityType) {
         throw createHttpError(400, "INVALID_ENTITY_TYPE", "entity_type must be artist or album");
       }
@@ -2970,15 +2994,18 @@ app.get(
 
       res.json(rankings);
     } catch (error) {
+      const supabase = getSupabaseAdmin();
+
       if (isSpotifyRateLimitError(error)) {
-        const entityType = normalizeEntityType(req.params.entity_type);
-        const limit = Math.min(Math.max(Number(req.query.limit) || 10, 1), 20);
         const cacheKey = buildSpotifyCacheKey("rankings-enriched", entityType, { limit });
         const cachedRankings = getSpotifyCacheEntry(spotifyEnrichedRankingsCache, cacheKey, { allowStale: true });
 
         if (cachedRankings) {
           return res.json(cachedRankings);
         }
+
+        const fallbackRankings = await getFallbackEnrichedRankings(supabase, entityType, limit);
+        return res.json(fallbackRankings);
       }
 
       return sendSpotifyEndpointError(res, error);
