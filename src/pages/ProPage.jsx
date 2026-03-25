@@ -62,10 +62,10 @@ const benefitCards = [
 ];
 
 const pricingPlans = [
-  { id: "1m", label: "1 Mes", price: 10, months: 1, discountLabel: "-", isRecommended: false },
-  { id: "3m", label: "3 Meses", price: 9000, months: 3, discountLabel: "~15% off", isRecommended: false },
-  { id: "6m", label: "6 Meses", price: 15000, months: 6, discountLabel: "~28% off", isRecommended: true },
-  { id: "12m", label: "12 Meses", price: 24000, months: 12, discountLabel: "~43% off", isRecommended: false },
+  { id: "1m", label: "1 Mes", price: 5000, months: 1, discountLabel: "-", isRecommended: false },
+  { id: "3m", label: "3 Meses", price: 13000, months: 3, discountLabel: "~13% off", isRecommended: false },
+  { id: "6m", label: "6 Meses", price: 24000, months: 6, discountLabel: "~20% off", isRecommended: true },
+  { id: "12m", label: "12 Meses", price: 45000, months: 12, discountLabel: "~25% off", isRecommended: false },
 ];
 
 function FeatureList({ items, accent = "text-foreground" }) {

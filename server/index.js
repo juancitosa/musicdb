@@ -28,10 +28,10 @@ const PUBLIC_API_URL = process.env.PUBLIC_API_URL || process.env.BACKEND_PUBLIC_
 const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
 const EMAIL_VERIFICATION_TTL_HOURS = Math.max(Number(process.env.EMAIL_VERIFICATION_TTL_HOURS || 24), 1);
 const PRO_SUBSCRIPTION_PLANS = {
-  "1m": { price: 10, months: 1, title: "MusicDB PRO - 1 mes" },
-  "3m": { price: 9000, months: 3, title: "MusicDB PRO - 3 meses" },
-  "6m": { price: 15000, months: 6, title: "MusicDB PRO - 6 meses" },
-  "12m": { price: 24000, months: 12, title: "MusicDB PRO - 12 meses" },
+  "1m": { price: 5000, months: 1, title: "MusicDB PRO - 1 mes" },
+  "3m": { price: 13000, months: 3, title: "MusicDB PRO - 3 meses" },
+  "6m": { price: 24000, months: 6, title: "MusicDB PRO - 6 meses" },
+  "12m": { price: 45000, months: 12, title: "MusicDB PRO - 12 meses" },
 };
 const ALLOWED_ORIGINS = new Set([
   "http://localhost:5173",
