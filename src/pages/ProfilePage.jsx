@@ -110,6 +110,7 @@ function normalizeRatingEntry(rating, entity) {
       href: `/artist/${rating.entity_id}`,
       ratingValue: rating.rating_value,
       updatedAt: rating.updated_at,
+      isHydrated: Boolean(entity),
     };
   }
 
@@ -123,6 +124,7 @@ function normalizeRatingEntry(rating, entity) {
     href: `/album/${rating.entity_id}`,
     ratingValue: rating.rating_value,
     updatedAt: rating.updated_at,
+    isHydrated: Boolean(entity),
   };
 }
 
@@ -518,9 +520,47 @@ function ProfileOverview({
           <div className="rounded-2xl border border-dashed border-border bg-secondary/40 p-6 text-sm text-destructive">{historyError}</div>
         ) : filteredEntries.length > 0 ? (
           <div className="space-y-3">
-            {filteredEntries.map((entry) => (
-              <RatingHistoryCard key={entry.id} entry={entry} />
-            ))}
+            {filteredEntries.some((entry) => !entry.isHydrated) ? (
+              <div className="overflow-hidden rounded-2xl border border-amber-300/14 bg-[linear-gradient(135deg,rgba(245,158,11,0.08),rgba(255,255,255,0.03))] p-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-100/80">Sincronizando historial</p>
+                    <p className="mt-1 text-sm text-muted-foreground">Vamos completando nombres e imagenes a medida que llegan.</p>
+                  </div>
+                  <div className="text-right text-xs text-amber-100/85">
+                    {filteredEntries.filter((entry) => entry.isHydrated).length}/{filteredEntries.length}
+                  </div>
+                </div>
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/8">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{
+                      width: `${Math.max(
+                        (filteredEntries.filter((entry) => entry.isHydrated).length / Math.max(filteredEntries.length, 1)) * 100,
+                        8,
+                      )}%`,
+                    }}
+                    transition={{ duration: 0.35, ease: "easeOut" }}
+                    className="h-full rounded-full bg-[linear-gradient(90deg,rgba(245,158,11,0.78),rgba(255,255,255,0.88))]"
+                  />
+                </div>
+              </div>
+            ) : null}
+
+            <AnimatePresence initial={false}>
+              {filteredEntries.map((entry) => (
+                <motion.div
+                  key={entry.id}
+                  layout
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.2, ease: "easeOut" }}
+                >
+                  <RatingHistoryCard entry={entry} />
+                </motion.div>
+              ))}
+            </AnimatePresence>
           </div>
         ) : (
           <EmptySpotifyState
