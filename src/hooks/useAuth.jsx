@@ -49,9 +49,9 @@ function mergeProfileIntoUser(user, profile) {
     return user;
   }
 
-  const username = profile.username ?? user.username ?? "";
-  const phone = profile.phone ?? user.phone ?? "";
-  const avatar = profile.avatar_url ?? user.avatar ?? "";
+  const username = user.username?.trim() || profile.username || "";
+  const phone = user.phone?.trim() || profile.phone || "";
+  const avatar = user.avatar?.trim() || profile.avatar_url || "";
   const displayName = username || user.displayName || user.name || "MusicDB User";
 
   return normalizeUser({

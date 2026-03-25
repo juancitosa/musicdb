@@ -758,9 +758,9 @@ export default function ProfilePage() {
           return;
         }
 
-        const nextUsername = profile.username ?? user.username ?? "";
-        const nextPhone = profile.phone ?? "";
-        const nextAvatar = profile.avatar_url ?? user.avatar ?? "";
+        const nextUsername = user.username?.trim() || profile.username || "";
+        const nextPhone = user.phone?.trim() || profile.phone || "";
+        const nextAvatar = user.avatar?.trim() || profile.avatar_url || "";
 
         if (nextUsername === (user.username ?? "") && nextPhone === (user.phone ?? "") && nextAvatar === (user.avatar ?? "")) {
           return;
