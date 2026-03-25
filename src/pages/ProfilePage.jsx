@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, NavLink, useLocation, useNavigate } from "react-router-dom";
 
 import SectionHeader from "../components/shared/SectionHeader";
+import SpotifyConnectButton from "../components/shared/SpotifyConnectButton";
 import Button from "../components/ui/Button";
 import { useAuth } from "../hooks/useAuth";
 import { useSpotifyAuth } from "../hooks/useSpotifyAuth";
@@ -170,6 +171,7 @@ function RatingHistoryCard({ entry }) {
 
 function SpotifyFeatureLock({ isSpotifyUser, isPro, onUnlock }) {
   const buttonLabel = !isSpotifyUser && isPro ? "Conectarse a Spotify" : "Pagar PRO para desbloquear";
+  const showSpotifyButton = !isSpotifyUser && isPro;
   const message = !isSpotifyUser
     ? "Inicia sesión con Spotify para habilitar tus estadísticas personales."
     : "Hazte MusicDB PRO para desbloquear tus tops personales.";
@@ -197,14 +199,20 @@ function SpotifyFeatureLock({ isSpotifyUser, isPro, onUnlock }) {
         </div>
       </div>
       <div className="mt-6">
-        <Button
-          type="button"
-          size="lg"
-          onClick={onUnlock}
-          className="rounded-full border border-amber-300/40 bg-amber-300/12 text-amber-100 shadow-[0_0_28px_rgba(245,158,11,0.12)] transition hover:bg-amber-300/18"
-        >
-          {buttonLabel}
-        </Button>
+        {showSpotifyButton ? (
+          <SpotifyConnectButton type="button" size="lg" onClick={onUnlock} className="justify-center px-6">
+            Continuar con Spotify
+          </SpotifyConnectButton>
+        ) : (
+          <Button
+            type="button"
+            size="lg"
+            onClick={onUnlock}
+            className="rounded-full border border-amber-300/40 bg-amber-300/12 text-amber-100 shadow-[0_0_28px_rgba(245,158,11,0.12)] transition hover:bg-amber-300/18"
+          >
+            {buttonLabel}
+          </Button>
+        )}
       </div>
     </section>
   );
