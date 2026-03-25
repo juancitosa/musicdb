@@ -168,7 +168,7 @@ function RatingHistoryCard({ entry }) {
   );
 }
 
-function SpotifyFeatureLock({ isSpotifyUser, onUnlock }) {
+function SpotifyFeatureLock({ isSpotifyUser, isPro, onUnlock }) {
   const message = !isSpotifyUser
     ? "Inicia sesión con Spotify para habilitar tus estadísticas personales."
     : "Hazte MusicDB PRO para desbloquear tus tops personales.";
@@ -202,7 +202,7 @@ function SpotifyFeatureLock({ isSpotifyUser, onUnlock }) {
           onClick={onUnlock}
           className="rounded-full border border-amber-300/40 bg-amber-300/12 text-amber-100 shadow-[0_0_28px_rgba(245,158,11,0.12)] transition hover:bg-amber-300/18"
         >
-          Pagar PRO para desbloquear
+          {buttonLabel}
         </Button>
       </div>
     </section>
@@ -267,6 +267,8 @@ function mapPasswordUpdateError(errorCode) {
 }
 
 function PreviewGrid({ imageUrl, zoom = 1, offsetX = 0, offsetY = 0, shape = "square", aspectClassName = "" }) {
+  const buttonLabel = !isSpotifyUser && isPro ? "Conectarse a Spotify" : "Pagar PRO para desbloquear";
+
   return (
     <div className={`relative overflow-hidden border border-white/12 bg-black/30 ${shape === "circle" ? "rounded-full" : "rounded-[1.2rem]"} ${aspectClassName}`}>
       {imageUrl ? (
@@ -1000,7 +1002,9 @@ function ProfileStats({
   hasSpotifyStatsAccess,
   isLoadingSpotifyStats,
   isSpotifyUser,
+  isPro,
   navigate,
+  onConnectSpotify,
   selectedRange,
   setSelectedRange,
   spotifyTopAlbums,
@@ -1008,7 +1012,7 @@ function ProfileStats({
   spotifyTopTracks,
 }) {
   if (!hasSpotifyStatsAccess) {
-    return <SpotifyFeatureLock isSpotifyUser={isSpotifyUser} onUnlock={() => navigate("/pro")} />;
+    return <SpotifyFeatureLock isSpotifyUser={isSpotifyUser} isPro={isPro} onUnlock={!isSpotifyUser && isPro ? onConnectSpotify : () => navigate("/pro")} />;
   }
 
   return (
@@ -1088,7 +1092,7 @@ export default function ProfilePage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
-  const { isSpotifyConnected, isLoadingSpotify, spotifyToken, spotifyUser } = useSpotifyAuth();
+  const { isSpotifyConnected, isLoadingSpotify, spotifyToken, spotifyUser, connectSpotify } = useSpotifyAuth();
   const profileUser = isSpotifyUser ? (spotifyUser ?? user) : user;
   const hasSpotifyFeatures = isSpotifyUser && isSpotifyConnected;
   const hasSpotifyStatsAccess = hasSpotifyFeatures && Boolean(user?.isPro) && Boolean(spotifyToken);
@@ -1888,7 +1892,9 @@ export default function ProfilePage() {
           hasSpotifyStatsAccess={hasSpotifyStatsAccess}
           isLoadingSpotifyStats={isLoadingSpotifyStats}
           isSpotifyUser={isSpotifyUser}
+          isPro={Boolean(user?.isPro)}
           navigate={navigate}
+          onConnectSpotify={() => connectSpotify({ forcePrompt: true })}
           selectedRange={statsRange}
           setSelectedRange={setStatsRange}
           spotifyTopAlbums={spotifyTopAlbums}
