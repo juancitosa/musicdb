@@ -3,7 +3,7 @@ import dotenv from "dotenv";
 import express from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { randomBytes, randomUUID } from "node:crypto";
+import { createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { MercadoPagoConfig, Payment } from "mercadopago";
 import { Resend } from "resend";
 import { createClient } from "@supabase/supabase-js";
@@ -22,6 +22,7 @@ const SPOTIFY_API_BASE_URL = "https://api.spotify.com/v1";
 const SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token";
 const MERCADO_PAGO_API_BASE_URL = "https://api.mercadopago.com";
 const MERCADO_PAGO_ACCESS_TOKEN = process.env.MP_ACCESS_TOKEN || process.env.MERCADO_PAGO_ACCESS_TOKEN;
+const MERCADO_PAGO_WEBHOOK_SECRET = process.env.MP_WEBHOOK_SECRET || process.env.MERCADO_PAGO_WEBHOOK_SECRET || "";
 const PUBLIC_APP_URL = process.env.PUBLIC_APP_URL || "https://musicdb.online";
 const PUBLIC_API_URL = process.env.PUBLIC_API_URL || process.env.BACKEND_PUBLIC_URL || "https://musicdb-backend.onrender.com";
 const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
@@ -48,6 +49,7 @@ let cachedUserTableColumns = null;
 let mercadoPagoClient = null;
 let mercadoPagoPaymentClient = null;
 let resendClient = null;
+let mercadoPagoWebhookSecretWarningLogged = false;
 const SPOTIFY_CACHE_TTL_MS = 5 * 60 * 1000;
 const spotifyTopArtistsCache = Object.create(null);
 const spotifyTopAlbumsCache = Object.create(null);
@@ -419,6 +421,19 @@ function getMercadoPagoPaymentClient() {
   }
 
   return mercadoPagoPaymentClient;
+}
+
+function hasMercadoPagoWebhookSecret() {
+  return Boolean(MERCADO_PAGO_WEBHOOK_SECRET);
+}
+
+function warnMissingMercadoPagoWebhookSecret() {
+  if (mercadoPagoWebhookSecretWarningLogged || hasMercadoPagoWebhookSecret()) {
+    return;
+  }
+
+  mercadoPagoWebhookSecretWarningLogged = true;
+  console.warn("[payments:webhook] Mercado Pago webhook secret is not configured; signature validation is disabled");
 }
 
 function hasResendConfig() {
@@ -2497,6 +2512,82 @@ function extractMercadoPagoPaymentId(req) {
   };
 }
 
+function parseMercadoPagoSignatureHeader(signatureHeader) {
+  if (typeof signatureHeader !== "string" || !signatureHeader.trim()) {
+    return null;
+  }
+
+  return signatureHeader
+    .split(",")
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+    .reduce((parts, segment) => {
+      const [key, value] = segment.split("=");
+
+      if (key && value) {
+        parts[key.trim().toLowerCase()] = value.trim();
+      }
+
+      return parts;
+    }, {});
+}
+
+function getMercadoPagoWebhookRequestId(req) {
+  const headerValue = req.headers["x-request-id"];
+  return typeof headerValue === "string" ? headerValue.trim() : null;
+}
+
+function buildMercadoPagoWebhookManifest({ paymentId, requestId, timestamp }) {
+  return `id:${paymentId};request-id:${requestId};ts:${timestamp};`;
+}
+
+function secureCompareHex(left, right) {
+  if (
+    typeof left !== "string" ||
+    typeof right !== "string" ||
+    left.length === 0 ||
+    right.length === 0 ||
+    left.length !== right.length ||
+    left.length % 2 !== 0 ||
+    right.length % 2 !== 0
+  ) {
+    return false;
+  }
+
+  try {
+    return timingSafeEqual(Buffer.from(left, "hex"), Buffer.from(right, "hex"));
+  } catch {
+    return false;
+  }
+}
+
+function validateMercadoPagoWebhookSignature(req, paymentId) {
+  if (!hasMercadoPagoWebhookSecret()) {
+    warnMissingMercadoPagoWebhookSecret();
+    return;
+  }
+
+  const signatureParts = parseMercadoPagoSignatureHeader(req.headers["x-signature"]);
+  const requestId = getMercadoPagoWebhookRequestId(req);
+  const timestamp = signatureParts?.ts;
+  const receivedSignature = signatureParts?.v1?.toLowerCase();
+
+  if (!paymentId || !requestId || !timestamp || !receivedSignature) {
+    throw createHttpError(401, "MERCADO_PAGO_SIGNATURE_MISSING", "Mercado Pago webhook signature is missing");
+  }
+
+  const manifest = buildMercadoPagoWebhookManifest({
+    paymentId,
+    requestId,
+    timestamp,
+  });
+  const expectedSignature = createHmac("sha256", MERCADO_PAGO_WEBHOOK_SECRET).update(manifest).digest("hex");
+
+  if (!secureCompareHex(expectedSignature, receivedSignature)) {
+    throw createHttpError(401, "MERCADO_PAGO_SIGNATURE_INVALID", "Mercado Pago webhook signature is invalid");
+  }
+}
+
 function isApprovedMercadoPagoPayment(payment) {
   return payment?.status === "approved";
 }
@@ -2534,6 +2625,110 @@ function buildNextProUntil(currentProUntil, months = 1) {
   return new Date(baseTime + daysToAdd * 24 * 60 * 60 * 1000).toISOString();
 }
 
+function isUniqueViolationError(error) {
+  return error?.code === "23505";
+}
+
+function isProcessedPaymentsTableMissingError(error) {
+  return isMissingRelationError(error) || error?.message?.toLowerCase().includes("processed_payments");
+}
+
+async function reserveProcessedPaymentRecord(supabase, { paymentId, userId, purchasedMonths, payment }) {
+  const { data, error } = await supabase
+    .from("processed_payments")
+    .insert({
+      payment_id: paymentId,
+      user_id: userId,
+      payment_status: "processing",
+      purchased_months: purchasedMonths,
+      payload_json: payment,
+    })
+    .select("id, payment_id, payment_status, user_id, purchased_months, pro_until, updated_at")
+    .single();
+
+  if (!error) {
+    return {
+      record: data,
+      duplicate: false,
+    };
+  }
+
+  if (isProcessedPaymentsTableMissingError(error)) {
+    throw createHttpError(
+      500,
+      "MERCADO_PAGO_PROCESSED_PAYMENTS_SCHEMA_MISSING",
+      "Missing processed_payments table required for payment idempotency",
+    );
+  }
+
+  if (!isUniqueViolationError(error)) {
+    handleSupabaseError(error, "Failed to reserve processed payment record");
+  }
+
+  const { data: existingRecord, error: existingRecordError } = await supabase
+    .from("processed_payments")
+    .select("id, payment_id, payment_status, user_id, purchased_months, pro_until, updated_at")
+    .eq("payment_id", paymentId)
+    .maybeSingle();
+
+  if (isProcessedPaymentsTableMissingError(existingRecordError)) {
+    throw createHttpError(
+      500,
+      "MERCADO_PAGO_PROCESSED_PAYMENTS_SCHEMA_MISSING",
+      "Missing processed_payments table required for payment idempotency",
+    );
+  }
+
+  handleSupabaseError(existingRecordError, "Failed to fetch processed payment record");
+
+  return {
+    record: existingRecord ?? null,
+    duplicate: true,
+  };
+}
+
+async function markProcessedPaymentRecordApplied(supabase, paymentId, { nextProUntil, payment }) {
+  const { error } = await supabase
+    .from("processed_payments")
+    .update({
+      payment_status: "applied",
+      pro_until: nextProUntil,
+      payload_json: payment,
+      error_code: null,
+      error_message: null,
+    })
+    .eq("payment_id", paymentId);
+
+  if (isProcessedPaymentsTableMissingError(error)) {
+    throw createHttpError(
+      500,
+      "MERCADO_PAGO_PROCESSED_PAYMENTS_SCHEMA_MISSING",
+      "Missing processed_payments table required for payment idempotency",
+    );
+  }
+
+  handleSupabaseError(error, "Failed to mark payment as applied");
+}
+
+async function markProcessedPaymentRecordFailed(supabase, paymentId, error) {
+  const { error: updateError } = await supabase
+    .from("processed_payments")
+    .update({
+      payment_status: "failed",
+      error_code: error?.code ?? "INTERNAL_ERROR",
+      error_message: error?.message ?? "Unknown payment processing error",
+    })
+    .eq("payment_id", paymentId);
+
+  if (updateError) {
+    console.error("[payments:webhook] Failed to mark payment as failed", {
+      paymentId,
+      errorCode: updateError.code ?? null,
+      errorMessage: updateError.message ?? "Unknown update error",
+    });
+  }
+}
+
 async function activateProFromMercadoPagoPayment(paymentId) {
   const paymentClient = getMercadoPagoPaymentClient();
   const payment = await paymentClient.get({
@@ -2563,23 +2758,68 @@ async function activateProFromMercadoPagoPayment(paymentId) {
   }
 
   const supabase = getSupabaseAdmin();
-  const currentUser = await getUserById(supabase, userId);
-  const nextProUntil = buildNextProUntil(currentUser?.pro_until, purchasedMonths);
-  const updatedUser = await updateUserProStatus(supabase, userId, nextProUntil);
-
-  console.log("[payments:webhook] PRO activated", {
-    userId,
+  const reservation = await reserveProcessedPaymentRecord(supabase, {
     paymentId,
-    months: purchasedMonths,
-    pro_until: nextProUntil,
+    userId,
+    purchasedMonths,
+    payment,
   });
 
-  return {
-    acknowledged: true,
-    approved: true,
-    payment,
-    user: mapUserRecord(updatedUser),
-  };
+  if (reservation.duplicate) {
+    if (reservation.record?.payment_status === "applied") {
+      console.log("[payments:webhook] Duplicate approved payment ignored", {
+        paymentId,
+        userId,
+        existingProUntil: reservation.record.pro_until ?? null,
+      });
+
+      const user = await getUserById(supabase, userId);
+
+      return {
+        acknowledged: true,
+        approved: true,
+        duplicate: true,
+        payment,
+        user: mapUserRecord(user),
+      };
+    }
+
+    throw createHttpError(
+      409,
+      "MERCADO_PAGO_PAYMENT_ALREADY_PROCESSING",
+      "Mercado Pago payment is already being processed",
+    );
+  }
+
+  const currentUser = await getUserById(supabase, userId);
+  let nextProUntil = null;
+
+  try {
+    nextProUntil = buildNextProUntil(currentUser?.pro_until, purchasedMonths);
+    const updatedUser = await updateUserProStatus(supabase, userId, nextProUntil);
+    await markProcessedPaymentRecordApplied(supabase, paymentId, {
+      nextProUntil,
+      payment,
+    });
+
+    console.log("[payments:webhook] PRO activated", {
+      userId,
+      paymentId,
+      months: purchasedMonths,
+      pro_until: nextProUntil,
+    });
+
+    return {
+      acknowledged: true,
+      approved: true,
+      duplicate: false,
+      payment,
+      user: mapUserRecord(updatedUser),
+    };
+  } catch (error) {
+    await markProcessedPaymentRecordFailed(supabase, paymentId, error);
+    throw error;
+  }
 }
 
 function asyncRoute(handler) {
@@ -2786,11 +3026,14 @@ app.post(
       throw createHttpError(400, "MERCADO_PAGO_PAYMENT_ID_MISSING", "Mercado Pago webhook is missing payment id");
     }
 
+    validateMercadoPagoWebhookSignature(req, paymentId);
+
     const result = await activateProFromMercadoPagoPayment(paymentId);
 
     res.status(200).json({
       received: true,
       approved: result.approved,
+      duplicate: Boolean(result.duplicate),
       user_id: result.user?.id ?? null,
       pro_until: result.user?.pro_until ?? null,
     });
