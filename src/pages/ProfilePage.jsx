@@ -308,7 +308,6 @@ function LocalProfileSettings({
           <p className="mt-2 text-sm text-muted-foreground">Puedes cambiar tu nombre de usuario, agregar o editar tu telefono y actualizar la contrasena.</p>
         </div>
         <div className="mt-4">
-          <span className="inline-flex rounded-full bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Solo cuenta local</span>
         </div>
       </div>
 
@@ -323,7 +322,7 @@ function LocalProfileSettings({
 
         <div className="min-w-0 flex-1">
           <p className="text-center text-sm font-semibold text-foreground sm:text-left">Foto de perfil</p>
-          <p className="mt-1 text-center text-xs leading-relaxed text-muted-foreground sm:text-left">Sube una imagen JPG o PNG. Primero veras la preview y despues podras guardarla en Supabase Storage.</p>
+          <p className="mt-1 text-center text-xs leading-relaxed text-muted-foreground sm:text-left">Sube una imagen JPG o PNG. Maximo 5 MB.</p>
           {pendingAvatarName ? <p className="mt-2 text-center text-xs font-medium text-primary sm:text-left">Preview lista: {pendingAvatarName}</p> : null}
         </div>
 
