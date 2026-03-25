@@ -1227,17 +1227,21 @@ export default function ProfilePage() {
     try {
       await verifyCurrentAuthenticatedPassword(user.email, currentPassword);
       await updateAuthenticatedPassword(newPassword);
-      setPasswordForm({
-        currentPassword: "",
-        newPassword: "",
-        repeatPassword: "",
-      });
       setPasswordSaveStatus({ type: "success" });
-      setIsPasswordModalOpen(false);
       toast({
         title: "Contrasena actualizada",
         description: "Tu nueva contrasena ya quedo guardada.",
       });
+      window.setTimeout(() => {
+        setPasswordForm({
+          currentPassword: "",
+          newPassword: "",
+          repeatPassword: "",
+        });
+        setPasswordSaveStatus(null);
+        setIsPasswordModalOpen(false);
+        setIsEditProfileOpen(false);
+      }, 3000);
     } catch (error) {
       setPasswordSaveError(mapPasswordUpdateError(error?.message));
       setPasswordSaveStatus({ type: "error" });
