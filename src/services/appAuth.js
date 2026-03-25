@@ -141,10 +141,12 @@ async function ensureUserTableRecord(supabase, authUser, payload = {}) {
   }
 
   const email = payload.email?.trim().toLowerCase() || authUser.email?.trim().toLowerCase() || "";
-  const username = payload.username?.trim() || authUser.user_metadata?.username?.trim() || "";
-  const displayName = username || email.split("@")[0] || "MusicDB User";
   const existingById = await findUserRecord(supabase, "id", authUser.id);
   const existingByEmail = await findUserRecord(supabase, "email", email);
+  const requestedUsername = payload.username?.trim() || "";
+  const metadataUsername = authUser.user_metadata?.username?.trim() || "";
+  const username = requestedUsername || existingById?.username || metadataUsername || "";
+  const displayName = username || email.split("@")[0] || "MusicDB User";
 
   if (existingByEmail && existingByEmail.id !== authUser.id) {
     throw new Error("EMAIL_ALREADY_EXISTS");
@@ -226,8 +228,10 @@ async function ensureProfileRecord(supabase, authUser, payload = {}) {
     return null;
   }
 
-  const username = payload.username?.trim() || authUser.user_metadata?.username?.trim() || "";
   const existingProfile = await findProfileRecord(supabase, authUser.id);
+  const requestedUsername = payload.username?.trim() || "";
+  const metadataUsername = authUser.user_metadata?.username?.trim() || "";
+  const username = requestedUsername || existingProfile?.username || metadataUsername || "";
 
   if (existingProfile) {
     const nextPayload = {};

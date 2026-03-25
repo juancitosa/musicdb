@@ -745,8 +745,8 @@ async function ensureSupabaseAuthUserRecord(supabase, authUser) {
   const payload = {
     id: authUser.id,
     email,
-    username: metadataUsername || sourceUser?.username || email.split("@")[0],
-    display_name: metadataUsername || sourceUser?.display_name || email.split("@")[0] || "MusicDB User",
+    username: sourceUser?.username || metadataUsername || email.split("@")[0],
+    display_name: sourceUser?.display_name || sourceUser?.username || metadataUsername || email.split("@")[0] || "MusicDB User",
     auth_provider: "local",
     is_verified: Boolean(authUser.email_confirmed_at),
     verified_at: authUser.email_confirmed_at ?? null,
@@ -803,7 +803,7 @@ async function ensureSupabaseAuthUserRecord(supabase, authUser) {
   }
 
   await ensureSupabaseProfileRecord(supabase, authUser, {
-    username: metadataUsername || user?.username,
+    username: user?.username || metadataUsername,
   });
 
   return syncExpiredProStatusIfNeeded(supabase, user);
