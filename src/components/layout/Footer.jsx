@@ -13,7 +13,7 @@ export default function Footer() {
     <footer className="border-t border-white/8 bg-background/72 px-4 py-5 backdrop-blur-md sm:px-6 lg:px-8">
       <div className="mx-auto flex max-w-7xl flex-col gap-3 text-center sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:text-left">
         <p className="footer-neon-text text-xs font-medium tracking-[0.22em] uppercase text-white/88">
-          MusicDB Copyright - Todos los derechos reservados 2026
+          {"MusicDB \u00A9 Todos los derechos reservados 2026"}
         </p>
         <div className="footer-neon-text inline-flex items-center justify-center gap-3 text-[11px] font-semibold tracking-[0.18em] uppercase text-white/78 sm:justify-start">
           <span>Siguenos en nuestras redes!</span>
@@ -37,7 +37,7 @@ export default function Footer() {
           </a>
         </div>
         <p className="footer-neon-text text-[11px] font-semibold tracking-[0.28em] uppercase text-white/72">
-          Beta 1.0.3
+          Beta 1.0.4
         </p>
       </div>
     </footer>
