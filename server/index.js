@@ -448,6 +448,7 @@ function mapUserRecord(user) {
     display_name: user.display_name,
     avatar_url: user.avatar_url,
     auth_provider: user.auth_provider,
+    is_admin: Boolean(user.is_admin),
     is_verified: Boolean(user.is_verified ?? user.auth_provider === "spotify"),
     verified_at: user.verified_at ?? null,
     is_pro: isProActive,
@@ -569,6 +570,10 @@ async function buildUserSelect(supabase, { includePasswordHash = false } = {}) {
 
   if (columns.has("is_pro")) {
     selectedColumns.push("is_pro");
+  }
+
+  if (columns.has("is_admin")) {
+    selectedColumns.push("is_admin");
   }
 
   if (columns.has("pro_until")) {
