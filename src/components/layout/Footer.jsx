@@ -37,7 +37,7 @@ export default function Footer() {
           </a>
         </div>
         <p className="footer-neon-text text-[11px] font-semibold tracking-[0.28em] uppercase text-white/72">
-          Beta 1.0.4
+          Beta 1.0.5
         </p>
       </div>
     </footer>
