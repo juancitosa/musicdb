@@ -19,6 +19,7 @@ const proFeatures = [
   "Todo lo anterior",
   "Badge PRO con estrella",
   "Nombre dorado en reviews",
+  "Banner de perfil exclusivo",
   "Prioridad en rankings",
   "Reviews destacadas",
   "Mis estadísticas de Spotify",
@@ -43,6 +44,11 @@ const benefitCards = [
     icon: <Gem className="h-5 w-5" />,
     title: "Reviews destacadas",
     description: "Tus reviews se muestran con un estilo especial para resaltar tu suscripcion.",
+  },
+  {
+    icon: <Sparkles className="h-5 w-5" />,
+    title: "Banner de perfil PRO",
+    description: "Personaliza tu perfil con un banner exclusivo que se ve en tu cabecera y refuerza tu identidad dentro de MusicDB.",
   },
   {
     icon: <Sparkles className="h-5 w-5" />,
@@ -100,6 +106,7 @@ export default function ProPage() {
         description: "Tus beneficios:",
         items: [
           "Username en dorado con estrella.",
+          "Banner de perfil exclusivo.",
           "Mayor visibilidad en rankings.",
           "Reviews destacadas.",
           "Reseñas y puntuaciones ilimitadas.",
@@ -217,7 +224,7 @@ export default function ProPage() {
           </span>
           <h1 className="mt-6 text-4xl font-black tracking-tight text-white sm:text-5xl">MusicDB PRO</h1>
           <p className="mt-4 max-w-2xl text-base text-white/72 sm:text-lg">
-            Lleva tu experiencia musical al siguiente nivel.
+            Lleva tu experiencia musical al siguiente nivel con identidad premium, banner exclusivo y beneficios pensados para destacar dentro de MusicDB.
           </p>
           <p className="mt-2 text-sm font-medium text-amber-200/78">
             Todos los precios y divisas mostrados en MusicDB PRO están expresados en ARS.
@@ -302,7 +309,7 @@ export default function ProPage() {
         <p className="text-sm font-semibold uppercase tracking-[0.26em] text-amber-200/78">Upgrade</p>
         <h2 className="mt-3 text-3xl font-black text-white">Haz que tu perfil se vea premium</h2>
         <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-white/68 sm:text-base">
-          MusicDB PRO es la forma de destacar tu identidad musical en la app. Por ahora el flujo de pagos es placeholder, pero la experiencia visual ya está lista.
+          MusicDB PRO es la forma de destacar tu identidad musical en la app con nombre dorado, banner exclusivo y presencia premium en toda la comunidad.
         </p>
         <p className="mx-auto mt-2 max-w-2xl text-xs font-medium uppercase tracking-[0.18em] text-amber-200/72">
           Todos los importes están expresados en ARS
