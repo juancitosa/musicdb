@@ -26,7 +26,7 @@ const REDIRECT_URI = getRedirectUri();
 const TOKEN_KEY = "spotify_auth_session";
 const CODE_VERIFIER_KEY = "spotify_code_verifier";
 const API_BASE_URL = import.meta.env.VITE_API_URL;
-const BACKEND_WAKEUP_URL = `${API_BASE_URL}/api`;
+const BACKEND_WAKEUP_URL = API_BASE_URL ? API_BASE_URL.replace(/\/+$/, "") : "";
 const SCOPES = [
   "user-top-read",
   "user-read-private",

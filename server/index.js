@@ -17,7 +17,7 @@ const SPOTIFY_CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY =
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
-const APP_JWT_SECRET = process.env.APP_JWT_SECRET || "musicdb-local-dev-secret";
+const APP_JWT_SECRET = process.env.APP_JWT_SECRET || "";
 const SPOTIFY_API_BASE_URL = "https://api.spotify.com/v1";
 const SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token";
 const MERCADO_PAGO_API_BASE_URL = "https://api.mercadopago.com";
@@ -377,6 +377,12 @@ function ensureSpotifyCredentials() {
   }
 }
 
+function ensureAppJwtSecret() {
+  if (!APP_JWT_SECRET) {
+    throw createHttpError(500, "APP_JWT_SECRET_MISSING", "App JWT secret is not configured");
+  }
+}
+
 function getSupabaseAdmin() {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
     throw createHttpError(500, "SUPABASE_CONFIG_MISSING", "Supabase credentials are not configured");
@@ -433,6 +439,22 @@ function getResendClient() {
 
 function generateEmailVerificationToken() {
   return randomBytes(32).toString("hex");
+}
+
+function maskEmail(email) {
+  if (typeof email !== "string") {
+    return null;
+  }
+
+  const normalizedEmail = email.trim();
+
+  if (!normalizedEmail.includes("@")) {
+    return "***";
+  }
+
+  const [localPart, domain] = normalizedEmail.split("@");
+  const visibleLocalPart = localPart.slice(0, 2);
+  return `${visibleLocalPart || "*"}***@${domain}`;
 }
 
 function buildEmailVerificationUrl(token) {
@@ -776,14 +798,12 @@ async function sendVerificationEmail({ email, username, token, expiresAt }) {
 
   if (!resend) {
     console.log("[auth] Resend not configured, email verification link generated", {
-      email,
-      verificationLink,
+      email: maskEmail(email),
       expiresAt,
     });
 
     return {
       delivered: false,
-      verificationUrl: verificationLink,
     };
   }
 
@@ -824,7 +844,6 @@ async function sendVerificationEmail({ email, username, token, expiresAt }) {
 
   return {
     delivered: true,
-    verificationUrl: verificationLink,
   };
 }
 
@@ -851,8 +870,7 @@ async function issueVerificationEmail(supabase, user) {
 
   console.log("[auth:register] Verification link prepared", {
     userId: user.id,
-    email: user.email,
-    verificationUrl,
+    email: maskEmail(user.email),
     delivery: delivery.delivered ? "smtp" : "logged",
   });
 
@@ -1015,6 +1033,8 @@ async function updateUserForSpotify(supabase, user, { displayName, avatarUrl }) 
 }
 
 function createAppSessionToken(user) {
+  ensureAppJwtSecret();
+
   return jwt.sign(
     {
       sub: user.id,
@@ -1028,6 +1048,7 @@ function createAppSessionToken(user) {
 }
 
 function verifyAppSessionToken(token) {
+  ensureAppJwtSecret();
   return jwt.verify(token, APP_JWT_SECRET);
 }
 
@@ -2612,12 +2633,14 @@ async function handleLocalRegister(req, res) {
     verification_email_sent: true,
     verification_expires_at: verification.expiresAt ?? null,
     verification_delivery: verification.delivery?.delivered ? "smtp" : "logged",
-    verification_url: verification.delivery?.delivered ? null : verification.delivery?.verificationUrl ?? null,
   });
 }
 
 async function handleResendVerificationEmail(req, res) {
   const email = normalizeEmail(req.body?.email);
+  const successPayload = {
+    success: true,
+  };
 
   if (!email) {
     return res.status(400).json({
@@ -2649,23 +2672,15 @@ async function handleResendVerificationEmail(req, res) {
     }
 
     if (!user?.id) {
-      return res.status(404).json({
-        success: false,
-        error: "Usuario no encontrado",
-      });
+      return res.json(successPayload);
     }
 
     if (user.auth_provider !== "local") {
-      return res.status(400).json({
-        success: false,
-        error: "La cuenta no admite verificacion por email",
-      });
+      return res.json(successPayload);
     }
 
     if (user.is_verified) {
-      return res.json({
-        success: true,
-      });
+      return res.json(successPayload);
     }
 
     console.log("[auth:verify-email:resend] Resending verification email", {
@@ -2683,9 +2698,7 @@ async function handleResendVerificationEmail(req, res) {
 
     await markVerificationEmailSent(supabase, user.id);
 
-    return res.json({
-      success: true,
-    });
+    return res.json(successPayload);
   } catch (error) {
     console.error("[auth:verify-email:resend] Resend verification failed", {
       email,
@@ -2856,7 +2869,6 @@ app.get("/api/auth/verify-email", async (req, res) => {
 
     if (!userId) {
       console.error("[auth:verify-email] Invalid UUID in email verification token", {
-        token,
         userId: verificationRecord.user_id ?? null,
       });
       res.status(500).json({
@@ -2884,7 +2896,6 @@ app.get("/api/auth/verify-email", async (req, res) => {
     });
   } catch (error) {
     console.error("[auth:verify-email] Verification failed", {
-      token,
       errorCode: error?.code ?? null,
       errorMessage: error?.message ?? "Unknown verification error",
     });
