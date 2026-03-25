@@ -26,40 +26,54 @@ export default function HomePage() {
   const [featuredAlbums, setFeaturedAlbums] = useState([]);
   const [newReleasesPage, setNewReleasesPage] = useState(0);
   const [newReleasesDirection, setNewReleasesDirection] = useState(1);
-  const [loadingSections, setLoadingSections] = useState(false);
+  const [loadingArtists, setLoadingArtists] = useState(false);
+  const [loadingAlbums, setLoadingAlbums] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
-    async function loadHome() {
-      setLoadingSections(true);
-      setNewReleasesPage(0);
-
+    async function loadArtists() {
+      setLoadingArtists(true);
       try {
-        const [artistsResponse, albumResponse] = await Promise.all([
-          getFeaturedArtists(),
-          getFeaturedNewReleases(null, 50),
-        ]);
+        const artistsResponse = await getFeaturedArtists();
 
-        if (cancelled) {
-          return;
+        if (!cancelled) {
+          setTopArtists((artistsResponse ?? []).slice(0, 10));
         }
-
-        setTopArtists((artistsResponse ?? []).slice(0, 10));
-        setFeaturedAlbums(albumResponse ?? []);
       } catch {
         if (!cancelled) {
           setTopArtists([]);
-          setFeaturedAlbums([]);
         }
       } finally {
         if (!cancelled) {
-          setLoadingSections(false);
+          setLoadingArtists(false);
         }
       }
     }
 
-    loadHome();
+    async function loadAlbums() {
+      setLoadingAlbums(true);
+      setNewReleasesPage(0);
+
+      try {
+        const albumResponse = await getFeaturedNewReleases(null, 50);
+
+        if (!cancelled) {
+          setFeaturedAlbums(albumResponse ?? []);
+        }
+      } catch {
+        if (!cancelled) {
+          setFeaturedAlbums([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingAlbums(false);
+        }
+      }
+    }
+
+    loadArtists();
+    loadAlbums();
 
     return () => {
       cancelled = true;
@@ -148,28 +162,33 @@ export default function HomePage() {
       </section>
 
       <div className="space-y-14 px-4 sm:px-6 lg:px-8">
-        {topArtists.length > 0 ? (
+        {loadingArtists ? (
           <section>
             <SectionHeader
               icon={<Flame className="h-6 w-6 text-primary" />}
               title="Artistas Populares"
               subtitle="Descubrí artistas populares del catálogo de Spotify"
             />
-            {loadingSections ? (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-6 lg:grid-cols-5">
-                {Array.from({ length: 5 }).map((_, index) => (
-                  <SkeletonCard key={index} />
-                ))}
-              </div>
-            ) : (
-              <motion.div variants={containerVariants} initial="hidden" whileInView="show" viewport={{ once: true, margin: "-100px" }} className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-6 lg:grid-cols-5">
-                {topArtists.map((artist) => (
-                  <motion.div key={artist.id} variants={itemVariants}>
-                    <SpotifyArtistCard artist={artist} />
-                  </motion.div>
-                ))}
-              </motion.div>
-            )}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-6 lg:grid-cols-5">
+              {Array.from({ length: 5 }).map((_, index) => (
+                <SkeletonCard key={index} />
+              ))}
+            </div>
+          </section>
+        ) : topArtists.length > 0 ? (
+          <section>
+            <SectionHeader
+              icon={<Flame className="h-6 w-6 text-primary" />}
+              title="Artistas Populares"
+              subtitle="Descubrí artistas populares del catálogo de Spotify"
+            />
+            <motion.div variants={containerVariants} initial="hidden" whileInView="show" viewport={{ once: true, margin: "-100px" }} className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-6 lg:grid-cols-5">
+              {topArtists.map((artist) => (
+                <motion.div key={artist.id} variants={itemVariants}>
+                  <SpotifyArtistCard artist={artist} />
+                </motion.div>
+              ))}
+            </motion.div>
           </section>
         ) : (
           <section>
@@ -210,7 +229,7 @@ export default function HomePage() {
               </div>
             ) : null}
           </div>
-          {loadingSections ? (
+          {loadingAlbums ? (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-6 lg:grid-cols-5">
               {Array.from({ length: 5 }).map((_, index) => (
                 <SkeletonCard key={index} />
