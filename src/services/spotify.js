@@ -1,7 +1,9 @@
 import { clearStoredSpotifySession } from "./spotifyAuth";
 
 const ENTITY_REQUEST_DELAY_MS = 400;
+const HOME_CACHE_TTL_MS = 60_000;
 let entityRequestQueue = Promise.resolve();
+const memoryCache = new Map();
 
 function delay(ms) {
   return new Promise((resolve) => {
@@ -20,6 +22,77 @@ function enqueueEntityRequest(task) {
 
   entityRequestQueue = nextRequest.catch(() => undefined);
   return nextRequest;
+}
+
+function readSessionCache(key) {
+  if (typeof window === "undefined" || !window.sessionStorage) {
+    return null;
+  }
+
+  try {
+    const rawValue = window.sessionStorage.getItem(key);
+
+    if (!rawValue) {
+      return null;
+    }
+
+    const parsedValue = JSON.parse(rawValue);
+
+    if (!parsedValue?.expiresAt || Date.now() >= parsedValue.expiresAt) {
+      window.sessionStorage.removeItem(key);
+      return null;
+    }
+
+    return parsedValue.value ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function writeSessionCache(key, value, ttlMs) {
+  if (typeof window === "undefined" || !window.sessionStorage) {
+    return;
+  }
+
+  try {
+    window.sessionStorage.setItem(
+      key,
+      JSON.stringify({
+        value,
+        expiresAt: Date.now() + ttlMs,
+      }),
+    );
+  } catch {
+    // Ignore cache write failures.
+  }
+}
+
+async function getCachedValue(key, resolver, ttlMs = HOME_CACHE_TTL_MS) {
+  const cachedEntry = memoryCache.get(key);
+
+  if (cachedEntry && Date.now() < cachedEntry.expiresAt) {
+    return cachedEntry.value;
+  }
+
+  const sessionValue = readSessionCache(key);
+
+  if (sessionValue !== null) {
+    memoryCache.set(key, {
+      value: sessionValue,
+      expiresAt: Date.now() + ttlMs,
+    });
+    return sessionValue;
+  }
+
+  const value = await resolver();
+
+  memoryCache.set(key, {
+    value,
+    expiresAt: Date.now() + ttlMs,
+  });
+  writeSessionCache(key, value, ttlMs);
+
+  return value;
 }
 
 async function apiFetch(path, { token, query } = {}) {
@@ -264,18 +337,20 @@ const FEATURED_ARTIST_GENRES = [
 ];
 
 export async function getFeaturedArtists(_token, maxPoolSize = 50, minPopularity = 80) {
-  const seededArtists = await Promise.all(
-    FEATURED_ARTIST_GENRES.map((genre) => searchArtists(genre, null, 10)),
-  );
+  return getCachedValue(`home:featured-artists:${maxPoolSize}:${minPopularity}`, async () => {
+    const seededArtists = await Promise.all(
+      FEATURED_ARTIST_GENRES.map((genre) => searchArtists(genre, null, 10)),
+    );
 
-  const uniqueArtists = new Map();
-  seededArtists.flat().forEach((artist) => {
-    if ((artist.popularity ?? 0) >= minPopularity && !uniqueArtists.has(artist.id)) {
-      uniqueArtists.set(artist.id, artist);
-    }
+    const uniqueArtists = new Map();
+    seededArtists.flat().forEach((artist) => {
+      if ((artist.popularity ?? 0) >= minPopularity && !uniqueArtists.has(artist.id)) {
+        uniqueArtists.set(artist.id, artist);
+      }
+    });
+
+    return shuffleArray(Array.from(uniqueArtists.values())).slice(0, Math.min(maxPoolSize, 50));
   });
-
-  return shuffleArray(Array.from(uniqueArtists.values())).slice(0, Math.min(maxPoolSize, 50));
 }
 
 export async function getDiscoverArtists(_token, limit = 30, minPopularity = 50) {
@@ -284,26 +359,28 @@ export async function getDiscoverArtists(_token, limit = 30, minPopularity = 50)
 }
 
 export async function getFeaturedNewReleases(_token, maxPoolSize = 50) {
-  const limit = Math.min(maxPoolSize, 50);
-  const minimumYear = 2026;
-  const [newReleasesResponse, searchedAlbums] = await Promise.all([
-    getNewReleases(null, limit),
-    searchAlbums(`year:${minimumYear}`, null, limit),
-  ]);
+  return getCachedValue(`home:featured-releases:${maxPoolSize}`, async () => {
+    const limit = Math.min(maxPoolSize, 50);
+    const minimumYear = 2026;
+    const [newReleasesResponse, searchedAlbums] = await Promise.all([
+      getNewReleases(null, limit),
+      searchAlbums(`year:${minimumYear}`, null, limit),
+    ]);
 
-  const uniqueAlbums = new Map();
+    const uniqueAlbums = new Map();
 
-  [...(newReleasesResponse.albums?.items ?? []), ...(searchedAlbums ?? [])].forEach((album) => {
-    const releaseYear = getReleaseYear(album);
+    [...(newReleasesResponse.albums?.items ?? []), ...(searchedAlbums ?? [])].forEach((album) => {
+      const releaseYear = getReleaseYear(album);
 
-    if (!album?.id || album.album_type !== "album" || !Number.isFinite(releaseYear) || releaseYear < minimumYear || uniqueAlbums.has(album.id)) {
-      return;
-    }
+      if (!album?.id || album.album_type !== "album" || !Number.isFinite(releaseYear) || releaseYear < minimumYear || uniqueAlbums.has(album.id)) {
+        return;
+      }
 
-    uniqueAlbums.set(album.id, album);
+      uniqueAlbums.set(album.id, album);
+    });
+
+    return Array.from(uniqueAlbums.values()).sort(sortAlbumsByNewest).slice(0, limit);
   });
-
-  return Array.from(uniqueAlbums.values()).sort(sortAlbumsByNewest).slice(0, limit);
 }
 
 export async function getTopAlbumsFromTopTracks(token, maxAlbums = 30, trackLimit = 50, timeRange = "medium_term") {
