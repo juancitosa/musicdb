@@ -280,7 +280,7 @@ export function AuthProvider({ children }) {
         const nextCurrentUser = await fetchCurrentUserByEmail(user.email);
 
         if (!cancelled) {
-          setCurrentUser(nextCurrentUser);
+          setCurrentUser(normalizeUser(nextCurrentUser));
         }
       } catch {
         if (!cancelled) {

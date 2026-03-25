@@ -449,7 +449,7 @@ function UserActions() {
                     <p className="text-xs text-muted-foreground">Tus tops personales de Spotify</p>
                   </div>
                 </Link>
-                {currentUser?.is_admin === true ? (
+                {currentUser?.isAdmin === true ? (
                   <Link
                     to="/admin"
                     className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm transition hover:bg-secondary"

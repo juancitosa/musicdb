@@ -329,7 +329,7 @@ export default function AdminPanel() {
       return;
     }
 
-    if (!currentUser?.is_admin) {
+    if (!currentUser?.isAdmin) {
       setIsFetchingUsers(false);
       return;
     }
@@ -400,7 +400,7 @@ export default function AdminPanel() {
     return () => {
       cancelled = true;
     };
-  }, [appliedFilters, currentUser?.is_admin, isCurrentUserLoading, page]);
+  }, [appliedFilters, currentUser?.isAdmin, isCurrentUserLoading, page]);
 
   function updateFilter(key, value) {
     setFilters((current) => ({
@@ -478,7 +478,7 @@ export default function AdminPanel() {
     );
   }
 
-  if (!isLoggedIn || !currentUser?.is_admin) {
+  if (!isLoggedIn || !currentUser?.isAdmin) {
     return <Navigate to="/" replace />;
   }
 

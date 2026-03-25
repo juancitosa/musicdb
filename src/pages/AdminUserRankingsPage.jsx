@@ -89,7 +89,7 @@ export default function AdminUserRankingsPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (isCurrentUserLoading || !currentUser?.is_admin || !userId) {
+    if (isCurrentUserLoading || !currentUser?.isAdmin || !userId) {
       return;
     }
 
@@ -114,12 +114,18 @@ export default function AdminUserRankingsPage() {
           throw ratingsError;
         }
 
-        const hydratedEntries = [];
-
-        for (const rating of ratingsData ?? []) {
-          const entity = await getEntityDetails(rating);
-          hydratedEntries.push(normalizeRatingEntry(rating, entity));
-        }
+        const hydratedEntries = (
+          await Promise.all(
+            (ratingsData ?? []).map(async (rating) => {
+              try {
+                const entity = await getEntityDetails(rating);
+                return normalizeRatingEntry(rating, entity);
+              } catch {
+                return normalizeRatingEntry(rating, null);
+              }
+            }),
+          )
+        ).filter(Boolean);
 
         if (!cancelled) {
           setUserRecord(userData ?? null);
@@ -141,7 +147,7 @@ export default function AdminUserRankingsPage() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser?.is_admin, isCurrentUserLoading, userId]);
+  }, [currentUser?.isAdmin, isCurrentUserLoading, userId]);
 
   const groupedEntries = useMemo(
     () => ({
@@ -162,7 +168,7 @@ export default function AdminUserRankingsPage() {
     );
   }
 
-  if (!isLoggedIn || !currentUser?.is_admin) {
+  if (!isLoggedIn || !currentUser?.isAdmin) {
     return <Navigate to="/" replace />;
   }
 

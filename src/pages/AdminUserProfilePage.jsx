@@ -30,7 +30,7 @@ export default function AdminUserProfilePage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (isCurrentUserLoading || !currentUser?.is_admin || !userId) {
+    if (isCurrentUserLoading || !currentUser?.isAdmin || !userId) {
       return;
     }
 
@@ -67,7 +67,7 @@ export default function AdminUserProfilePage() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser?.is_admin, isCurrentUserLoading, userId]);
+  }, [currentUser?.isAdmin, isCurrentUserLoading, userId]);
 
   if (isLoading || isCurrentUserLoading) {
     return (
@@ -80,7 +80,7 @@ export default function AdminUserProfilePage() {
     );
   }
 
-  if (!isLoggedIn || !currentUser?.is_admin) {
+  if (!isLoggedIn || !currentUser?.isAdmin) {
     return <Navigate to="/" replace />;
   }
 

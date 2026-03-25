@@ -766,23 +766,34 @@ export default function ProfilePage() {
 
       try {
         const ratings = await getMyRatings(appToken);
-        const hydratedEntries = [];
-
-        for (const rating of ratings) {
-          const entity = await getEntityDetails(rating);
-          hydratedEntries.push(normalizeRatingEntry(rating, entity));
-        }
 
         if (!cancelled) {
-          setHistoryEntries(hydratedEntries);
+          setHistoryEntries(ratings.map((rating) => normalizeRatingEntry(rating, null)));
+          setIsLoadingHistory(false);
+        }
+
+        for (const rating of ratings) {
+          try {
+            const entity = await getEntityDetails(rating);
+
+            if (cancelled) {
+              return;
+            }
+
+            const hydratedEntry = normalizeRatingEntry(rating, entity);
+            setHistoryEntries((currentEntries) =>
+              currentEntries.map((entry) => (entry.id === hydratedEntry.id ? hydratedEntry : entry)),
+            );
+          } catch {
+            if (cancelled) {
+              return;
+            }
+          }
         }
       } catch {
         if (!cancelled) {
           setHistoryEntries([]);
           setHistoryError("No se pudo cargar tu historial de ratings.");
-        }
-      } finally {
-        if (!cancelled) {
           setIsLoadingHistory(false);
         }
       }
