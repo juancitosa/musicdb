@@ -704,7 +704,7 @@ export default function ArtistPage() {
                       <button
                         type="button"
                         onClick={() => handleOpenUserPreview(review)}
-                        className="flex min-w-0 items-start gap-3 text-left transition hover:opacity-90"
+                        className="flex min-w-0 cursor-pointer items-start gap-3 text-left transition hover:opacity-90"
                       >
                         {review.avatar_url ? (
                           <img src={review.avatar_url} alt={review.username} className="h-10 w-10 shrink-0 rounded-full object-cover" />

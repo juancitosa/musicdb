@@ -47,7 +47,7 @@ export default function UserPreviewModal({ isOpen, isLoading, user, onClose }) {
           {user?.banner_url ? (
             <>
               <img src={user.banner_url} alt={`Banner de ${user.username}`} className="h-full w-full object-cover" />
-              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,7,10,0.08),rgba(7,7,10,0.48),rgba(7,7,10,0.82))]" />
+              <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,7,10,0.04)_0%,rgba(7,7,10,0.18)_26%,rgba(7,7,10,0.56)_68%,rgba(7,7,10,0.94)_100%)]" />
             </>
           ) : (
             <div
