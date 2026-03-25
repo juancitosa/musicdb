@@ -9,7 +9,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useSpotifyAuth } from "../hooks/useSpotifyAuth";
 import { useToast } from "../hooks/useToast";
 import { getMockAlbum, getMockArtist } from "../services/catalog";
-import { fetchSupabaseProfile, updateAuthenticatedPassword, updateAuthenticatedProfile, updateSupabaseProfile, uploadProfileAvatar } from "../services/appAuth";
+import { fetchSupabaseProfile, updateAuthenticatedPassword, updateAuthenticatedProfile, updateSupabaseProfile, uploadProfileAvatar, verifyCurrentAuthenticatedPassword } from "../services/appAuth";
 import { getMyRatings } from "../services/ratingHistory";
 import {
   formatTrackDuration,
@@ -257,6 +257,15 @@ function mapProfileUpdateError(errorCode) {
   }
 }
 
+function mapPasswordUpdateError(errorCode) {
+  switch (errorCode) {
+    case "CURRENT_PASSWORD_INVALID":
+      return "La contrasena actual no es correcta.";
+    default:
+      return "No pudimos cambiar la contrasena.";
+  }
+}
+
 function LocalProfileSettings({
   avatarUrl,
   form,
@@ -270,6 +279,7 @@ function LocalProfileSettings({
   isUploadingAvatar,
   isSaving,
   isSpotifyUser,
+  onOpenPasswordModal,
 }) {
   if (isSpotifyUser) {
     return (
@@ -305,7 +315,7 @@ function LocalProfileSettings({
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-primary/80">Editar perfil</p>
           <h2 className="mt-2 text-2xl font-black text-foreground sm:text-[2rem]">Datos de acceso</h2>
-          <p className="mt-2 text-sm text-muted-foreground">Puedes cambiar tu nombre de usuario, agregar o editar tu telefono y actualizar la contrasena.</p>
+          <p className="mt-2 text-sm text-muted-foreground">Puedes cambiar tu nombre de usuario, agregar o editar tu telefono desde este panel.</p>
         </div>
         <div className="mt-4">
         </div>
@@ -375,17 +385,16 @@ function LocalProfileSettings({
           />
         </div>
 
-        <div className="md:col-span-2">
-          <label className="mb-2 block text-sm font-medium text-foreground">Nueva contrasena</label>
-          <input
-            type="password"
-            value={form.password}
-            onChange={(event) => onChange("password", event.target.value)}
-            autoComplete="new-password"
-            className="w-full rounded-2xl border border-white/10 bg-black/18 px-4 py-3 text-sm outline-none transition focus:border-primary"
-            placeholder="Deja este campo vacio si no quieres cambiarla"
-          />
-          <p className="mt-2 text-xs text-muted-foreground">Si escribes una nueva contrasena, debe tener al menos 6 caracteres.</p>
+        <div className="md:col-span-2 flex justify-start">
+          <Button
+            type="button"
+            variant="ghost"
+            size="lg"
+            className="rounded-full border border-white/10 bg-white/6 text-foreground hover:bg-white/10"
+            onClick={onOpenPasswordModal}
+          >
+            Cambiar contrasena
+          </Button>
         </div>
 
         {saveError ? <p className="md:col-span-2 rounded-2xl border border-destructive/25 bg-destructive/8 px-4 py-3 text-sm text-destructive">{saveError}</p> : null}
@@ -402,6 +411,93 @@ function LocalProfileSettings({
               </span>
             ) : (
               "Guardar cambios"
+            )}
+          </Button>
+        </div>
+      </form>
+    </section>
+  );
+}
+
+function LocalPasswordSettings({
+  form,
+  onChange,
+  onClose,
+  onSubmit,
+  saveError,
+  isSaving,
+}) {
+  return (
+    <section className="relative w-full max-w-2xl overflow-hidden rounded-[2rem] border border-white/14 bg-[linear-gradient(135deg,rgba(255,255,255,0.18),rgba(255,255,255,0.06))] p-5 shadow-[0_30px_120px_rgba(0,0,0,0.4)] ring-1 ring-white/10 backdrop-blur-3xl sm:p-7">
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute top-5 right-5 inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-black/20 text-muted-foreground transition hover:bg-white/12 hover:text-foreground"
+        aria-label="Cerrar editor de contrasena"
+      >
+        <X className="h-4 w-4" />
+      </button>
+
+      <div className="pr-14">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-primary/80">Seguridad</p>
+        <h2 className="mt-2 text-2xl font-black text-foreground sm:text-[2rem]">Cambiar contrasena</h2>
+        <p className="mt-2 text-sm text-muted-foreground">Confirma tu contrasena actual y elige una nueva clave para tu cuenta MusicDB.</p>
+      </div>
+
+      <form onSubmit={onSubmit} className="mt-6 grid gap-4">
+        <div>
+          <label className="mb-2 block text-sm font-medium text-foreground">Contrasena actual</label>
+          <input
+            type="password"
+            value={form.currentPassword}
+            onChange={(event) => onChange("currentPassword", event.target.value)}
+            autoComplete="current-password"
+            className="w-full rounded-2xl border border-white/10 bg-black/18 px-4 py-3 text-sm outline-none transition focus:border-primary"
+            placeholder="Tu contrasena actual"
+            required
+          />
+        </div>
+
+        <div>
+          <label className="mb-2 block text-sm font-medium text-foreground">Nueva contrasena</label>
+          <input
+            type="password"
+            value={form.newPassword}
+            onChange={(event) => onChange("newPassword", event.target.value)}
+            autoComplete="new-password"
+            className="w-full rounded-2xl border border-white/10 bg-black/18 px-4 py-3 text-sm outline-none transition focus:border-primary"
+            placeholder="Minimo 6 caracteres"
+            required
+          />
+        </div>
+
+        <div>
+          <label className="mb-2 block text-sm font-medium text-foreground">Repetir nueva contrasena</label>
+          <input
+            type="password"
+            value={form.repeatPassword}
+            onChange={(event) => onChange("repeatPassword", event.target.value)}
+            autoComplete="new-password"
+            className="w-full rounded-2xl border border-white/10 bg-black/18 px-4 py-3 text-sm outline-none transition focus:border-primary"
+            placeholder="Repite la nueva contrasena"
+            required
+          />
+        </div>
+
+        {saveError ? <p className="rounded-2xl border border-destructive/25 bg-destructive/8 px-4 py-3 text-sm text-destructive">{saveError}</p> : null}
+
+        <div className="flex flex-col-reverse gap-3 pt-1 sm:flex-row sm:justify-end">
+          <Button type="button" variant="ghost" size="lg" className="w-full border border-white/10 bg-white/6 text-foreground hover:bg-white/10 sm:w-auto" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button type="submit" size="lg" className="w-full justify-center rounded-full px-6 sm:w-auto" disabled={isSaving}>
+            {isSaving ? (
+              <span className="inline-flex items-center gap-2">
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+                Guardando...
+              </span>
+            ) : (
+              "Guardar contrasena"
             )}
           </Button>
         </div>
@@ -703,12 +799,19 @@ export default function ProfilePage() {
   const [profileForm, setProfileForm] = useState({
     username: user?.username ?? "",
     phone: user?.phone ?? "",
-    password: "",
+  });
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: "",
+    newPassword: "",
+    repeatPassword: "",
   });
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [isSavingPassword, setIsSavingPassword] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [profileSaveError, setProfileSaveError] = useState("");
+  const [passwordSaveError, setPasswordSaveError] = useState("");
   const [pendingAvatarFile, setPendingAvatarFile] = useState(null);
   const [pendingAvatarPreview, setPendingAvatarPreview] = useState("");
   const proUntilLabel = user?.isPro ? formatProUntil(user?.proUntil) : "";
@@ -725,9 +828,24 @@ export default function ProfilePage() {
     setProfileForm((current) => ({
       username: user?.username ?? current.username ?? "",
       phone: user?.phone ?? "",
-      password: "",
     }));
   }, [user?.phone, user?.username]);
+
+  function setPasswordFormField(field, value) {
+    setPasswordForm((current) => ({
+      ...current,
+      [field]: value,
+    }));
+  }
+
+  function resetPasswordForm() {
+    setPasswordForm({
+      currentPassword: "",
+      newPassword: "",
+      repeatPassword: "",
+    });
+    setPasswordSaveError("");
+  }
 
   useEffect(() => {
     if (!isEditProfileOpen) {
@@ -1005,16 +1123,8 @@ export default function ProfilePage() {
 
     const trimmedUsername = profileForm.username.trim();
     const trimmedPhone = profileForm.phone.trim();
-    const trimmedPassword = profileForm.password.trim();
-
     if (!trimmedUsername) {
       setProfileSaveError("El nombre de usuario no puede quedar vacio.");
-      setIsSavingProfile(false);
-      return;
-    }
-
-    if (trimmedPassword && trimmedPassword.length < 6) {
-      setProfileSaveError("La contrasena nueva debe tener al menos 6 caracteres.");
       setIsSavingProfile(false);
       return;
     }
@@ -1028,10 +1138,6 @@ export default function ProfilePage() {
         username: trimmedUsername,
         phone: trimmedPhone,
       });
-
-      if (trimmedPassword) {
-        await updateAuthenticatedPassword(trimmedPassword);
-      }
 
       setAuthenticatedUser({
         ...user,
@@ -1047,14 +1153,11 @@ export default function ProfilePage() {
         ...current,
         username: backendUser?.username ?? profile?.username ?? trimmedUsername,
         phone: backendUser?.phone ?? profile?.phone ?? trimmedPhone,
-        password: "",
       }));
 
       toast({
         title: "Perfil actualizado",
-        description: trimmedPassword
-          ? "Guardamos tu usuario, telefono y nueva contrasena."
-          : "Tus datos de perfil ya fueron actualizados.",
+        description: "Tus datos de perfil ya fueron actualizados.",
       });
       clearPendingAvatarSelection();
       setIsEditProfileOpen(false);
@@ -1062,6 +1165,56 @@ export default function ProfilePage() {
       setProfileSaveError(mapProfileUpdateError(error?.message));
     } finally {
       setIsSavingProfile(false);
+    }
+  }
+
+  async function handleSubmitPassword(event) {
+    event.preventDefault();
+
+    if (!user?.email) {
+      return;
+    }
+
+    const currentPassword = passwordForm.currentPassword.trim();
+    const newPassword = passwordForm.newPassword.trim();
+    const repeatPassword = passwordForm.repeatPassword.trim();
+
+    if (!currentPassword || !newPassword || !repeatPassword) {
+      setPasswordSaveError("Completa todos los campos de contrasena.");
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setPasswordSaveError("La nueva contrasena debe tener al menos 6 caracteres.");
+      return;
+    }
+
+    if (newPassword !== repeatPassword) {
+      setPasswordSaveError("La nueva contrasena y su repeticion no coinciden.");
+      return;
+    }
+
+    if (currentPassword === newPassword) {
+      setPasswordSaveError("La nueva contrasena no puede ser igual a la actual.");
+      return;
+    }
+
+    setIsSavingPassword(true);
+    setPasswordSaveError("");
+
+    try {
+      await verifyCurrentAuthenticatedPassword(user.email, currentPassword);
+      await updateAuthenticatedPassword(newPassword);
+      resetPasswordForm();
+      setIsPasswordModalOpen(false);
+      toast({
+        title: "Contrasena actualizada",
+        description: "Tu nueva contrasena ya quedo guardada.",
+      });
+    } catch (error) {
+      setPasswordSaveError(mapPasswordUpdateError(error?.message));
+    } finally {
+      setIsSavingPassword(false);
     }
   }
 
@@ -1169,6 +1322,46 @@ export default function ProfilePage() {
                   isUploadingAvatar={isUploadingAvatar}
                   isSaving={isSavingProfile}
                   isSpotifyUser={isSpotifyUser}
+                  onOpenPasswordModal={() => {
+                    setPasswordSaveError("");
+                    setIsPasswordModalOpen(true);
+                  }}
+                />
+              </div>
+            </motion.div>
+          </motion.div>
+        ) : null}
+
+        {isPasswordModalOpen ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[230] overflow-y-auto bg-[rgba(3,4,10,0.42)] px-3 py-3 backdrop-blur-md sm:px-4 sm:py-6"
+            onClick={() => {
+              resetPasswordForm();
+              setIsPasswordModalOpen(false);
+            }}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 24, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 16, scale: 0.98 }}
+              transition={{ duration: 0.22, ease: "easeOut" }}
+              className="mx-auto flex min-h-full w-full max-w-2xl items-center"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="max-h-[calc(100vh-1.5rem)] w-full overflow-y-auto sm:max-h-[calc(100vh-3rem)]">
+                <LocalPasswordSettings
+                  form={passwordForm}
+                  onChange={setPasswordFormField}
+                  onClose={() => {
+                    resetPasswordForm();
+                    setIsPasswordModalOpen(false);
+                  }}
+                  onSubmit={handleSubmitPassword}
+                  saveError={passwordSaveError}
+                  isSaving={isSavingPassword}
                 />
               </div>
             </motion.div>

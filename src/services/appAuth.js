@@ -644,3 +644,17 @@ export async function updateAuthenticatedPassword(password) {
 
   return data;
 }
+
+export async function verifyCurrentAuthenticatedPassword(email, password) {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  if (error) {
+    throw new Error("CURRENT_PASSWORD_INVALID");
+  }
+
+  return true;
+}
