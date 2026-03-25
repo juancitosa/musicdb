@@ -254,23 +254,19 @@ function shuffleArray(items) {
   return nextItems;
 }
 
+const FEATURED_ARTIST_GENRES = [
+  "pop",
+  "latin",
+  "hip hop",
+  "rock",
+  "reggaeton",
+  "electronic",
+];
+
 export async function getFeaturedArtists(_token, maxPoolSize = 50, minPopularity = 80) {
-  const seededArtists = await Promise.all([
-    searchArtists("pop", null, 10),
-    searchArtists("latin", null, 10),
-    searchArtists("hip hop", null, 10),
-    searchArtists("rap", null, 10),
-    searchArtists("rock", null, 10),
-    searchArtists("reggaeton", null, 10),
-    searchArtists("k-pop", null, 10),
-    searchArtists("dance", null, 10),
-    searchArtists("indie", null, 10),
-    searchArtists("r&b", null, 10),
-    searchArtists("afrobeats", null, 10),
-    searchArtists("electronic", null, 10),
-    searchArtists("alternative", null, 10),
-    searchArtists("trap", null, 10),
-  ]);
+  const seededArtists = await Promise.all(
+    FEATURED_ARTIST_GENRES.map((genre) => searchArtists(genre, null, 10)),
+  );
 
   const uniqueArtists = new Map();
   seededArtists.flat().forEach((artist) => {
