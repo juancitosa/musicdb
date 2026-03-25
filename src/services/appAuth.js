@@ -320,16 +320,137 @@ export function syncSpotifyUser(payload) {
 
 export async function registerLocalUser(payload) {
   const sanitizedPayload = sanitizeCredentials(payload);
-  return postAuthRequest("/auth/register", sanitizedPayload);
+  const supabase = getSupabaseClient();
+  const emailRedirectTo = typeof window !== "undefined" ? `${window.location.origin}/login` : undefined;
+  const { data, error } = await supabase.auth.signUp({
+    email: sanitizedPayload.email,
+    password: sanitizedPayload.password,
+    options: {
+      emailRedirectTo,
+      data: {
+        username: sanitizedPayload.username || undefined,
+      },
+    },
+  });
+
+  if (error) {
+    const message = (error.message || "").toLowerCase();
+    const code = (error.code || "").toLowerCase();
+
+    if (error.status === 429) {
+      throw new Error("TOO_MANY_SIGNUP_ATTEMPTS");
+    }
+
+    if (message.includes("already registered") || code === "user_already_exists") {
+      throw new Error("EMAIL_ALREADY_EXISTS");
+    }
+
+    throw new Error(error.message || "APP_AUTH_ERROR");
+  }
+
+  const user = data?.user ? mapSupabaseUser(data.user) : { email: sanitizedPayload.email };
+
+  return {
+    user,
+    requires_email_verification: true,
+    verification_email_sent: true,
+    verification_delivery: "supabase",
+  };
 }
 
 export async function loginLocalUser(payload) {
   const sanitizedPayload = sanitizeCredentials(payload);
-  return postAuthRequest("/auth/login", sanitizedPayload);
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: sanitizedPayload.email,
+    password: sanitizedPayload.password,
+  });
+
+  if (error) {
+    const message = (error.message || "").toLowerCase();
+    const code = (error.code || "").toLowerCase();
+
+    if (message.includes("email not confirmed") || code === "email_not_confirmed") {
+      throw new Error("EMAIL_NOT_VERIFIED");
+    }
+
+    if (
+      message.includes("invalid login credentials") ||
+      message.includes("invalid credentials") ||
+      code === "invalid_credentials"
+    ) {
+      throw new Error("LOCAL_LOGIN_INVALID");
+    }
+
+    throw new Error(error.message || "LOCAL_LOGIN_INVALID");
+  }
+
+  if (!data?.session?.access_token) {
+    throw new Error("APP_AUTH_ERROR");
+  }
+
+  const backendUser = await fetchAuthenticatedUser(data.session.access_token).catch(() => null);
+  const authUser = mapSupabaseUser(data.user);
+
+  return {
+    token: data.session.access_token,
+    user: backendUser ?? authUser,
+  };
+}
+
+export async function fetchLocalSession() {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase.auth.getSession();
+
+  if (error) {
+    throw new Error(error.message || "APP_AUTH_ERROR");
+  }
+
+  return data?.session ?? null;
+}
+
+export async function fetchLocalSupabaseUser(token) {
+  const supabase = getSupabaseClient();
+  const {
+    data: { user } = {},
+    error,
+  } = await supabase.auth.getUser(token);
+
+  if (error || !user) {
+    throw new Error(error?.message || "LOCAL_AUTH_USER_NOT_FOUND");
+  }
+
+  return mapSupabaseUser(user);
 }
 
 export function resendVerificationEmail(payload) {
-  return postAuthRequest("/auth/verify-email/resend", payload);
+  const supabase = getSupabaseClient();
+  const email = payload?.email?.trim().toLowerCase() ?? "";
+
+  if (!email) {
+    return Promise.reject(new Error("INVALID_EMAIL_VERIFICATION_RESEND_PAYLOAD"));
+  }
+
+  const emailRedirectTo = typeof window !== "undefined" ? `${window.location.origin}/login` : undefined;
+
+  return supabase.auth
+    .resend({
+      type: "signup",
+      email,
+      options: {
+        emailRedirectTo,
+      },
+    })
+    .then(({ error }) => {
+      if (error) {
+        throw new Error(error.message || "APP_AUTH_ERROR");
+      }
+
+      return {
+        success: true,
+        verification_delivery: "supabase",
+      };
+    });
 }
 
 export async function verifyEmailToken(token) {

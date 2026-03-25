@@ -5,7 +5,6 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { MercadoPagoConfig, Payment } from "mercadopago";
-import nodemailer from "nodemailer";
 import { Resend } from "resend";
 import { createClient } from "@supabase/supabase-js";
 
@@ -27,11 +26,6 @@ const MERCADO_PAGO_WEBHOOK_SECRET = process.env.MP_WEBHOOK_SECRET || process.env
 const PUBLIC_APP_URL = process.env.PUBLIC_APP_URL || "https://musicdb.online";
 const PUBLIC_API_URL = process.env.PUBLIC_API_URL || process.env.BACKEND_PUBLIC_URL || "https://musicdb-backend.onrender.com";
 const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
-const SMTP_HOST = process.env.SMTP_HOST || "";
-const SMTP_PORT = Number(process.env.SMTP_PORT || 587);
-const SMTP_USER = process.env.SMTP_USER || "";
-const SMTP_PASS = process.env.SMTP_PASS || "";
-const SMTP_FROM = process.env.SMTP_FROM || SMTP_USER || "no-reply@musicdb.online";
 const EMAIL_VERIFICATION_TTL_HOURS = Math.max(Number(process.env.EMAIL_VERIFICATION_TTL_HOURS || 24), 1);
 const PRO_SUBSCRIPTION_PLANS = {
   "1m": { price: 5000, months: 1, title: "MusicDB PRO - 1 mes" },
@@ -55,7 +49,6 @@ let cachedUserTableColumns = null;
 let mercadoPagoClient = null;
 let mercadoPagoPaymentClient = null;
 let resendClient = null;
-let smtpTransporter = null;
 let mercadoPagoWebhookSecretWarningLogged = false;
 const SPOTIFY_CACHE_TTL_MS = 5 * 60 * 1000;
 const spotifyTopArtistsCache = Object.create(null);
@@ -459,30 +452,6 @@ function getResendClient() {
   return resendClient;
 }
 
-function hasSmtpConfig() {
-  return Boolean(SMTP_HOST && SMTP_PORT && SMTP_USER && SMTP_PASS);
-}
-
-function getSmtpTransporter() {
-  if (!hasSmtpConfig()) {
-    return null;
-  }
-
-  if (!smtpTransporter) {
-    smtpTransporter = nodemailer.createTransport({
-      host: SMTP_HOST,
-      port: SMTP_PORT,
-      secure: SMTP_PORT === 465,
-      auth: {
-        user: SMTP_USER,
-        pass: SMTP_PASS,
-      },
-    });
-  }
-
-  return smtpTransporter;
-}
-
 function generateEmailVerificationToken() {
   return randomBytes(32).toString("hex");
 }
@@ -728,6 +697,118 @@ async function getUserAuthByEmail(supabase, email) {
   return syncExpiredProStatusIfNeeded(supabase, data, { includePasswordHash: true });
 }
 
+async function ensureSupabaseProfileRecord(supabase, authUser, { username }) {
+  const normalizedUsername = normalizeUsername(username) || authUser?.email?.split("@")[0] || "usuario";
+  const profilePayload = {
+    id: authUser.id,
+    username: normalizedUsername,
+    phone: "",
+    avatar_url: authUser?.user_metadata?.avatar_url ?? "",
+    is_admin: false,
+  };
+
+  const { error } = await supabase.from("profiles").upsert(profilePayload, {
+    onConflict: "id",
+  });
+
+  if (isMissingRelationError(error)) {
+    return;
+  }
+
+  if (error) {
+    console.error("[auth:supabase-sync] Failed to upsert profile", {
+      userId: authUser.id,
+      errorCode: error.code ?? null,
+      errorMessage: error.message ?? "Unknown profile upsert error",
+    });
+  }
+}
+
+async function ensureSupabaseAuthUserRecord(supabase, authUser) {
+  if (!authUser?.id || !authUser?.email) {
+    throw createHttpError(401, "SUPABASE_AUTH_INVALID", "Invalid Supabase authenticated user");
+  }
+
+  const email = normalizeEmail(authUser.email);
+  const metadataUsername = normalizeUsername(authUser.user_metadata?.username);
+  const userSelect = await buildUserSelect(supabase);
+  const existingById = await getUserById(supabase, authUser.id).catch((error) => {
+    if (error?.status === 404) {
+      return null;
+    }
+
+    throw error;
+  });
+  const existingByEmail = await getUserByEmail(supabase, email);
+  const sourceUser = existingById ?? existingByEmail ?? null;
+
+  const payload = {
+    id: authUser.id,
+    email,
+    username: metadataUsername || sourceUser?.username || email.split("@")[0],
+    display_name: metadataUsername || sourceUser?.display_name || email.split("@")[0] || "MusicDB User",
+    auth_provider: "local",
+    is_verified: Boolean(authUser.email_confirmed_at),
+    verified_at: authUser.email_confirmed_at ?? null,
+  };
+
+  if (sourceUser?.phone !== undefined) {
+    payload.phone = sourceUser.phone;
+  }
+
+  if (sourceUser?.avatar_url !== undefined) {
+    payload.avatar_url = sourceUser.avatar_url;
+  }
+
+  if (sourceUser?.is_admin !== undefined) {
+    payload.is_admin = Boolean(sourceUser.is_admin);
+  }
+
+  if (sourceUser?.is_pro !== undefined) {
+    payload.is_pro = Boolean(sourceUser.is_pro);
+  }
+
+  if (sourceUser?.pro_until !== undefined) {
+    payload.pro_until = sourceUser.pro_until;
+  }
+
+  if (existingByEmail?.id && existingByEmail.id !== authUser.id) {
+    const { error } = await supabase.from("users").delete().eq("id", existingByEmail.id);
+    handleSupabaseError(error, "Failed to remove duplicated Supabase user by email");
+  }
+
+  let user = existingById;
+
+  if (user) {
+    const { data, error } = await supabase
+      .from("users")
+      .update(payload)
+      .eq("id", authUser.id)
+      .select(userSelect)
+      .single();
+
+    handleSupabaseError(error, "Failed to sync Supabase authenticated user");
+    user = data;
+  } else {
+    const { data, error } = await supabase
+      .from("users")
+      .upsert(payload, {
+        onConflict: "id",
+      })
+      .select(userSelect)
+      .single();
+
+    handleSupabaseError(error, "Failed to create Supabase authenticated user");
+    user = data;
+  }
+
+  await ensureSupabaseProfileRecord(supabase, authUser, {
+    username: metadataUsername || user?.username,
+  });
+
+  return syncExpiredProStatusIfNeeded(supabase, user);
+}
+
 function ensureVerificationColumnsExist(userColumns) {
   const requiredColumns = ["is_verified", "verified_at", "verification_sent_at"];
   const missingColumns = requiredColumns.filter((column) => !userColumns.has(column));
@@ -841,9 +922,8 @@ async function sendVerificationEmail({ email, username, token, expiresAt }) {
     timeStyle: "short",
   });
   const resend = getResendClient();
-  const smtpTransport = getSmtpTransporter();
 
-  if (!resend && !smtpTransport) {
+  if (!resend) {
     console.log("[auth] Resend not configured, email verification link generated", {
       email: maskEmail(email),
       expiresAt,
@@ -862,82 +942,52 @@ async function sendVerificationEmail({ email, username, token, expiresAt }) {
     throw new Error("Recipient email is invalid");
   }
 
-  const html = `
-    <div style="margin:0;padding:24px;background:#0a0a0b;font-family:Arial,Helvetica,sans-serif;color:#ffffff;">
-      <div style="max-width:640px;margin:0 auto;border-radius:28px;background:rgba(18,18,22,0.96);border:1px solid rgba(123,97,255,0.22);box-shadow:0 0 34px rgba(123,97,255,0.14),0 24px 60px rgba(0,0,0,0.42);overflow:hidden;">
-        <div style="height:3px;background:linear-gradient(90deg, rgba(123,97,255,0), rgba(123,97,255,0.95), rgba(173,159,255,0.95), rgba(123,97,255,0));"></div>
-        <div style="padding:38px 32px 22px 32px;">
-          <div style="display:inline-block;padding:8px 13px;border-radius:999px;background:rgba(123,97,255,0.10);border:1px solid rgba(123,97,255,0.24);color:#b6a7ff;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;">Verificacion de cuenta</div>
-          <h1 style="margin:18px 0 12px 0;font-size:34px;line-height:1.08;font-weight:800;letter-spacing:-0.04em;color:#ffffff;">Confirma tu direccion de correo electronico</h1>
-          <p style="margin:0 0 12px 0;font-size:16px;line-height:1.75;color:#b0b0ba;">Hola ${username ? String(username).trim() : "MusicDB User"}, estas a un paso de activar tu cuenta en <strong style="color:#ffffff;">MusicDB</strong>.</p>
-          <p style="margin:0;font-size:15px;line-height:1.75;color:#8f8f9c;">El enlace vence el ${expirationDate}. Si no creaste esta cuenta, puedes ignorar este correo.</p>
-        </div>
-        <div style="padding:10px 32px 34px 32px;">
-          <a href="${verificationLink}" style="display:inline-block;padding:16px 28px;border-radius:18px;background:linear-gradient(180deg, #876fff 0%, #6e52f5 100%);border:1px solid rgba(173,159,255,0.55);box-shadow:0 0 24px rgba(123,97,255,0.30),0 10px 30px rgba(123,97,255,0.24);color:#ffffff;text-decoration:none;font-size:16px;font-weight:800;">Confirmar direccion de correo electronico</a>
-        </div>
-        <div style="padding:0 32px 34px 32px;">
-          <p style="margin:0 0 10px 0;font-size:13px;line-height:1.7;color:#8f8f9c;">Si el boton no funciona, copia y pega este enlace en tu navegador:</p>
-          <p style="margin:0;word-break:break-all;font-size:13px;line-height:1.7;"><a href="${verificationLink}" style="color:#b6a7ff;text-decoration:none;">${verificationLink}</a></p>
+  try {
+    const html = `
+      <div style="margin:0;padding:24px;background:#0a0a0b;font-family:Arial,Helvetica,sans-serif;color:#ffffff;">
+        <div style="max-width:640px;margin:0 auto;border-radius:28px;background:rgba(18,18,22,0.96);border:1px solid rgba(123,97,255,0.22);box-shadow:0 0 34px rgba(123,97,255,0.14),0 24px 60px rgba(0,0,0,0.42);overflow:hidden;">
+          <div style="height:3px;background:linear-gradient(90deg, rgba(123,97,255,0), rgba(123,97,255,0.95), rgba(173,159,255,0.95), rgba(123,97,255,0));"></div>
+          <div style="padding:38px 32px 22px 32px;">
+            <div style="display:inline-block;padding:8px 13px;border-radius:999px;background:rgba(123,97,255,0.10);border:1px solid rgba(123,97,255,0.24);color:#b6a7ff;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;">Verificacion de cuenta</div>
+            <h1 style="margin:18px 0 12px 0;font-size:34px;line-height:1.08;font-weight:800;letter-spacing:-0.04em;color:#ffffff;">Confirma tu direccion de correo electronico</h1>
+            <p style="margin:0 0 12px 0;font-size:16px;line-height:1.75;color:#b0b0ba;">Hola ${username ? String(username).trim() : "MusicDB User"}, estas a un paso de activar tu cuenta en <strong style="color:#ffffff;">MusicDB</strong>.</p>
+            <p style="margin:0;font-size:15px;line-height:1.75;color:#8f8f9c;">El enlace vence el ${expirationDate}. Si no creaste esta cuenta, puedes ignorar este correo.</p>
+          </div>
+          <div style="padding:10px 32px 34px 32px;">
+            <a href="${verificationLink}" style="display:inline-block;padding:16px 28px;border-radius:18px;background:linear-gradient(180deg, #876fff 0%, #6e52f5 100%);border:1px solid rgba(173,159,255,0.55);box-shadow:0 0 24px rgba(123,97,255,0.30),0 10px 30px rgba(123,97,255,0.24);color:#ffffff;text-decoration:none;font-size:16px;font-weight:800;">Confirmar direccion de correo electronico</a>
+          </div>
+          <div style="padding:0 32px 34px 32px;">
+            <p style="margin:0 0 10px 0;font-size:13px;line-height:1.7;color:#8f8f9c;">Si el boton no funciona, copia y pega este enlace en tu navegador:</p>
+            <p style="margin:0;word-break:break-all;font-size:13px;line-height:1.7;"><a href="${verificationLink}" style="color:#b6a7ff;text-decoration:none;">${verificationLink}</a></p>
+          </div>
         </div>
       </div>
-    </div>
-  `.trim();
+    `.trim();
 
-  if (resend) {
-    try {
-      const resendResult = await resend.emails.send({
-        from: "MusicDB <onboarding@resend.dev>",
-        to: email,
-        subject: "Confirma tu correo en MusicDB",
-        html,
-      });
-      console.log("[auth:email] Verification email sent with Resend", {
-        email: maskEmail(email),
-        provider: "resend",
-        messageId: resendResult?.data?.id ?? null,
-      });
-
-      return {
-        delivered: true,
-        provider: "resend",
-      };
-    } catch (error) {
-      console.error("[auth:email] Failed to send verification email with Resend", {
-        email: maskEmail(email),
-        errorName: error?.name ?? "UnknownError",
-        errorMessage: error?.message ?? "Unknown mail error",
-      });
-    }
-  }
-
-  if (!smtpTransport) {
-    throw createHttpError(500, "EMAIL_DELIVERY_FAILED", "Email delivery is not configured");
-  }
-
-  try {
-    const smtpResult = await smtpTransport.sendMail({
-      from: SMTP_FROM,
+    const resendResult = await resend.emails.send({
+      from: "MusicDB <onboarding@resend.dev>",
       to: email,
       subject: "Confirma tu correo en MusicDB",
       html,
     });
 
-    console.log("[auth:email] Verification email sent with SMTP", {
+    console.log("[auth:email] Verification email sent with Resend", {
       email: maskEmail(email),
-      provider: "smtp",
-      messageId: smtpResult?.messageId ?? null,
+      provider: "resend",
+      messageId: resendResult?.data?.id ?? null,
     });
   } catch (error) {
-    console.error("[auth:email] Failed to send verification email with SMTP", {
+    console.error("[auth:email] Failed to send verification email with Resend", {
       email: maskEmail(email),
-      errorMessage: error?.message ?? "Unknown SMTP error",
+      errorName: error?.name ?? "UnknownError",
+      errorMessage: error?.message ?? "Unknown mail error",
     });
     throw error;
   }
 
   return {
     delivered: true,
-    provider: "smtp",
+    provider: "resend",
   };
 }
 
@@ -1185,11 +1235,8 @@ async function resolveAuthenticatedUserFromToken(token) {
       const email = normalizeEmail(supabaseUser?.email);
 
       if (email) {
-        const localUser = await getUserByEmail(supabase, email);
-
-        if (localUser?.id) {
-          return { userId: localUser.id, provider: "local" };
-        }
+        const ensuredUser = await ensureSupabaseAuthUserRecord(supabase, supabaseUser);
+        return { userId: ensuredUser.id, provider: "local" };
       }
     } catch (supabaseError) {
       // Ignore and continue with Spotify fallback below.
