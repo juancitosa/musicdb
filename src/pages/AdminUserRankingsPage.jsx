@@ -3,9 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 
 import { useAuth } from "../hooks/useAuth";
-import { getSupabaseClient } from "../lib/supabase";
-import { getMockAlbum, getMockArtist } from "../services/catalog";
-import { getAlbumById, getArtistById, getImageUrl } from "../services/spotify";
+import { fetchAdminUserRankings } from "../services/admin";
 
 function formatDate(value) {
   if (!value) {
@@ -25,64 +23,9 @@ function formatDate(value) {
   }).format(date);
 }
 
-async function getEntityDetails(rating) {
-  if (rating.entity_type === "artist") {
-    const localArtist = getMockArtist(rating.entity_id);
-
-    if (localArtist) {
-      return {
-        name: localArtist.name,
-        genres: [localArtist.genre],
-        images: localArtist.image ? [{ url: localArtist.image }] : [],
-      };
-    }
-
-    return getArtistById(rating.entity_id);
-  }
-
-  const localAlbum = getMockAlbum(rating.entity_id);
-
-  if (localAlbum) {
-    return {
-      name: localAlbum.title,
-      artists: localAlbum.artist ? [{ name: localAlbum.artist }] : [],
-      release_date: localAlbum.year ? `${localAlbum.year}` : "",
-      images: localAlbum.coverArt ? [{ url: localAlbum.coverArt }] : [],
-    };
-  }
-
-  return getAlbumById(rating.entity_id);
-}
-
-function normalizeRatingEntry(rating, entity) {
-  if (rating.entity_type === "artist") {
-    return {
-      id: rating.id,
-      entityType: "artist",
-      title: entity?.name ?? "Artista no disponible",
-      subtitle: entity?.genres?.slice(0, 2).join(" - ") || "Artista",
-      image: getImageUrl(entity?.images),
-      href: `/artist/${rating.entity_id}`,
-      ratingValue: Number(rating.rating_value ?? 0),
-      updatedAt: rating.updated_at,
-    };
-  }
-
-  return {
-    id: rating.id,
-    entityType: "album",
-    title: entity?.name ?? "Album no disponible",
-    subtitle: `${entity?.artists?.[0]?.name ?? "Album"}${entity?.release_date ? ` - ${String(entity.release_date).slice(0, 4)}` : ""}`,
-    image: getImageUrl(entity?.images),
-    href: `/album/${rating.entity_id}`,
-    ratingValue: Number(rating.rating_value ?? 0),
-    updatedAt: rating.updated_at,
-  };
-}
-
 export default function AdminUserRankingsPage() {
   const { userId } = useParams();
-  const { isLoading, isLoggedIn, currentUser, isCurrentUserLoading } = useAuth();
+  const { isLoading, isLoggedIn, currentUser, isCurrentUserLoading, appToken } = useAuth();
   const [userRecord, setUserRecord] = useState(null);
   const [entries, setEntries] = useState([]);
   const [isFetchingEntries, setIsFetchingEntries] = useState(true);
@@ -100,35 +43,10 @@ export default function AdminUserRankingsPage() {
       setError("");
 
       try {
-        const supabase = getSupabaseClient();
-        const [{ data: userData, error: userError }, { data: ratingsData, error: ratingsError }] = await Promise.all([
-          supabase.from("users").select("*").eq("id", userId).single(),
-          supabase.from("ratings").select("id, entity_type, entity_id, rating_value, updated_at").eq("user_id", userId).order("rating_value", { ascending: false }).limit(30),
-        ]);
-
-        if (userError) {
-          throw userError;
-        }
-
-        if (ratingsError) {
-          throw ratingsError;
-        }
-
-        const hydratedEntries = (
-          await Promise.all(
-            (ratingsData ?? []).map(async (rating) => {
-              try {
-                const entity = await getEntityDetails(rating);
-                return normalizeRatingEntry(rating, entity);
-              } catch {
-                return normalizeRatingEntry(rating, null);
-              }
-            }),
-          )
-        ).filter(Boolean);
+        const { user, entries: hydratedEntries } = await fetchAdminUserRankings(userId, appToken);
 
         if (!cancelled) {
-          setUserRecord(userData ?? null);
+          setUserRecord(user ?? null);
           setEntries(hydratedEntries);
         }
       } catch (loadError) {
@@ -147,12 +65,12 @@ export default function AdminUserRankingsPage() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser?.isAdmin, isCurrentUserLoading, userId]);
+  }, [appToken, currentUser?.isAdmin, isCurrentUserLoading, userId]);
 
   const groupedEntries = useMemo(
     () => ({
-      artists: entries.filter((entry) => entry.entityType === "artist"),
-      albums: entries.filter((entry) => entry.entityType === "album"),
+      artists: entries.filter((entry) => entry.entity_type === "artist"),
+      albums: entries.filter((entry) => entry.entity_type === "album"),
     }),
     [entries],
   );
@@ -242,7 +160,7 @@ export default function AdminUserRankingsPage() {
                           <img
                             src={entry.image}
                             alt={entry.title}
-                            className={`h-14 w-14 shrink-0 object-cover ${entry.entityType === "artist" ? "rounded-full" : "rounded-2xl"}`}
+                            className={`h-14 w-14 shrink-0 object-cover ${entry.entity_type === "artist" ? "rounded-full" : "rounded-2xl"}`}
                           />
                         ) : (
                           <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-secondary text-muted-foreground">
@@ -252,12 +170,12 @@ export default function AdminUserRankingsPage() {
                         <div className="min-w-0 flex-1">
                           <p className="truncate font-semibold text-foreground">{entry.title}</p>
                           <p className="truncate text-sm text-muted-foreground">{entry.subtitle}</p>
-                          <p className="mt-1 text-xs text-muted-foreground">Actualizado {formatDate(entry.updatedAt)}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">Actualizado {formatDate(entry.updated_at)}</p>
                         </div>
                         <div className="shrink-0 text-right text-primary">
                           <div className="flex items-center gap-1">
                             <Star className="h-4 w-4 fill-current" />
-                            <span className="text-lg font-black">{entry.ratingValue.toFixed(1)}</span>
+                            <span className="text-lg font-black">{Number(entry.rating_value ?? 0).toFixed(1)}</span>
                           </div>
                         </div>
                       </Link>

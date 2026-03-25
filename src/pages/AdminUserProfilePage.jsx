@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 
 import { useAuth } from "../hooks/useAuth";
-import { getSupabaseClient } from "../lib/supabase";
+import { fetchAdminUserProfile } from "../services/admin";
 
 function formatDateTime(value) {
   if (!value) {
@@ -24,7 +24,7 @@ function formatDateTime(value) {
 
 export default function AdminUserProfilePage() {
   const { userId } = useParams();
-  const { isLoading, isLoggedIn, currentUser, isCurrentUserLoading } = useAuth();
+  const { isLoading, isLoggedIn, currentUser, isCurrentUserLoading, appToken } = useAuth();
   const [userRecord, setUserRecord] = useState(null);
   const [isFetchingUser, setIsFetchingUser] = useState(true);
   const [error, setError] = useState("");
@@ -41,12 +41,7 @@ export default function AdminUserProfilePage() {
       setError("");
 
       try {
-        const supabase = getSupabaseClient();
-        const { data, error: userError } = await supabase.from("users").select("*").eq("id", userId).single();
-
-        if (userError) {
-          throw userError;
-        }
+        const data = await fetchAdminUserProfile(userId, appToken);
 
         if (!cancelled) {
           setUserRecord(data ?? null);
@@ -67,7 +62,7 @@ export default function AdminUserProfilePage() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser?.isAdmin, isCurrentUserLoading, userId]);
+  }, [appToken, currentUser?.isAdmin, isCurrentUserLoading, userId]);
 
   if (isLoading || isCurrentUserLoading) {
     return (

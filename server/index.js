@@ -1339,6 +1339,27 @@ async function getRatingsHistoryForUser(supabase, userId) {
   }));
 }
 
+async function getRatingsHistoryForUserLimited(supabase, userId, limit = 30) {
+  const { data, error } = await supabase
+    .from("ratings")
+    .select("id, entity_type, entity_id, rating_value, created_at, updated_at")
+    .eq("user_id", userId)
+    .order("rating_value", { ascending: false })
+    .order("updated_at", { ascending: false })
+    .limit(Math.min(Math.max(Number(limit) || 30, 1), 100));
+
+  handleSupabaseError(error, "Failed to fetch limited user ratings history");
+
+  return (data ?? []).map((rating) => ({
+    id: rating.id,
+    entity_type: rating.entity_type,
+    entity_id: rating.entity_id,
+    rating_value: Number(rating.rating_value ?? 0),
+    created_at: rating.created_at,
+    updated_at: rating.updated_at,
+  }));
+}
+
 function isUserPro(user) {
   return Boolean(mapUserRecord(user).is_pro);
 }
@@ -2178,6 +2199,22 @@ function buildFallbackRankingEntity(entityType, entityId) {
   return null;
 }
 
+async function getFallbackEntityByType(supabase, entityType, entityId) {
+  const inMemoryEntity = buildFallbackRankingEntity(entityType, entityId);
+
+  if (inMemoryEntity) {
+    return inMemoryEntity;
+  }
+
+  const record = await readEntityCacheRecord(supabase, entityType, entityId);
+
+  if (entityType === "artist") {
+    return mapEntityCacheRecordToArtist(record, entityId);
+  }
+
+  return mapEntityCacheRecordToAlbum(record, entityId);
+}
+
 async function getFallbackEnrichedRankings(supabase, entityType, limit = 10) {
   const rankings = await getRankingsSummary(supabase, entityType, limit);
 
@@ -2185,16 +2222,7 @@ async function getFallbackEnrichedRankings(supabase, entityType, limit = 10) {
 
   for (const ranking of rankings) {
     const entityId = String(ranking.entity_id);
-    let entity = buildFallbackRankingEntity(entityType, entityId);
-
-    if (!entity) {
-      const record = await readEntityCacheRecord(supabase, entityType, entityId);
-      entity =
-        entityType === "artist"
-          ? mapEntityCacheRecordToArtist(record, entityId)
-          : mapEntityCacheRecordToAlbum(record, entityId);
-    }
-
+    const entity = await getFallbackEntityByType(supabase, entityType, entityId);
     enrichedEntries.push(buildEnrichedRankingEntry(entityType, ranking, entity));
   }
 
@@ -2221,6 +2249,90 @@ async function getEnrichedRankings(supabase, entityType, limit = 10) {
   const albumMap = new Map(albums.map((album) => [String(album.id), album]));
 
   return rankings.map((ranking) => buildEnrichedRankingEntry(entityType, ranking, albumMap.get(String(ranking.entity_id))));
+}
+
+function buildAdminUserRatingEntry(rating, entity) {
+  if (rating.entity_type === "artist") {
+    return {
+      id: rating.id,
+      entity_type: "artist",
+      entity_id: rating.entity_id,
+      rating_value: Number(rating.rating_value ?? 0),
+      updated_at: rating.updated_at,
+      title: entity?.name ?? "Artista no disponible",
+      subtitle: entity?.genres?.slice(0, 2).join(" · ") || "Artista",
+      image: entity?.images?.[0]?.url ?? "",
+      href: `/artist/${entity?.id ?? rating.entity_id}`,
+    };
+  }
+
+  return {
+    id: rating.id,
+    entity_type: "album",
+    entity_id: rating.entity_id,
+    rating_value: Number(rating.rating_value ?? 0),
+    updated_at: rating.updated_at,
+    title: entity?.name ?? "Album no disponible",
+    subtitle: `${entity?.artists?.[0]?.name ?? "Album"}${entity?.release_date ? ` · ${String(entity.release_date).slice(0, 4)}` : ""}`,
+    image: entity?.images?.[0]?.url ?? "",
+    href: `/album/${entity?.id ?? rating.entity_id}`,
+  };
+}
+
+async function getAdminUserRankingsPayload(supabase, userId, limit = 30) {
+  const ratings = await getRatingsHistoryForUserLimited(supabase, userId, limit);
+
+  if (ratings.length === 0) {
+    return [];
+  }
+
+  const artistIds = ratings.filter((rating) => rating.entity_type === "artist").map((rating) => rating.entity_id);
+  const albumIds = ratings.filter((rating) => rating.entity_type === "album").map((rating) => rating.entity_id);
+  const artistMap = new Map();
+  const albumMap = new Map();
+
+  try {
+    const token = await getAppAccessToken();
+
+    if (artistIds.length > 0) {
+      const artists = await getArtistsByIds(token, artistIds);
+      artists.forEach((artist) => {
+        if (artist?.id) {
+          artistMap.set(String(artist.id), artist);
+        }
+      });
+    }
+
+    if (albumIds.length > 0) {
+      const albums = await getAlbumsByIds(token, albumIds, "US");
+      albums.forEach((album) => {
+        if (album?.id) {
+          albumMap.set(String(album.id), album);
+        }
+      });
+    }
+  } catch (error) {
+    console.warn("[admin-rankings] metadata hydration fallback", {
+      userId,
+      statusCode: error?.statusCode ?? error?.status ?? null,
+      code: error?.code ?? null,
+      message: error?.message ?? "Unknown metadata hydration error",
+    });
+  }
+
+  const entries = [];
+
+  for (const rating of ratings) {
+    const entityId = String(rating.entity_id);
+    const entity =
+      rating.entity_type === "artist"
+        ? (artistMap.get(entityId) ?? (await getFallbackEntityByType(supabase, "artist", entityId)))
+        : (albumMap.get(entityId) ?? (await getFallbackEntityByType(supabase, "album", entityId)));
+
+    entries.push(buildAdminUserRatingEntry(rating, entity));
+  }
+
+  return entries;
 }
 
 function buildTopAlbumsFromTracksResponse(data, maxAlbums = 10) {
@@ -2878,6 +2990,73 @@ app.delete(
     handleSupabaseError(error, "Failed to delete admin user");
 
     res.status(204).send();
+  }),
+);
+
+app.get(
+  "/api/admin/users/:user_id/profile",
+  authenticateAppUser,
+  asyncRoute(async (req, res) => {
+    ensureAdminUser(req.current_user);
+
+    const userId = normalizeUserId(req.params.user_id);
+
+    if (!userId) {
+      throw createHttpError(400, "INVALID_USER_ID", "A valid user_id is required");
+    }
+
+    const supabase = getSupabaseAdmin();
+    const userSelect = await buildUserSelect(supabase);
+    const { data, error } = await supabase
+      .from("users")
+      .select(userSelect)
+      .eq("id", userId)
+      .maybeSingle();
+
+    handleSupabaseError(error, "Failed to fetch admin user profile");
+
+    if (!data) {
+      throw createHttpError(404, "ADMIN_USER_NOT_FOUND", "User not found");
+    }
+
+    res.json({
+      user: mapUserRecord(data),
+    });
+  }),
+);
+
+app.get(
+  "/api/admin/users/:user_id/rankings",
+  authenticateAppUser,
+  asyncRoute(async (req, res) => {
+    ensureAdminUser(req.current_user);
+
+    const userId = normalizeUserId(req.params.user_id);
+
+    if (!userId) {
+      throw createHttpError(400, "INVALID_USER_ID", "A valid user_id is required");
+    }
+
+    const supabase = getSupabaseAdmin();
+    const userSelect = await buildUserSelect(supabase);
+    const { data, error } = await supabase
+      .from("users")
+      .select(userSelect)
+      .eq("id", userId)
+      .maybeSingle();
+
+    handleSupabaseError(error, "Failed to fetch admin user rankings profile");
+
+    if (!data) {
+      throw createHttpError(404, "ADMIN_USER_NOT_FOUND", "User not found");
+    }
+
+    const entries = await getAdminUserRankingsPayload(supabase, userId, 30);
+
+    res.json({
+      user: mapUserRecord(data),
+      entries,
+    });
   }),
 );
 

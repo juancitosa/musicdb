@@ -77,3 +77,58 @@ export async function deleteAdminUser(userId, sessionToken) {
     throw new Error(data?.error?.code || "ADMIN_USER_DELETE_ERROR");
   }
 }
+
+export async function fetchAdminUserProfile(userId, sessionToken) {
+  if (!sessionToken) {
+    throw new Error("APP_AUTH_REQUIRED");
+  }
+
+  let response;
+
+  try {
+    response = await fetch(`${import.meta.env.VITE_API_URL}/admin/users/${encodeURIComponent(userId)}/profile`, {
+      headers: {
+        Authorization: `Bearer ${sessionToken}`,
+      },
+    });
+  } catch {
+    throw new Error("ADMIN_BACKEND_UNAVAILABLE");
+  }
+
+  const data = await parseJsonResponse(response);
+
+  if (!response.ok) {
+    throw new Error(data?.error?.code || "ADMIN_USER_PROFILE_FETCH_ERROR");
+  }
+
+  return data?.user ?? null;
+}
+
+export async function fetchAdminUserRankings(userId, sessionToken) {
+  if (!sessionToken) {
+    throw new Error("APP_AUTH_REQUIRED");
+  }
+
+  let response;
+
+  try {
+    response = await fetch(`${import.meta.env.VITE_API_URL}/admin/users/${encodeURIComponent(userId)}/rankings`, {
+      headers: {
+        Authorization: `Bearer ${sessionToken}`,
+      },
+    });
+  } catch {
+    throw new Error("ADMIN_BACKEND_UNAVAILABLE");
+  }
+
+  const data = await parseJsonResponse(response);
+
+  if (!response.ok) {
+    throw new Error(data?.error?.code || "ADMIN_USER_RANKINGS_FETCH_ERROR");
+  }
+
+  return {
+    user: data?.user ?? null,
+    entries: Array.isArray(data?.entries) ? data.entries : [],
+  };
+}
