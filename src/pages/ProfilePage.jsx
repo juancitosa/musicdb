@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { AudioLines, Check, Disc3, Flame, LoaderCircle, Search, Star, UserRound, X, XCircle } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, NavLink, useLocation, useNavigate } from "react-router-dom";
 
 import SectionHeader from "../components/shared/SectionHeader";
@@ -9,7 +9,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useSpotifyAuth } from "../hooks/useSpotifyAuth";
 import { useToast } from "../hooks/useToast";
 import { getMockAlbum, getMockArtist } from "../services/catalog";
-import { fetchSupabaseProfile, updateAuthenticatedPassword, updateAuthenticatedProfile, updateSupabaseProfile, uploadProfileAvatar, verifyCurrentAuthenticatedPassword } from "../services/appAuth";
+import { fetchSupabaseProfile, updateAuthenticatedPassword, updateAuthenticatedProfile, updateSupabaseProfile, uploadProfileAvatar, uploadProfileBanner, verifyCurrentAuthenticatedPassword } from "../services/appAuth";
 import { getMyRatings } from "../services/ratingHistory";
 import {
   formatTrackDuration,
@@ -268,15 +268,21 @@ function mapPasswordUpdateError(errorCode) {
 
 function LocalProfileSettings({
   avatarUrl,
+  bannerPreviewUrl,
   form,
   onAvatarChange,
   onAvatarUpload,
+  onBannerUpload,
+  onOpenBannerPicker,
   onChange,
   onClose,
   onSubmit,
   pendingAvatarName,
+  pendingBannerName,
   saveError,
   isUploadingAvatar,
+  isUploadingBanner,
+  isPro,
   isSaving,
   isSpotifyUser,
   onOpenPasswordModal,
@@ -357,6 +363,57 @@ function LocalProfileSettings({
             "Guardar foto"
           )}
         </Button>
+      </div>
+
+      <div className="mt-4 overflow-hidden rounded-[1.6rem] border border-amber-300/18 bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.12),transparent_28%),linear-gradient(135deg,rgba(18,14,8,0.96),rgba(12,10,7,0.94),rgba(20,15,10,0.98))] p-4 shadow-[0_0_28px_rgba(245,158,11,0.12)]">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+          <div className="h-20 w-full overflow-hidden rounded-[1.2rem] border border-white/10 bg-black/30 sm:w-48">
+            {bannerPreviewUrl ? (
+              <img src={bannerPreviewUrl} alt="Preview del banner" className="h-full w-full object-cover" />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center bg-[linear-gradient(135deg,rgba(245,158,11,0.12),rgba(255,255,255,0.02),rgba(245,158,11,0.08))] text-[11px] font-semibold uppercase tracking-[0.24em] text-amber-100/70">
+                Banner PRO
+              </div>
+            )}
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <p className="inline-flex items-center gap-2 text-sm font-semibold text-amber-100">
+              <Star className="h-4 w-4 fill-current text-amber-300" />
+              Banner de perfil PRO
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-amber-50/72">Sube una imagen JPG, PNG o WEBP. Maximo 7 MB.</p>
+            {pendingBannerName ? <p className="mt-2 text-xs font-medium text-amber-200">Preview lista: {pendingBannerName}</p> : null}
+          </div>
+        </div>
+
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <button
+            type="button"
+            onClick={onOpenBannerPicker}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-amber-300/50 bg-[linear-gradient(135deg,rgba(245,158,11,0.16),rgba(255,255,255,0.04))] px-5 py-2.5 text-sm font-semibold text-amber-100 shadow-[0_0_22px_rgba(245,158,11,0.2)] transition hover:-translate-y-0.5 hover:border-amber-200/75 hover:bg-[linear-gradient(135deg,rgba(245,158,11,0.24),rgba(255,255,255,0.06))] hover:shadow-[0_0_30px_rgba(245,158,11,0.32)] sm:w-auto"
+          >
+            <Star className="h-4 w-4 fill-current text-amber-300" />
+            Editar banner
+          </button>
+
+          <Button
+            type="button"
+            size="lg"
+            onClick={onBannerUpload}
+            className="w-full justify-center rounded-full px-5 sm:w-auto"
+            disabled={!pendingBannerName || isUploadingBanner || !isPro}
+          >
+            {isUploadingBanner ? (
+              <span className="inline-flex items-center gap-2">
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+                Subiendo banner...
+              </span>
+            ) : (
+              "Guardar banner"
+            )}
+          </Button>
+        </div>
       </div>
 
       <form onSubmit={onSubmit} className="mt-6 grid gap-4 md:grid-cols-2">
@@ -827,6 +884,7 @@ export default function ProfilePage() {
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isSavingPassword, setIsSavingPassword] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [isUploadingBanner, setIsUploadingBanner] = useState(false);
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [profileSaveError, setProfileSaveError] = useState("");
@@ -834,6 +892,9 @@ export default function ProfilePage() {
   const [passwordSaveStatus, setPasswordSaveStatus] = useState(null);
   const [pendingAvatarFile, setPendingAvatarFile] = useState(null);
   const [pendingAvatarPreview, setPendingAvatarPreview] = useState("");
+  const [pendingBannerFile, setPendingBannerFile] = useState(null);
+  const [pendingBannerPreview, setPendingBannerPreview] = useState("");
+  const bannerInputRef = useRef(null);
   const proUntilLabel = user?.isPro ? formatProUntil(user?.proUntil) : "";
 
   useEffect(() => {
@@ -841,8 +902,12 @@ export default function ProfilePage() {
       if (pendingAvatarPreview) {
         URL.revokeObjectURL(pendingAvatarPreview);
       }
+
+      if (pendingBannerPreview) {
+        URL.revokeObjectURL(pendingBannerPreview);
+      }
     };
-  }, [pendingAvatarPreview]);
+  }, [pendingAvatarPreview, pendingBannerPreview]);
 
   useEffect(() => {
     setProfileForm((current) => ({
@@ -899,8 +964,14 @@ export default function ProfilePage() {
         const nextUsername = user.username?.trim() || profile.username || "";
         const nextPhone = user.phone?.trim() || profile.phone || "";
         const nextAvatar = user.avatar?.trim() || profile.avatar_url || "";
+        const nextBanner = user.banner?.trim() || profile.banner_url || "";
 
-        if (nextUsername === (user.username ?? "") && nextPhone === (user.phone ?? "") && nextAvatar === (user.avatar ?? "")) {
+        if (
+          nextUsername === (user.username ?? "") &&
+          nextPhone === (user.phone ?? "") &&
+          nextAvatar === (user.avatar ?? "") &&
+          nextBanner === (user.banner ?? "")
+        ) {
           return;
         }
 
@@ -910,6 +981,8 @@ export default function ProfilePage() {
           phone: nextPhone,
           avatar_url: nextAvatar,
           avatar: nextAvatar,
+          banner_url: nextBanner,
+          banner: nextBanner,
           display_name: nextUsername,
           displayName: nextUsername,
           name: nextUsername,
@@ -1063,6 +1136,17 @@ export default function ProfilePage() {
     });
   }
 
+  function clearPendingBannerSelection() {
+    setPendingBannerFile(null);
+    setPendingBannerPreview((current) => {
+      if (current) {
+        URL.revokeObjectURL(current);
+      }
+
+      return "";
+    });
+  }
+
   function handleAvatarFileChange(e) {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -1091,6 +1175,63 @@ export default function ProfilePage() {
       return URL.createObjectURL(file);
     });
     setPendingAvatarFile(file);
+  }
+
+  function handleOpenBannerPicker() {
+    if (!user) {
+      return;
+    }
+
+    if (!user.isPro) {
+      clearPendingBannerSelection();
+      setIsEditProfileOpen(false);
+      navigate("/pro");
+      return;
+    }
+
+    setProfileSaveError("");
+    bannerInputRef.current?.click();
+  }
+
+  function handleBannerFileChange(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file || !user) {
+      return;
+    }
+
+    if (isSpotifyUser) {
+      setProfileSaveError("Las cuentas iniciadas con Spotify no pueden editar estos datos.");
+      return;
+    }
+
+    if (!user.isPro) {
+      clearPendingBannerSelection();
+      setIsEditProfileOpen(false);
+      navigate("/pro");
+      return;
+    }
+
+    if (!file.type?.startsWith("image/")) {
+      setProfileSaveError("Solo puedes subir banners JPG, PNG o WEBP.");
+      return;
+    }
+
+    if (file.size > 7 * 1024 * 1024) {
+      setProfileSaveError("El banner no puede superar los 7 MB.");
+      return;
+    }
+
+    setProfileSaveError("");
+    setPendingBannerPreview((current) => {
+      if (current) {
+        URL.revokeObjectURL(current);
+      }
+
+      return URL.createObjectURL(file);
+    });
+    setPendingBannerFile(file);
   }
 
   async function handleAvatarUpload() {
@@ -1124,6 +1265,49 @@ export default function ProfilePage() {
       }
     } finally {
       setIsUploadingAvatar(false);
+    }
+  }
+
+  async function handleBannerUpload() {
+    if (!pendingBannerFile || !user) {
+      return;
+    }
+
+    if (!user.isPro) {
+      clearPendingBannerSelection();
+      setIsEditProfileOpen(false);
+      navigate("/pro");
+      return;
+    }
+
+    setIsUploadingBanner(true);
+    setProfileSaveError("");
+
+    try {
+      const response = await uploadProfileBanner(user.id, pendingBannerFile, appToken);
+      const nextBanner = response?.user?.banner_url ?? response?.profile?.banner_url ?? response?.publicUrl ?? "";
+
+      setAuthenticatedUser({
+        ...user,
+        banner_url: nextBanner,
+        banner: nextBanner,
+      });
+      clearPendingBannerSelection();
+
+      toast({
+        title: "Banner actualizado",
+        description: "Tu nuevo banner PRO ya esta guardado.",
+      });
+    } catch (error) {
+      if (error?.message === "INVALID_BANNER_TYPE") {
+        setProfileSaveError("Solo puedes subir banners JPG, PNG o WEBP.");
+      } else if (error?.message === "INVALID_BANNER_SIZE") {
+        setProfileSaveError("El banner no puede superar los 7 MB.");
+      } else {
+        setProfileSaveError("No pudimos subir tu banner en este momento.");
+      }
+    } finally {
+      setIsUploadingBanner(false);
     }
   }
 
@@ -1275,8 +1459,14 @@ export default function ProfilePage() {
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
       <ProfileSectionTabs />
 
-      <div className="mb-8 rounded-3xl border border-border bg-card p-8 shadow-lg shadow-black/5">
-        <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
+      <div className="relative mb-8 overflow-hidden rounded-3xl border border-border bg-card p-8 shadow-lg shadow-black/5">
+        {profileUser?.banner ? (
+          <>
+            <img src={profileUser.banner} alt={`Banner de ${profileUser?.name ?? "MusicDB"}`} className="absolute inset-0 h-full w-full object-cover" />
+            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(8,8,12,0.18),rgba(8,8,12,0.72),rgba(8,8,12,0.92))]" />
+          </>
+        ) : null}
+        <div className="relative flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
           <div className="flex flex-col gap-6 md:flex-row md:items-center">
             <div className="flex h-24 w-24 items-center justify-center rounded-full bg-secondary">
               {profileUser?.avatar ? (
@@ -1340,24 +1530,39 @@ export default function ProfilePage() {
               <div className="max-h-[calc(100vh-1.5rem)] w-full overflow-y-auto sm:max-h-[calc(100vh-3rem)]">
                 <LocalProfileSettings
                   avatarUrl={pendingAvatarPreview || user?.avatar}
+                  bannerPreviewUrl={pendingBannerPreview || user?.banner}
                   form={profileForm}
                   onAvatarChange={handleAvatarFileChange}
                   onAvatarUpload={handleAvatarUpload}
+                  onBannerUpload={handleBannerUpload}
+                  onOpenBannerPicker={handleOpenBannerPicker}
                   onChange={setProfileFormField}
                   onClose={() => {
                     clearPendingAvatarSelection();
+                    clearPendingBannerSelection();
                     setIsEditProfileOpen(false);
                   }}
                   onSubmit={handleSubmitProfile}
                   pendingAvatarName={pendingAvatarFile?.name ?? ""}
+                  pendingBannerName={pendingBannerFile?.name ?? ""}
                   saveError={profileSaveError}
                   isUploadingAvatar={isUploadingAvatar}
+                  isUploadingBanner={isUploadingBanner}
+                  isPro={Boolean(user?.isPro)}
                   isSaving={isSavingProfile}
                   isSpotifyUser={isSpotifyUser}
                   onOpenPasswordModal={() => {
                     setPasswordSaveError("");
                     setIsPasswordModalOpen(true);
                   }}
+                />
+                <input
+                  ref={bannerInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="hidden"
+                  onChange={handleBannerFileChange}
+                  disabled={isUploadingBanner}
                 />
               </div>
             </motion.div>

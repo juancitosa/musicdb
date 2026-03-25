@@ -35,6 +35,7 @@ function normalizeUser(user) {
     displayName: resolvedDisplayName,
     authProvider,
     avatar: user.avatar_url ?? user.avatar ?? "",
+    banner: user.banner_url ?? user.banner ?? "",
     name: resolvedDisplayName,
     isVerified: Boolean(user.is_verified ?? user.isVerified ?? authProvider === "spotify"),
     verifiedAt: user.verified_at ?? user.verifiedAt ?? null,
@@ -52,6 +53,7 @@ function mergeProfileIntoUser(user, profile) {
   const username = user.username?.trim() || profile.username || "";
   const phone = user.phone?.trim() || profile.phone || "";
   const avatar = user.avatar?.trim() || profile.avatar_url || "";
+  const banner = user.banner?.trim() || profile.banner_url || "";
   const displayName = username || user.displayName || user.name || "MusicDB User";
 
   return normalizeUser({
@@ -61,6 +63,8 @@ function mergeProfileIntoUser(user, profile) {
     is_admin: profile.is_admin ?? user.isAdmin,
     avatar_url: avatar,
     avatar,
+    banner_url: banner,
+    banner,
     display_name: displayName,
     displayName,
     name: displayName,
@@ -83,6 +87,7 @@ function mergeBackendStatusIntoLocalUser(localUser, backendUser) {
     phone: backendUser.phone ?? localUser.phone,
     display_name: backendUser.display_name ?? localUser.displayName ?? localUser.name,
     avatar_url: backendUser.avatar_url ?? localUser.avatar,
+    banner_url: backendUser.banner_url ?? localUser.banner,
     is_admin: backendUser.is_admin ?? localUser.isAdmin,
     is_pro: backendUser.is_pro ?? localUser.isPro,
     pro_until: backendUser.pro_until ?? localUser.proUntil,
@@ -128,6 +133,7 @@ function persistSession(session) {
             display_name: session.user.displayName,
             auth_provider: session.user.authProvider,
             avatar_url: session.user.avatar,
+            banner_url: session.user.banner,
             is_admin: session.user.isAdmin,
             is_verified: session.user.isVerified,
             verified_at: session.user.verifiedAt,

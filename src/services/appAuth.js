@@ -73,6 +73,7 @@ function mapSupabaseUser(user) {
     display_name: fallbackUsername || "MusicDB User",
     auth_provider: "local",
     avatar_url: user.user_metadata?.avatar_url ?? "",
+    banner_url: user.user_metadata?.banner_url ?? "",
     is_admin: Boolean(user.user_metadata?.is_admin),
     is_verified: Boolean(user.email_confirmed_at),
     verified_at: user.email_confirmed_at ?? null,
@@ -248,6 +249,10 @@ async function ensureProfileRecord(supabase, authUser, payload = {}) {
       nextPayload.avatar_url = "";
     }
 
+    if (!existingProfile.banner_url) {
+      nextPayload.banner_url = "";
+    }
+
     if (existingProfile.is_admin === null || existingProfile.is_admin === undefined) {
       nextPayload.is_admin = false;
     }
@@ -271,6 +276,7 @@ async function ensureProfileRecord(supabase, authUser, payload = {}) {
     username: username || "usuario",
     phone: "",
     avatar_url: "",
+    banner_url: "",
     created_at: new Date().toISOString(),
     is_admin: false,
   }).select("*").single();
@@ -543,6 +549,10 @@ export async function updateSupabaseProfile(userId, payload) {
     updatePayload.avatar_url = payload.avatar_url;
   }
 
+  if (payload.banner_url !== undefined) {
+    updatePayload.banner_url = payload.banner_url;
+  }
+
   const { data, error } = await supabase
     .from("profiles")
     .upsert(updatePayload, {
@@ -620,6 +630,69 @@ export async function uploadProfileAvatar(userId, file, sessionToken) {
   if (sessionToken && publicUrl) {
     const response = await patchAuthenticatedRequest("/auth/profile", sessionToken, {
       avatar_url: publicUrl,
+    });
+    user = response?.user ?? null;
+  }
+
+  return {
+    path: filePath,
+    publicUrl,
+    profile,
+    user,
+  };
+}
+
+export async function uploadProfileBanner(userId, file, sessionToken) {
+  const supabase = getSupabaseClient();
+
+  if (!file) {
+    return null;
+  }
+
+  if (!file.type?.startsWith("image/")) {
+    throw new Error("INVALID_BANNER_TYPE");
+  }
+
+  if (file.size > 7 * 1024 * 1024) {
+    throw new Error("INVALID_BANNER_SIZE");
+  }
+
+  const fileExt = file.name.split(".").pop();
+  const filePath = `${userId}/banner-${Date.now()}.${fileExt}`;
+  const { error: uploadError } = await supabase.storage
+    .from("avatars")
+    .upload(filePath, file, {
+      upsert: true,
+      contentType: file.type,
+    });
+
+  if (uploadError) {
+    console.error("BANNER UPLOAD ERROR:", uploadError);
+    throw uploadError;
+  }
+
+  const { data } = supabase.storage.from("avatars").getPublicUrl(filePath);
+  const publicUrl = data?.publicUrl ?? "";
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .upsert({
+      id: userId,
+      banner_url: publicUrl,
+    }, {
+      onConflict: "id",
+    })
+    .select("*")
+    .single();
+
+  if (profileError) {
+    throw new Error(profileError.message || "APP_AUTH_ERROR");
+  }
+
+  let user = null;
+
+  if (sessionToken && publicUrl) {
+    const response = await patchAuthenticatedRequest("/auth/profile", sessionToken, {
+      banner_url: publicUrl,
     });
     user = response?.user ?? null;
   }
