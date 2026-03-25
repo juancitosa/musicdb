@@ -1233,6 +1233,7 @@ export default function ProfilePage() {
         repeatPassword: "",
       });
       setPasswordSaveStatus({ type: "success" });
+      setIsPasswordModalOpen(false);
       toast({
         title: "Contrasena actualizada",
         description: "Tu nueva contrasena ya quedo guardada.",
