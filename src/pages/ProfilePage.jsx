@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { AudioLines, Disc3, Flame, LoaderCircle, Search, Star, UserRound, X } from "lucide-react";
+import { AudioLines, Check, Disc3, Flame, LoaderCircle, Search, Star, UserRound, X, XCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate, NavLink, useLocation, useNavigate } from "react-router-dom";
 
@@ -425,6 +425,7 @@ function LocalPasswordSettings({
   onClose,
   onSubmit,
   saveError,
+  saveStatus,
   isSaving,
 }) {
   return (
@@ -483,6 +484,24 @@ function LocalPasswordSettings({
             required
           />
         </div>
+
+        {saveStatus?.type === "success" ? (
+          <div className="rounded-2xl border border-emerald-400/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
+            <span className="inline-flex items-center gap-2 font-medium">
+              <Check className="h-4 w-4" />
+              Contrasena cambiada correctamente.
+            </span>
+          </div>
+        ) : null}
+
+        {saveStatus?.type === "error" ? (
+          <div className="rounded-2xl border border-destructive/25 bg-destructive/8 px-4 py-3 text-sm text-destructive">
+            <span className="inline-flex items-center gap-2 font-medium">
+              <XCircle className="h-4 w-4" />
+              La contrasena no pudo cambiarse en este momento, intenta mas tarde.
+            </span>
+          </div>
+        ) : null}
 
         {saveError ? <p className="rounded-2xl border border-destructive/25 bg-destructive/8 px-4 py-3 text-sm text-destructive">{saveError}</p> : null}
 
@@ -812,6 +831,7 @@ export default function ProfilePage() {
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [profileSaveError, setProfileSaveError] = useState("");
   const [passwordSaveError, setPasswordSaveError] = useState("");
+  const [passwordSaveStatus, setPasswordSaveStatus] = useState(null);
   const [pendingAvatarFile, setPendingAvatarFile] = useState(null);
   const [pendingAvatarPreview, setPendingAvatarPreview] = useState("");
   const proUntilLabel = user?.isPro ? formatProUntil(user?.proUntil) : "";
@@ -845,6 +865,7 @@ export default function ProfilePage() {
       repeatPassword: "",
     });
     setPasswordSaveError("");
+    setPasswordSaveStatus(null);
   }
 
   useEffect(() => {
@@ -1201,18 +1222,24 @@ export default function ProfilePage() {
 
     setIsSavingPassword(true);
     setPasswordSaveError("");
+    setPasswordSaveStatus(null);
 
     try {
       await verifyCurrentAuthenticatedPassword(user.email, currentPassword);
       await updateAuthenticatedPassword(newPassword);
-      resetPasswordForm();
-      setIsPasswordModalOpen(false);
+      setPasswordForm({
+        currentPassword: "",
+        newPassword: "",
+        repeatPassword: "",
+      });
+      setPasswordSaveStatus({ type: "success" });
       toast({
         title: "Contrasena actualizada",
         description: "Tu nueva contrasena ya quedo guardada.",
       });
     } catch (error) {
       setPasswordSaveError(mapPasswordUpdateError(error?.message));
+      setPasswordSaveStatus({ type: "error" });
     } finally {
       setIsSavingPassword(false);
     }
@@ -1361,6 +1388,7 @@ export default function ProfilePage() {
                   }}
                   onSubmit={handleSubmitPassword}
                   saveError={passwordSaveError}
+                  saveStatus={passwordSaveStatus}
                   isSaving={isSavingPassword}
                 />
               </div>
