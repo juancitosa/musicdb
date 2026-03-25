@@ -2,9 +2,9 @@ import { BarChart3, ChevronDown, LoaderCircle, Search, ShieldAlert, Star, Trash2
 import { Fragment, useEffect, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 
+import { deleteAdminUser, fetchAdminUsers } from "../services/admin";
 import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../hooks/useToast";
-import { getSupabaseClient } from "../lib/supabase";
 
 const PAGE_SIZE = 30;
 
@@ -300,7 +300,7 @@ function DeleteUserModal({ user, isDeleting, onCancel, onConfirm }) {
 export default function AdminPanel() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { isLoading, isLoggedIn, currentUser, isCurrentUserLoading } = useAuth();
+  const { isLoading, isLoggedIn, currentUser, isCurrentUserLoading, appToken } = useAuth();
   const [filters, setFilters] = useState({
     search: "",
     fromDate: "",
@@ -341,45 +341,19 @@ export default function AdminPanel() {
       setError("");
 
       try {
-        const supabase = getSupabaseClient();
-        let query = supabase
-          .from("users")
-          .select("*")
-          .order("created_at", { ascending: appliedFilters.sortOrder === "asc" })
-          .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
-
-        const searchFilter = buildSearchFilter(appliedFilters.search);
-
-        if (searchFilter) {
-          query = query.or(searchFilter);
-        }
-
-        if (appliedFilters.fromDate) {
-          query = query.gte("created_at", new Date(appliedFilters.fromDate).toISOString());
-        }
-
-        if (appliedFilters.toDate) {
-          query = query.lte("created_at", new Date(appliedFilters.toDate).toISOString());
-        }
-
-        if (appliedFilters.proStatus === "pro") {
-          query = query.eq("is_pro", true);
-        }
-
-        if (appliedFilters.proStatus === "free") {
-          query = query.eq("is_pro", false);
-        }
-
-        const { data, error: usersError } = await query;
-
-        if (usersError) {
-          throw usersError;
-        }
+        const { users: nextUsers, hasNextPage: nextHasNextPage } = await fetchAdminUsers(appToken, {
+          page,
+          pageSize: PAGE_SIZE,
+          search: appliedFilters.search,
+          fromDate: appliedFilters.fromDate,
+          toDate: appliedFilters.toDate,
+          proStatus: appliedFilters.proStatus,
+          sortOrder: appliedFilters.sortOrder,
+        });
 
         if (!cancelled) {
-          const nextUsers = data ?? [];
-          setUsers(nextUsers.slice(0, PAGE_SIZE));
-          setHasNextPage(nextUsers.length > PAGE_SIZE);
+          setUsers(nextUsers);
+          setHasNextPage(nextHasNextPage);
           setOpenUserId((current) => (nextUsers.some((entry) => entry.id === current) ? current : null));
         }
       } catch (loadError) {
@@ -400,7 +374,7 @@ export default function AdminPanel() {
     return () => {
       cancelled = true;
     };
-  }, [appliedFilters, currentUser?.isAdmin, isCurrentUserLoading, page]);
+  }, [appliedFilters, appToken, currentUser?.isAdmin, isCurrentUserLoading, page]);
 
   function updateFilter(key, value) {
     setFilters((current) => ({
@@ -442,12 +416,7 @@ export default function AdminPanel() {
     setIsDeletingUserId(pendingDeleteUser.id);
 
     try {
-      const supabase = getSupabaseClient();
-      const { error: deleteError } = await supabase.from("users").delete().eq("id", pendingDeleteUser.id);
-
-      if (deleteError) {
-        throw deleteError;
-      }
+      await deleteAdminUser(pendingDeleteUser.id, appToken);
 
       setUsers((current) => current.filter((entry) => entry.id !== pendingDeleteUser.id));
       setOpenUserId((current) => (current === pendingDeleteUser.id ? null : current));

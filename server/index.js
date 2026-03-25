@@ -174,6 +174,16 @@ function invalidateCachedRankings(entityType) {
   });
 }
 
+function ensureAdminUser(user) {
+  if (!user?.id) {
+    throw createHttpError(401, "APP_AUTH_REQUIRED", "Authentication is required");
+  }
+
+  if (!user?.is_admin) {
+    throw createHttpError(403, "ADMIN_FORBIDDEN", "Admin access is required");
+  }
+}
+
 async function getCachedSpotifyResponse(cache, key, fetcher) {
   const freshValue = getSpotifyCacheEntry(cache, key);
 
@@ -2792,6 +2802,82 @@ app.get(
     const supabase = getSupabaseAdmin();
     const user = await getUserById(supabase, userId);
     res.json({ user: mapUserRecord(user) });
+  }),
+);
+
+app.get(
+  "/api/admin/users",
+  authenticateAppUser,
+  asyncRoute(async (req, res) => {
+    ensureAdminUser(req.current_user);
+
+    const supabase = getSupabaseAdmin();
+    const page = Math.max(Number(req.query.page) || 0, 0);
+    const pageSize = Math.min(Math.max(Number(req.query.page_size) || 30, 1), 100);
+    const from = page * pageSize;
+    const to = from + pageSize;
+    const sortAscending = req.query.sort_order === "asc";
+    const searchValue = typeof req.query.search === "string" ? req.query.search.trim() : "";
+    const fromDate = typeof req.query.from_date === "string" ? req.query.from_date.trim() : "";
+    const toDate = typeof req.query.to_date === "string" ? req.query.to_date.trim() : "";
+    const proStatus = typeof req.query.pro_status === "string" ? req.query.pro_status.trim().toLowerCase() : "all";
+    const userSelect = await buildUserSelect(supabase);
+
+    let query = supabase
+      .from("users")
+      .select(userSelect)
+      .order("created_at", { ascending: sortAscending })
+      .range(from, to);
+
+    if (searchValue) {
+      const escapedValue = searchValue.replaceAll(",", "\\,");
+      query = query.or(`username.ilike.%${escapedValue}%,email.ilike.%${escapedValue}%`);
+    }
+
+    if (fromDate) {
+      query = query.gte("created_at", new Date(fromDate).toISOString());
+    }
+
+    if (toDate) {
+      query = query.lte("created_at", new Date(toDate).toISOString());
+    }
+
+    if (proStatus === "pro") {
+      query = query.eq("is_pro", true);
+    }
+
+    if (proStatus === "free") {
+      query = query.eq("is_pro", false);
+    }
+
+    const { data, error } = await query;
+    handleSupabaseError(error, "Failed to fetch admin users");
+
+    const users = (data ?? []).map((user) => mapUserRecord(user));
+    res.json({
+      users: users.slice(0, pageSize),
+      has_next_page: users.length > pageSize,
+    });
+  }),
+);
+
+app.delete(
+  "/api/admin/users/:user_id",
+  authenticateAppUser,
+  asyncRoute(async (req, res) => {
+    ensureAdminUser(req.current_user);
+
+    const userId = normalizeUserId(req.params.user_id);
+
+    if (!userId) {
+      throw createHttpError(400, "INVALID_USER_ID", "A valid user_id is required");
+    }
+
+    const supabase = getSupabaseAdmin();
+    const { error } = await supabase.from("users").delete().eq("id", userId);
+    handleSupabaseError(error, "Failed to delete admin user");
+
+    res.status(204).send();
   }),
 );
 
