@@ -48,7 +48,7 @@ export function SpotifyAuthProvider({ children }) {
   const loadSpotifyProfile = useCallback(
     async (accessToken) => {
       const profile = await fetchSpotifyProfile(accessToken);
-      const response = await syncSpotifyUser(profile);
+      const response = await syncSpotifyUser(accessToken);
       const nextUser = normalizeSpotifyUser(profile);
 
       setSpotifyUser(nextUser);

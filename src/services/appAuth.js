@@ -318,8 +318,10 @@ export async function fetchSpotifyProfile(accessToken) {
   };
 }
 
-export function syncSpotifyUser(payload) {
-  return postAuthRequest("/auth/spotify", payload);
+export function syncSpotifyUser(accessToken) {
+  return postAuthRequest("/auth/spotify", {
+    access_token: accessToken,
+  });
 }
 
 export async function registerLocalUser(payload) {

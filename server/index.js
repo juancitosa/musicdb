@@ -3550,15 +3550,29 @@ app.post(
 app.post(
   "/api/auth/spotify",
   asyncRoute(async (req, res) => {
-    console.log("SPOTIFY AUTH HIT");
+    const spotifyAccessToken = typeof req.body.access_token === "string" ? req.body.access_token.trim() : "";
 
-    const spotifyUserId = typeof req.body.spotify_user_id === "string" ? req.body.spotify_user_id.trim() : "";
-    const email = normalizeEmail(req.body.email);
-    const displayName = normalizeDisplayName(req.body.display_name, email || "Spotify User");
-    const avatarUrl = normalizeAvatarUrl(req.body.avatar_url);
+    if (!spotifyAccessToken) {
+      throw createHttpError(400, "INVALID_SPOTIFY_AUTH_PAYLOAD", "access_token is required");
+    }
+
+    let spotifyProfile;
+
+    try {
+      spotifyProfile = await spotifyRequest("/me", {
+        token: spotifyAccessToken,
+      });
+    } catch (error) {
+      throw normalizeSpotifyError(error, "SPOTIFY_AUTH_INVALID", "Spotify authentication failed");
+    }
+
+    const spotifyUserId = normalizeEntityId(spotifyProfile?.id);
+    const email = normalizeEmail(spotifyProfile?.email);
+    const displayName = normalizeDisplayName(spotifyProfile?.display_name, email || "Spotify User");
+    const avatarUrl = normalizeAvatarUrl(spotifyProfile?.images?.[0]?.url);
 
     if (!spotifyUserId) {
-      throw createHttpError(400, "INVALID_SPOTIFY_AUTH_PAYLOAD", "spotify_user_id is required");
+      throw createHttpError(401, "SPOTIFY_AUTH_INVALID", "Invalid Spotify user profile");
     }
 
     const supabase = getSupabaseAdmin();
