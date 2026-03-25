@@ -79,6 +79,10 @@ function mergeBackendStatusIntoLocalUser(localUser, backendUser) {
   return normalizeUser({
     ...localUser,
     email: backendUser.email ?? localUser.email,
+    username: backendUser.username ?? localUser.username,
+    phone: backendUser.phone ?? localUser.phone,
+    display_name: backendUser.display_name ?? localUser.displayName ?? localUser.name,
+    avatar_url: backendUser.avatar_url ?? localUser.avatar,
     is_admin: backendUser.is_admin ?? localUser.isAdmin,
     is_pro: backendUser.is_pro ?? localUser.isPro,
     pro_until: backendUser.pro_until ?? localUser.proUntil,
