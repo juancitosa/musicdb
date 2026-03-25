@@ -266,14 +266,110 @@ function mapPasswordUpdateError(errorCode) {
   }
 }
 
+function PreviewGrid({ imageUrl, zoom = 1, shape = "square", aspectClassName = "" }) {
+  return (
+    <div className={`relative overflow-hidden border border-white/12 bg-black/30 ${shape === "circle" ? "rounded-full" : "rounded-[1.2rem]"} ${aspectClassName}`}>
+      {imageUrl ? (
+        <div
+          className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+          style={{
+            backgroundImage: `url(${imageUrl})`,
+            backgroundSize: `${Math.max(zoom, 1) * 100}%`,
+          }}
+        />
+      ) : null}
+      <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.08)_1px,transparent_1px)] bg-[size:22px_22px]" />
+      <div className="absolute inset-0 ring-1 ring-white/8" />
+    </div>
+  );
+}
+
+async function renderZoomedImageFile(file, zoom, outputWidth, outputHeight) {
+  const objectUrl = URL.createObjectURL(file);
+
+  try {
+    const image = await new Promise((resolve, reject) => {
+      const nextImage = new Image();
+      nextImage.onload = () => resolve(nextImage);
+      nextImage.onerror = () => reject(new Error("IMAGE_LOAD_FAILED"));
+      nextImage.src = objectUrl;
+    });
+
+    const canvas = document.createElement("canvas");
+    canvas.width = outputWidth;
+    canvas.height = outputHeight;
+
+    const context = canvas.getContext("2d");
+
+    if (!context) {
+      throw new Error("IMAGE_PROCESSING_FAILED");
+    }
+
+    const imageWidth = image.naturalWidth || image.width;
+    const imageHeight = image.naturalHeight || image.height;
+    const targetAspect = outputWidth / outputHeight;
+    const imageAspect = imageWidth / imageHeight;
+
+    let baseCropWidth = imageWidth;
+    let baseCropHeight = imageHeight;
+
+    if (imageAspect > targetAspect) {
+      baseCropWidth = imageHeight * targetAspect;
+    } else {
+      baseCropHeight = imageWidth / targetAspect;
+    }
+
+    const safeZoom = Math.max(1, Number(zoom) || 1);
+    const sourceWidth = baseCropWidth / safeZoom;
+    const sourceHeight = baseCropHeight / safeZoom;
+    const sourceX = (imageWidth - sourceWidth) / 2;
+    const sourceY = (imageHeight - sourceHeight) / 2;
+
+    context.drawImage(
+      image,
+      sourceX,
+      sourceY,
+      sourceWidth,
+      sourceHeight,
+      0,
+      0,
+      outputWidth,
+      outputHeight,
+    );
+
+    const mimeType = ["image/jpeg", "image/png", "image/webp"].includes(file.type) ? file.type : "image/png";
+    const blob = await new Promise((resolve, reject) => {
+      canvas.toBlob((nextBlob) => {
+        if (nextBlob) {
+          resolve(nextBlob);
+          return;
+        }
+
+        reject(new Error("IMAGE_PROCESSING_FAILED"));
+      }, mimeType, mimeType === "image/jpeg" ? 0.92 : undefined);
+    });
+
+    return new File([blob], file.name, {
+      type: mimeType,
+      lastModified: Date.now(),
+    });
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
 function LocalProfileSettings({
   avatarUrl,
   bannerPreviewUrl,
+  avatarZoom,
+  bannerZoom,
   form,
   onAvatarChange,
   onAvatarUpload,
   onBannerUpload,
   onOpenBannerPicker,
+  onSetAvatarZoom,
+  onSetBannerZoom,
   onChange,
   onClose,
   onSubmit,
@@ -329,11 +425,13 @@ function LocalProfileSettings({
       </div>
 
       <div className="mt-6 flex flex-col gap-4 rounded-[1.6rem] border border-white/10 bg-black/18 p-4 sm:flex-row sm:items-center">
-        <div className="mx-auto flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-secondary/80 sm:mx-0">
+        <div className="mx-auto sm:mx-0">
           {avatarUrl ? (
-            <img src={avatarUrl} alt="Avatar del perfil" className="h-full w-full object-cover" />
+            <PreviewGrid imageUrl={avatarUrl} zoom={avatarZoom} shape="circle" aspectClassName="h-20 w-20" />
           ) : (
-            <UserRound className="h-8 w-8 text-muted-foreground" />
+            <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-secondary/80">
+              <UserRound className="h-8 w-8 text-muted-foreground" />
+            </div>
           )}
         </div>
 
@@ -366,11 +464,40 @@ function LocalProfileSettings({
         </Button>
       </div>
 
+      {avatarUrl ? (
+        <div className="mt-3 rounded-[1.6rem] border border-white/10 bg-black/14 p-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold text-foreground">Previsualizacion de avatar</p>
+              <p className="mt-1 text-xs text-muted-foreground">La grilla muestra como va a quedar centrado al guardar.</p>
+            </div>
+            <span className="text-xs font-medium text-white/70">{avatarZoom.toFixed(1)}x</span>
+          </div>
+
+          <div className="mt-4 flex justify-center">
+            <PreviewGrid imageUrl={avatarUrl} zoom={avatarZoom} shape="circle" aspectClassName="h-32 w-32" />
+          </div>
+
+          <div className="mt-4">
+            <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.22em] text-white/58">Zoom avatar</label>
+            <input
+              type="range"
+              min="1"
+              max="2.8"
+              step="0.1"
+              value={avatarZoom}
+              onChange={(event) => onSetAvatarZoom(Number(event.target.value))}
+              className="h-2 w-full cursor-pointer appearance-none rounded-full bg-white/14 accent-violet-400"
+            />
+          </div>
+        </div>
+      ) : null}
+
       <div className="mt-4 overflow-hidden rounded-[1.6rem] border border-amber-300/18 bg-[radial-gradient(circle_at_top_left,rgba(245,158,11,0.12),transparent_28%),linear-gradient(135deg,rgba(18,14,8,0.96),rgba(12,10,7,0.94),rgba(20,15,10,0.98))] p-4 shadow-[0_0_28px_rgba(245,158,11,0.12)]">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
           <div className="h-20 w-full overflow-hidden rounded-[1.2rem] border border-white/10 bg-black/30 sm:w-48">
             {bannerPreviewUrl ? (
-              <img src={bannerPreviewUrl} alt="Preview del banner" className="h-full w-full object-cover" />
+              <PreviewGrid imageUrl={bannerPreviewUrl} zoom={bannerZoom} aspectClassName="h-full w-full" />
             ) : (
               <div className="flex h-full w-full items-center justify-center bg-[linear-gradient(135deg,rgba(245,158,11,0.12),rgba(255,255,255,0.02),rgba(245,158,11,0.08))] text-[11px] font-semibold uppercase tracking-[0.24em] text-amber-100/70">
                 Banner PRO
@@ -415,6 +542,35 @@ function LocalProfileSettings({
             )}
           </Button>
         </div>
+
+        {bannerPreviewUrl ? (
+          <div className="mt-4 rounded-[1.35rem] border border-white/10 bg-black/20 p-4">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold text-amber-50">Previsualizacion de banner</p>
+                <p className="mt-1 text-xs text-amber-50/64">Se guarda centrado, con recorte controlado y sin pasarse del borde visible.</p>
+              </div>
+              <span className="text-xs font-medium text-amber-100/78">{bannerZoom.toFixed(1)}x</span>
+            </div>
+
+            <div className="mt-4">
+              <PreviewGrid imageUrl={bannerPreviewUrl} zoom={bannerZoom} aspectClassName="aspect-[3.2/1] w-full" />
+            </div>
+
+            <div className="mt-4">
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.22em] text-amber-100/58">Zoom banner</label>
+              <input
+                type="range"
+                min="1"
+                max="2.8"
+                step="0.1"
+                value={bannerZoom}
+                onChange={(event) => onSetBannerZoom(Number(event.target.value))}
+                className="h-2 w-full cursor-pointer appearance-none rounded-full bg-white/14 accent-amber-300"
+              />
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <form onSubmit={onSubmit} className="mt-6 grid gap-4 md:grid-cols-2">
@@ -906,6 +1062,8 @@ export default function ProfilePage() {
   const [pendingAvatarPreview, setPendingAvatarPreview] = useState("");
   const [pendingBannerFile, setPendingBannerFile] = useState(null);
   const [pendingBannerPreview, setPendingBannerPreview] = useState("");
+  const [avatarZoom, setAvatarZoom] = useState(1);
+  const [bannerZoom, setBannerZoom] = useState(1);
   const bannerInputRef = useRef(null);
   const proUntilLabel = user?.isPro ? formatProUntil(user?.proUntil) : "";
 
@@ -1139,6 +1297,7 @@ export default function ProfilePage() {
 
   function clearPendingAvatarSelection() {
     setPendingAvatarFile(null);
+    setAvatarZoom(1);
     setPendingAvatarPreview((current) => {
       if (current) {
         URL.revokeObjectURL(current);
@@ -1150,6 +1309,7 @@ export default function ProfilePage() {
 
   function clearPendingBannerSelection() {
     setPendingBannerFile(null);
+    setBannerZoom(1);
     setPendingBannerPreview((current) => {
       if (current) {
         URL.revokeObjectURL(current);
@@ -1180,6 +1340,7 @@ export default function ProfilePage() {
 
     setProfileSaveError("");
     setProfileSaveStatus(null);
+    setAvatarZoom(1);
     setPendingAvatarPreview((current) => {
       if (current) {
         URL.revokeObjectURL(current);
@@ -1239,6 +1400,7 @@ export default function ProfilePage() {
 
     setProfileSaveError("");
     setProfileSaveStatus(null);
+    setBannerZoom(1);
     setPendingBannerPreview((current) => {
       if (current) {
         URL.revokeObjectURL(current);
@@ -1259,7 +1421,8 @@ export default function ProfilePage() {
     setProfileSaveStatus(null);
 
     try {
-      const response = await uploadProfileAvatar(user.id, pendingAvatarFile, appToken);
+      const processedAvatarFile = await renderZoomedImageFile(pendingAvatarFile, avatarZoom, 512, 512);
+      const response = await uploadProfileAvatar(user.id, processedAvatarFile, appToken);
       const nextAvatar = response?.user?.avatar_url ?? response?.profile?.avatar_url ?? response?.publicUrl ?? "";
 
       setAuthenticatedUser({
@@ -1301,7 +1464,8 @@ export default function ProfilePage() {
     setProfileSaveStatus(null);
 
     try {
-      const response = await uploadProfileBanner(user.id, pendingBannerFile, appToken);
+      const processedBannerFile = await renderZoomedImageFile(pendingBannerFile, bannerZoom, 1600, 500);
+      const response = await uploadProfileBanner(user.id, processedBannerFile, appToken);
       const nextBanner = response?.user?.banner_url ?? response?.profile?.banner_url ?? response?.publicUrl ?? "";
 
       setAuthenticatedUser({
@@ -1553,11 +1717,15 @@ export default function ProfilePage() {
                 <LocalProfileSettings
                   avatarUrl={pendingAvatarPreview || user?.avatar}
                   bannerPreviewUrl={pendingBannerPreview || user?.banner}
+                  avatarZoom={avatarZoom}
+                  bannerZoom={bannerZoom}
                   form={profileForm}
                   onAvatarChange={handleAvatarFileChange}
                   onAvatarUpload={handleAvatarUpload}
                   onBannerUpload={handleBannerUpload}
                   onOpenBannerPicker={handleOpenBannerPicker}
+                  onSetAvatarZoom={setAvatarZoom}
+                  onSetBannerZoom={setBannerZoom}
                   onChange={setProfileFormField}
                   onClose={() => {
                     clearPendingAvatarSelection();
