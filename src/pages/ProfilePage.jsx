@@ -280,6 +280,7 @@ function LocalProfileSettings({
   pendingAvatarName,
   pendingBannerName,
   saveError,
+  saveStatus,
   isUploadingAvatar,
   isUploadingBanner,
   isPro,
@@ -454,6 +455,16 @@ function LocalProfileSettings({
           </Button>
         </div>
 
+        {saveStatus?.type === "success" ? (
+          <div className="md:col-span-2 rounded-2xl border border-emerald-400/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-400/16 text-emerald-200">
+                <Check className="h-4 w-4" />
+              </span>
+              <span>{saveStatus.message}</span>
+            </div>
+          </div>
+        ) : null}
         {saveError ? <p className="md:col-span-2 rounded-2xl border border-destructive/25 bg-destructive/8 px-4 py-3 text-sm text-destructive">{saveError}</p> : null}
 
         <div className="md:col-span-2 flex flex-col-reverse gap-3 pt-1 sm:flex-row sm:justify-end">
@@ -888,6 +899,7 @@ export default function ProfilePage() {
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [profileSaveError, setProfileSaveError] = useState("");
+  const [profileSaveStatus, setProfileSaveStatus] = useState(null);
   const [passwordSaveError, setPasswordSaveError] = useState("");
   const [passwordSaveStatus, setPasswordSaveStatus] = useState(null);
   const [pendingAvatarFile, setPendingAvatarFile] = useState(null);
@@ -1167,6 +1179,7 @@ export default function ProfilePage() {
     }
 
     setProfileSaveError("");
+    setProfileSaveStatus(null);
     setPendingAvatarPreview((current) => {
       if (current) {
         URL.revokeObjectURL(current);
@@ -1190,6 +1203,7 @@ export default function ProfilePage() {
     }
 
     setProfileSaveError("");
+    setProfileSaveStatus(null);
     bannerInputRef.current?.click();
   }
 
@@ -1224,6 +1238,7 @@ export default function ProfilePage() {
     }
 
     setProfileSaveError("");
+    setProfileSaveStatus(null);
     setPendingBannerPreview((current) => {
       if (current) {
         URL.revokeObjectURL(current);
@@ -1241,6 +1256,7 @@ export default function ProfilePage() {
 
     setIsUploadingAvatar(true);
     setProfileSaveError("");
+    setProfileSaveStatus(null);
 
     try {
       const response = await uploadProfileAvatar(user.id, pendingAvatarFile, appToken);
@@ -1282,6 +1298,7 @@ export default function ProfilePage() {
 
     setIsUploadingBanner(true);
     setProfileSaveError("");
+    setProfileSaveStatus(null);
 
     try {
       const response = await uploadProfileBanner(user.id, pendingBannerFile, appToken);
@@ -1293,6 +1310,10 @@ export default function ProfilePage() {
         banner: nextBanner,
       });
       clearPendingBannerSelection();
+      setProfileSaveStatus({
+        type: "success",
+        message: "Banner colocado correctamente.",
+      });
 
       toast({
         title: "Banner actualizado",
@@ -1325,6 +1346,7 @@ export default function ProfilePage() {
 
     setIsSavingProfile(true);
     setProfileSaveError("");
+    setProfileSaveStatus(null);
 
     const trimmedUsername = profileForm.username.trim();
     const trimmedPhone = profileForm.phone.trim();
@@ -1546,6 +1568,7 @@ export default function ProfilePage() {
                   pendingAvatarName={pendingAvatarFile?.name ?? ""}
                   pendingBannerName={pendingBannerFile?.name ?? ""}
                   saveError={profileSaveError}
+                  saveStatus={profileSaveStatus}
                   isUploadingAvatar={isUploadingAvatar}
                   isUploadingBanner={isUploadingBanner}
                   isPro={Boolean(user?.isPro)}
