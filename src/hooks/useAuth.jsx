@@ -164,6 +164,8 @@ export function AuthProvider({ children }) {
       }
 
       try {
+        let effectiveToken = session.token;
+
         if (session.user?.authProvider === "local") {
           const activeSession = await fetchLocalSession();
 
@@ -177,28 +179,39 @@ export function AuthProvider({ children }) {
             }
             return;
           }
+
+          effectiveToken = activeSession.access_token || session.token;
         }
 
         let normalizedUser = null;
 
         try {
-          const localSupabaseUser = await fetchLocalSupabaseUser(session.token);
-          const backendUser = await fetchAuthenticatedUser(session.token).catch(() => null);
+          const localSupabaseUser = await fetchLocalSupabaseUser(effectiveToken);
+          const backendUser = await fetchAuthenticatedUser(effectiveToken).catch(() => null);
           normalizedUser = mergeBackendStatusIntoLocalUser(localSupabaseUser, backendUser);
         } catch {
-          const backendUser = await fetchAuthenticatedUser(session.token);
-          normalizedUser = normalizeUser(backendUser);
+          const backendUser = await fetchAuthenticatedUser(effectiveToken).catch(() => null);
+          normalizedUser = backendUser ? normalizeUser(backendUser) : normalizeUser(session.user);
         }
 
         if (!cancelled && normalizedUser) {
           setUser(normalizedUser);
+          setAppToken(effectiveToken);
           setHasActiveSession(true);
           persistSession({
-            token: session.token,
+            token: effectiveToken,
             user: normalizedUser,
           });
         }
       } catch {
+        if (!cancelled && session.user) {
+          setUser(session.user);
+          setAppToken(session.token);
+          setHasActiveSession(true);
+          setIsLoading(false);
+          return;
+        }
+
         if (!cancelled) {
           setUser(null);
           setCurrentUser(null);
