@@ -688,20 +688,11 @@ export async function uploadProfileBanner(userId, file, sessionToken) {
     throw new Error(profileError.message || "APP_AUTH_ERROR");
   }
 
-  let user = null;
-
-  if (sessionToken && publicUrl) {
-    const response = await patchAuthenticatedRequest("/auth/profile", sessionToken, {
-      banner_url: publicUrl,
-    });
-    user = response?.user ?? null;
-  }
-
   return {
     path: filePath,
     publicUrl,
     profile,
-    user,
+    user: null,
   };
 }
 
