@@ -319,155 +319,13 @@ export function syncSpotifyUser(payload) {
 }
 
 export async function registerLocalUser(payload) {
-  const supabase = getSupabaseClient();
   const sanitizedPayload = sanitizeCredentials(payload);
-  const { data, error } = await supabase.auth.signUp({
-    email: sanitizedPayload.email,
-    password: sanitizedPayload.password,
-    options: {
-      data: {
-        username: sanitizedPayload.username || undefined,
-      },
-    },
-  });
-
-  if (error) {
-    console.error(error);
-
-    if (error.status === 429) {
-      throw new Error("TOO_MANY_SIGNUP_ATTEMPTS");
-    }
-
-    throw new Error(error.message || "APP_AUTH_ERROR");
-  }
-
-  if (data?.user?.id) {
-    const { error: insertError } = await supabase.from("users").insert({
-      id: data.user.id,
-      email: data.user.email,
-      username: sanitizedPayload.username || null,
-      created_at: new Date().toISOString(),
-    });
-
-    if (insertError) {
-      console.error(insertError);
-
-      await ensureUserTableRecord(supabase, data.user, {
-        email: sanitizedPayload.email,
-        username: sanitizedPayload.username,
-      });
-    }
-
-    const { error: profileInsertError } = await supabase.from("profiles").insert({
-      id: data.user.id,
-      username: sanitizedPayload.username || "usuario",
-      phone: "",
-      avatar_url: "",
-      created_at: new Date().toISOString(),
-      is_admin: false,
-    });
-
-    if (profileInsertError) {
-      console.error(profileInsertError);
-      await ensureProfileRecord(supabase, data.user, {
-        username: sanitizedPayload.username,
-      });
-    }
-  }
-
-  return data;
+  return postAuthRequest("/auth/register", sanitizedPayload);
 }
 
 export async function loginLocalUser(payload) {
-  const supabase = getSupabaseClient();
   const sanitizedPayload = sanitizeCredentials(payload);
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email: sanitizedPayload.email,
-    password: sanitizedPayload.password,
-  });
-
-  if (error) {
-    const message = (error.message || "").toLowerCase();
-    const code = (error.code || "").toLowerCase();
-
-    if (message.includes("email not confirmed") || code === "email_not_confirmed") {
-      throw new Error("EMAIL_NOT_VERIFIED");
-    }
-
-    if (
-      message.includes("invalid login credentials") ||
-      message.includes("invalid credentials") ||
-      code === "invalid_credentials"
-    ) {
-      throw new Error("LOCAL_LOGIN_INVALID");
-    }
-
-    throw new Error(error.message || "LOCAL_LOGIN_INVALID");
-  }
-
-  if (!data?.session || !data?.user) {
-    throw new Error("No se pudo iniciar sesion");
-  }
-
-  const ensuredUserRecord = await ensureUserTableRecord(supabase, data.user, {
-    email: sanitizedPayload.email,
-  });
-
-  const authUser = mapSupabaseUser(data.user);
-  const profile = authUser?.id ? await fetchSupabaseProfile(authUser.id).catch(() => null) : null;
-  const resolvedUsername = profile?.username ?? ensuredUserRecord?.username ?? authUser?.username ?? "";
-  const resolvedAvatar = profile?.avatar_url ?? authUser?.avatar_url ?? "";
-
-  return {
-    token: data.session?.access_token ?? null,
-    user: {
-      ...authUser,
-      username: resolvedUsername,
-      phone: profile?.phone ?? authUser?.phone ?? "",
-      avatar_url: resolvedAvatar,
-      is_admin: Boolean(profile?.is_admin ?? authUser?.is_admin),
-      display_name: resolvedUsername || authUser?.display_name || "MusicDB User",
-      name: resolvedUsername || authUser?.name || "MusicDB User",
-    },
-  };
-}
-
-export async function fetchLocalSession() {
-  const supabase = getSupabaseClient();
-  const { data, error } = await supabase.auth.getSession();
-
-  if (error) {
-    throw new Error(error.message || "APP_AUTH_ERROR");
-  }
-
-  return data?.session ?? null;
-}
-
-export async function fetchLocalSupabaseUser(token) {
-  const supabase = getSupabaseClient();
-  const {
-    data: { user } = {},
-    error,
-  } = await supabase.auth.getUser(token);
-
-  if (error || !user) {
-    throw new Error(error?.message || "LOCAL_AUTH_USER_NOT_FOUND");
-  }
-
-  const authUser = mapSupabaseUser(user);
-  const profile = authUser?.id ? await fetchSupabaseProfile(authUser.id).catch(() => null) : null;
-  const resolvedUsername = profile?.username ?? "";
-  const resolvedAvatar = profile?.avatar_url ?? authUser?.avatar_url ?? "";
-
-  return {
-    ...authUser,
-    username: resolvedUsername,
-    phone: profile?.phone ?? authUser?.phone ?? "",
-    avatar_url: resolvedAvatar,
-    is_admin: Boolean(profile?.is_admin ?? authUser?.is_admin),
-    display_name: resolvedUsername || authUser?.display_name || "MusicDB User",
-    name: resolvedUsername || authUser?.name || "MusicDB User",
-  };
+  return postAuthRequest("/auth/login", sanitizedPayload);
 }
 
 export function resendVerificationEmail(payload) {
@@ -516,9 +374,9 @@ export async function fetchAuthenticatedUser(token) {
 
 export async function fetchSupabaseProfile(userId) {
   const supabase = getSupabaseClient();
-  const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).single();
+  const { data, error } = await supabase.from("profiles").select("*").eq("id", userId).maybeSingle();
 
-  if (error) {
+  if (error && !isNotFoundError(error)) {
     throw new Error(error.message || "APP_AUTH_ERROR");
   }
 

@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
-import { fetchAuthenticatedUser, fetchCurrentUserByEmail, fetchLocalSession, fetchLocalSupabaseUser, fetchSupabaseProfile } from "../services/appAuth";
+import { fetchAuthenticatedUser, fetchSupabaseProfile } from "../services/appAuth";
 
 const SESSION_KEY = "musicdb_app_session";
 
@@ -160,34 +160,12 @@ export function AuthProvider({ children }) {
       }
 
       try {
-        if (session.user?.authProvider === "local") {
-          const activeSession = await fetchLocalSession();
-
-          if (!activeSession) {
-            if (!cancelled) {
-              setUser(null);
-              setCurrentUser(null);
-              setAppToken(null);
-              setHasActiveSession(false);
-              persistSession(null);
-            }
-            return;
-          }
-        }
-
-        let normalizedUser = null;
-
-        try {
-          const localSupabaseUser = await fetchLocalSupabaseUser(session.token);
-          const backendUser = await fetchAuthenticatedUser(session.token).catch(() => null);
-          normalizedUser = mergeBackendStatusIntoLocalUser(localSupabaseUser, backendUser);
-        } catch {
-          const backendUser = await fetchAuthenticatedUser(session.token);
-          normalizedUser = normalizeUser(backendUser);
-        }
+        const backendUser = await fetchAuthenticatedUser(session.token);
+        const normalizedUser = normalizeUser(backendUser);
 
         if (!cancelled && normalizedUser) {
           setUser(normalizedUser);
+          setCurrentUser(normalizedUser);
           setHasActiveSession(true);
           persistSession({
             token: session.token,
@@ -264,9 +242,9 @@ export function AuthProvider({ children }) {
     let cancelled = false;
 
     async function hydrateCurrentUser() {
-      if (!user?.email) {
+      if (!user || !appToken) {
         if (!cancelled) {
-          setCurrentUser(null);
+          setCurrentUser(user ?? null);
           setIsCurrentUserLoading(false);
         }
         return;
@@ -277,7 +255,7 @@ export function AuthProvider({ children }) {
       }
 
       try {
-        const nextCurrentUser = await fetchCurrentUserByEmail(user.email);
+        const nextCurrentUser = await fetchAuthenticatedUser(appToken);
 
         if (!cancelled) {
           setCurrentUser(normalizeUser(nextCurrentUser));
@@ -298,7 +276,7 @@ export function AuthProvider({ children }) {
     return () => {
       cancelled = true;
     };
-  }, [user?.email]);
+  }, [appToken, user]);
 
   const setAuthenticatedSession = useCallback((session) => {
     const normalizedSession = normalizeSession(session);
