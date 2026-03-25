@@ -10,7 +10,6 @@ import { useSpotifyAuth } from "../../hooks/useSpotifyAuth";
 import { useTheme } from "../../hooks/useTheme";
 import { getCurrentlyPlayingTrack, getImageUrl, searchSpotify } from "../../services/spotify";
 import AuthDialog from "../shared/AuthDialog";
-import SpotifyConnectButton from "../shared/SpotifyConnectButton";
 
 const navigationItems = [
   { label: "Inicio", path: "/" },
@@ -213,7 +212,7 @@ function ThemeToggle() {
 
 function UserActions() {
   const { isLoggedIn, user, currentUser, isCurrentUserLoading, clearAuthenticatedUser, isSpotifyUser } = useAuth();
-  const { isSpotifyConnected, spotifyToken, spotifyUser, connectSpotify, disconnectSpotify } = useSpotifyAuth();
+  const { isSpotifyConnected, spotifyToken, spotifyUser, disconnectSpotify } = useSpotifyAuth();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [currentlyPlaying, setCurrentlyPlaying] = useState(null);
@@ -318,13 +317,6 @@ function UserActions() {
     return (
       <>
         <div className="flex items-center gap-2">
-          {!isSpotifyConnected && !isSpotifyUser ? (
-            <div className="hidden md:block">
-              <SpotifyConnectButton onClick={() => connectSpotify({ forcePrompt: true })} className="px-4 py-2 text-sm">
-                Conectar Spotify
-              </SpotifyConnectButton>
-            </div>
-          ) : null}
           <div data-profile-menu className="relative">
             <div
               className="relative"
