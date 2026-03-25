@@ -57,6 +57,7 @@ const spotifyArtistCache = Object.create(null);
 const spotifyArtistAlbumsCache = Object.create(null);
 const spotifyAlbumCache = Object.create(null);
 const spotifyEnrichedRankingsCache = Object.create(null);
+const spotifyTrendingTracksCache = Object.create(null);
 
 function isAllowedOrigin(origin) {
   if (!origin) {
@@ -2139,7 +2140,7 @@ async function getGlobalTrendingTracks(limit = 10) {
     const tracks = entity?.trackList ?? [];
     const limitedTracks = tracks.slice(0, Math.min(Number(limit) || 10, 50));
 
-    return limitedTracks
+    const parsedTracks = limitedTracks
       .map((track, index) => {
         const trackId = track.uri?.split(":").pop();
 
@@ -2169,6 +2170,39 @@ async function getGlobalTrendingTracks(limit = 10) {
         };
       })
       .filter(Boolean);
+
+    const trackIdsToEnrich = parsedTracks.map((track) => track.id).filter(Boolean);
+
+    if (trackIdsToEnrich.length === 0) {
+      return parsedTracks;
+    }
+
+    const appToken = await getAppAccessToken();
+    const tracksResponse = await spotifyRequest("/tracks", {
+      token: appToken,
+      query: {
+        ids: trackIdsToEnrich.join(","),
+      },
+    });
+    const spotifyTrackMap = new Map((tracksResponse?.tracks ?? []).filter(Boolean).map((track) => [String(track.id), track]));
+
+    return parsedTracks.map((track) => {
+      const spotifyTrack = spotifyTrackMap.get(String(track.id));
+
+      if (!spotifyTrack?.album?.images?.length) {
+        return track;
+      }
+
+      return {
+        ...track,
+        album: {
+          ...track.album,
+          id: spotifyTrack.album?.id ?? track.album.id,
+          name: spotifyTrack.album?.name ?? track.album.name,
+          images: spotifyTrack.album.images,
+        },
+      };
+    });
   } catch (error) {
     throw normalizeSpotifyError(error, "SPOTIFY_TRENDING_UNAVAILABLE", "Spotify trending playlist is unavailable");
   }
@@ -4151,7 +4185,9 @@ app.get(
   "/api/trending/global",
   asyncRoute(async (req, res) => {
     try {
-      const tracks = await getGlobalTrendingTracks(req.query.limit || 10);
+      const limit = Math.min(Number(req.query.limit) || 10, 50);
+      const cacheKey = `trending-global:${limit}`;
+      const tracks = await getCachedSpotifyResponse(spotifyTrendingTracksCache, cacheKey, async () => getGlobalTrendingTracks(limit));
       res.json({ tracks });
     } catch (error) {
       return sendSpotifyEndpointError(res, error);
