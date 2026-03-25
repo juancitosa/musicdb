@@ -1131,6 +1131,7 @@ export default function ProfilePage() {
   const [isUploadingBanner, setIsUploadingBanner] = useState(false);
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [isSpotifyNoticeOpen, setIsSpotifyNoticeOpen] = useState(false);
   const [profileSaveError, setProfileSaveError] = useState("");
   const [profileSaveStatus, setProfileSaveStatus] = useState(null);
   const [passwordSaveError, setPasswordSaveError] = useState("");
@@ -1893,6 +1894,57 @@ export default function ProfilePage() {
             </motion.div>
           </motion.div>
         ) : null}
+
+        {isSpotifyNoticeOpen ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[230] overflow-y-auto bg-[rgba(3,4,10,0.42)] px-3 py-3 backdrop-blur-md sm:px-4 sm:py-6"
+            onClick={() => setIsSpotifyNoticeOpen(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 24, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 16, scale: 0.98 }}
+              transition={{ duration: 0.22, ease: "easeOut" }}
+              className="mx-auto flex min-h-full w-full max-w-lg items-center"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="w-full rounded-[1.75rem] border border-white/18 bg-white/12 p-5 text-white shadow-[0_24px_80px_rgba(0,0,0,0.45)] ring-1 ring-white/12 backdrop-blur-3xl sm:p-6">
+                <div className="rounded-[1.35rem] border border-white/12 bg-black/18 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] sm:p-5">
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-white/55">Antes de iniciar sesion</p>
+                  <p className="mt-3 text-base font-semibold leading-relaxed text-white/92 sm:text-lg">
+                    MusicDB aun esta en fase Beta, por lo que solo usuarios registrados en la whitelist de MusicDB pueden iniciar sesion con Spotify.
+                  </p>
+                </div>
+
+                <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="lg"
+                    className="border border-white/14 bg-white/8 text-white hover:bg-white/12"
+                    onClick={() => setIsSpotifyNoticeOpen(false)}
+                  >
+                    Cancelar
+                  </Button>
+                  <SpotifyConnectButton
+                    onClick={async () => {
+                      setIsSpotifyNoticeOpen(false);
+                      await connectSpotify({ forcePrompt: true });
+                    }}
+                    disabled={isLoadingSpotify}
+                    size="lg"
+                    className="justify-center px-6"
+                  >
+                    {isLoadingSpotify ? "Conectando..." : "Iniciar sesion con Spotify"}
+                  </SpotifyConnectButton>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        ) : null}
       </AnimatePresence>
 
       {isStatsView ? (
@@ -1902,7 +1954,7 @@ export default function ProfilePage() {
           isSpotifyUser={isSpotifyUser}
           isPro={Boolean(user?.isPro)}
           navigate={navigate}
-          onConnectSpotify={() => connectSpotify({ forcePrompt: true })}
+          onConnectSpotify={() => setIsSpotifyNoticeOpen(true)}
           selectedRange={statsRange}
           setSelectedRange={setStatsRange}
           spotifyTopAlbums={spotifyTopAlbums}
