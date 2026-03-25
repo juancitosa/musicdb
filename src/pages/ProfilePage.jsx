@@ -169,6 +169,7 @@ function RatingHistoryCard({ entry }) {
 }
 
 function SpotifyFeatureLock({ isSpotifyUser, isPro, onUnlock }) {
+  const buttonLabel = !isSpotifyUser && isPro ? "Conectarse a Spotify" : "Pagar PRO para desbloquear";
   const message = !isSpotifyUser
     ? "Inicia sesión con Spotify para habilitar tus estadísticas personales."
     : "Hazte MusicDB PRO para desbloquear tus tops personales.";
@@ -267,7 +268,6 @@ function mapPasswordUpdateError(errorCode) {
 }
 
 function PreviewGrid({ imageUrl, zoom = 1, offsetX = 0, offsetY = 0, shape = "square", aspectClassName = "" }) {
-  const buttonLabel = !isSpotifyUser && isPro ? "Conectarse a Spotify" : "Pagar PRO para desbloquear";
 
   return (
     <div className={`relative overflow-hidden border border-white/12 bg-black/30 ${shape === "circle" ? "rounded-full" : "rounded-[1.2rem]"} ${aspectClassName}`}>
