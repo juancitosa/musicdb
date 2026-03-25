@@ -92,3 +92,21 @@ export async function deleteReview(review_id, session_token) {
 
   return true;
 }
+
+export async function fetchPublicUserPreview(user_id) {
+  let response;
+
+  try {
+    response = await fetch(`${import.meta.env.VITE_API_URL}/users/${encodeURIComponent(user_id)}/preview`);
+  } catch {
+    throw new Error("USER_PREVIEW_BACKEND_UNAVAILABLE");
+  }
+
+  const data = await parseJsonResponse(response);
+
+  if (!response.ok) {
+    throw new Error(data?.error?.code || "USER_PREVIEW_FETCH_ERROR");
+  }
+
+  return data?.user ?? null;
+}

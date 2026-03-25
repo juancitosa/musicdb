@@ -663,6 +663,46 @@ async function getUserById(supabase, userId) {
   return syncExpiredProStatusIfNeeded(supabase, data);
 }
 
+async function getPublicUserPreviewById(supabase, userId) {
+  const normalizedUserId = normalizeUserId(userId);
+
+  if (!normalizedUserId) {
+    throw createHttpError(400, "INVALID_USER_ID", "A valid user_id is required");
+  }
+
+  const userSelect = await buildUserSelect(supabase);
+  const { data: user, error: userError } = await supabase
+    .from("users")
+    .select(userSelect)
+    .eq("id", normalizedUserId)
+    .maybeSingle();
+
+  handleSupabaseError(userError, "Failed to fetch public user preview");
+
+  if (!user) {
+    throw createHttpError(404, "USER_NOT_FOUND", "User not found");
+  }
+
+  const syncedUser = await syncExpiredProStatusIfNeeded(supabase, user);
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("banner_url")
+    .eq("id", normalizedUserId)
+    .maybeSingle();
+
+  if (profileError && !isNotFoundError(profileError)) {
+    handleSupabaseError(profileError, "Failed to fetch public user profile");
+  }
+
+  return {
+    id: syncedUser.id,
+    username: syncedUser.username || syncedUser.display_name || "Usuario",
+    avatar_url: syncedUser.avatar_url || "",
+    banner_url: profile?.banner_url || "",
+    is_pro: mapUserRecord(syncedUser).is_pro,
+  };
+}
+
 async function getUserByEmail(supabase, email) {
   if (!email) {
     return null;
@@ -3294,6 +3334,16 @@ app.get(
     const supabase = getSupabaseAdmin();
     const user = await getUserById(supabase, userId);
     res.json({ user: mapUserRecord(user) });
+  }),
+);
+
+app.get(
+  "/api/users/:user_id/preview",
+  asyncRoute(async (req, res) => {
+    const supabase = getSupabaseAdmin();
+    const user = await getPublicUserPreviewById(supabase, req.params.user_id);
+
+    res.json({ user });
   }),
 );
 

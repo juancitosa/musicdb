@@ -8,13 +8,14 @@ import AuthRestrictionMessage from "../components/shared/AuthRestrictionMessage"
 import PopularityBar from "../components/shared/PopularityBar";
 import RatingStars from "../components/shared/RatingStars";
 import SkeletonCard from "../components/shared/SkeletonCard";
+import UserPreviewModal from "../components/shared/UserPreviewModal";
 import Button from "../components/ui/Button";
 import { useAuth } from "../hooks/useAuth";
 import { useSpotifyAuth } from "../hooks/useSpotifyAuth";
 import { useToast } from "../hooks/useToast";
 import { getMockArtist, getMockArtistAlbums } from "../services/catalog";
 import { DEFAULT_RATINGS_SUMMARY, getRankings, getRatings, getUserRating, submitRating } from "../services/ratingHistory";
-import { createReview, deleteReview, getReviews } from "../services/reviewHistory";
+import { createReview, deleteReview, fetchPublicUserPreview, getReviews } from "../services/reviewHistory";
 import { formatTrackDuration, getArtistAlbums, getArtistById, getImageUrl, getLikedTracksByArtist } from "../services/spotify";
 
 const releaseFilters = [
@@ -109,6 +110,9 @@ export default function ArtistPage() {
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [reviewError, setReviewError] = useState("");
   const [deletingReviewId, setDeletingReviewId] = useState(null);
+  const [previewUser, setPreviewUser] = useState(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [releaseFilter, setReleaseFilter] = useState("all");
   const [artistRankingPosition, setArtistRankingPosition] = useState(null);
   const canInteract = hasActiveSession && isLoggedIn;
@@ -453,6 +457,37 @@ export default function ArtistPage() {
     }
   }
 
+  async function handleOpenUserPreview(review) {
+    if (!review?.user_id) {
+      return;
+    }
+
+    setIsPreviewOpen(true);
+    setIsPreviewLoading(true);
+    setPreviewUser({
+      id: review.user_id,
+      username: review.username,
+      avatar_url: review.avatar_url,
+      banner_url: "",
+      is_pro: review.is_pro,
+    });
+
+    try {
+      const nextUser = await fetchPublicUserPreview(review.user_id);
+      setPreviewUser(nextUser);
+    } catch {
+      setPreviewUser({
+        id: review.user_id,
+        username: review.username,
+        avatar_url: review.avatar_url,
+        banner_url: "",
+        is_pro: review.is_pro,
+      });
+    } finally {
+      setIsPreviewLoading(false);
+    }
+  }
+
   return (
     <div className="animate-in pb-12 duration-500">
       <div className="relative mx-4 mt-4 h-[42vh] min-h-[320px] overflow-hidden rounded-3xl shadow-2xl sm:mx-6 sm:min-h-[350px] lg:mx-8">
@@ -666,7 +701,11 @@ export default function ArtistPage() {
                 reviews.map((review) => (
                   <div key={review.id} className={`rounded-2xl border p-4 ${review.is_pro ? "pro-review-card" : "border-border/70 bg-background/50"}`}>
                     <div className="mb-3 flex items-start justify-between gap-4">
-                      <div className="flex min-w-0 items-start gap-3">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenUserPreview(review)}
+                        className="flex min-w-0 items-start gap-3 text-left transition hover:opacity-90"
+                      >
                         {review.avatar_url ? (
                           <img src={review.avatar_url} alt={review.username} className="h-10 w-10 shrink-0 rounded-full object-cover" />
                         ) : (
@@ -681,7 +720,7 @@ export default function ArtistPage() {
                             <span className="text-xs text-muted-foreground">{formatReviewDate(review.created_at)}</span>
                           </div>
                         </div>
-                      </div>
+                      </button>
                       {review.user_id === currentUserId ? (
                         <button
                           type="button"
@@ -753,6 +792,15 @@ export default function ArtistPage() {
           )}
         </div>
       </div>
+      <UserPreviewModal
+        isOpen={isPreviewOpen}
+        isLoading={isPreviewLoading}
+        user={previewUser}
+        onClose={() => {
+          setIsPreviewOpen(false);
+          setPreviewUser(null);
+        }}
+      />
     </div>
   );
 }

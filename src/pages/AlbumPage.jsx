@@ -5,12 +5,13 @@ import { Link, useParams } from "react-router-dom";
 import AuthRestrictionMessage from "../components/shared/AuthRestrictionMessage";
 import PopularityBar from "../components/shared/PopularityBar";
 import RatingStars from "../components/shared/RatingStars";
+import UserPreviewModal from "../components/shared/UserPreviewModal";
 import Button from "../components/ui/Button";
 import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../hooks/useToast";
 import { getMockAlbum, getMockAlbumTracks, getMockArtist } from "../services/catalog";
 import { DEFAULT_RATINGS_SUMMARY, getRatings, getUserRating, submitRating } from "../services/ratingHistory";
-import { createReview, deleteReview, getReviews } from "../services/reviewHistory";
+import { createReview, deleteReview, fetchPublicUserPreview, getReviews } from "../services/reviewHistory";
 import { formatTrackDuration, getAlbumById, getImageUrl } from "../services/spotify";
 
 function formatReviewDate(value) {
@@ -40,6 +41,9 @@ export default function AlbumPage() {
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [reviewError, setReviewError] = useState("");
   const [deletingReviewId, setDeletingReviewId] = useState(null);
+  const [previewUser, setPreviewUser] = useState(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const canInteract = hasActiveSession && isLoggedIn;
   const currentUserId = user?.id ?? null;
 
@@ -286,6 +290,37 @@ export default function AlbumPage() {
     }
   }
 
+  async function handleOpenUserPreview(review) {
+    if (!review?.user_id) {
+      return;
+    }
+
+    setIsPreviewOpen(true);
+    setIsPreviewLoading(true);
+    setPreviewUser({
+      id: review.user_id,
+      username: review.username,
+      avatar_url: review.avatar_url,
+      banner_url: "",
+      is_pro: review.is_pro,
+    });
+
+    try {
+      const nextUser = await fetchPublicUserPreview(review.user_id);
+      setPreviewUser(nextUser);
+    } catch {
+      setPreviewUser({
+        id: review.user_id,
+        username: review.username,
+        avatar_url: review.avatar_url,
+        banner_url: "",
+        is_pro: review.is_pro,
+      });
+    } finally {
+      setIsPreviewLoading(false);
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="mx-auto max-w-6xl animate-pulse px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
@@ -481,7 +516,11 @@ export default function AlbumPage() {
                 reviews.map((review) => (
                   <div key={review.id} className={`rounded-2xl border p-4 ${review.is_pro ? "pro-review-card" : "border-border/70 bg-background/50"}`}>
                     <div className="mb-3 flex items-start justify-between gap-4">
-                      <div className="flex min-w-0 items-start gap-3">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenUserPreview(review)}
+                        className="flex min-w-0 items-start gap-3 text-left transition hover:opacity-90"
+                      >
                         {review.avatar_url ? (
                           <img src={review.avatar_url} alt={review.username} className="h-10 w-10 shrink-0 rounded-full object-cover" />
                         ) : (
@@ -496,7 +535,7 @@ export default function AlbumPage() {
                             <span className="text-xs text-muted-foreground">{formatReviewDate(review.created_at)}</span>
                           </div>
                         </div>
-                      </div>
+                      </button>
                       {review.user_id === currentUserId ? (
                         <button
                           type="button"
@@ -526,6 +565,15 @@ export default function AlbumPage() {
           </div>
         </div>
       </div>
+      <UserPreviewModal
+        isOpen={isPreviewOpen}
+        isLoading={isPreviewLoading}
+        user={previewUser}
+        onClose={() => {
+          setIsPreviewOpen(false);
+          setPreviewUser(null);
+        }}
+      />
     </div>
   );
 }
