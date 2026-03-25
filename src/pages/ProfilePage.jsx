@@ -686,7 +686,7 @@ export default function ProfilePage() {
   const location = useLocation();
   const { toast } = useToast();
   const { isSpotifyConnected, isLoadingSpotify, spotifyToken, spotifyUser } = useSpotifyAuth();
-  const profileUser = spotifyUser ?? user;
+  const profileUser = isSpotifyUser ? (spotifyUser ?? user) : user;
   const hasSpotifyFeatures = isSpotifyUser && isSpotifyConnected;
   const hasSpotifyStatsAccess = hasSpotifyFeatures && Boolean(user?.isPro) && Boolean(spotifyToken);
   const isStatsView = location.pathname === "/profile/stats";

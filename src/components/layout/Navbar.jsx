@@ -221,7 +221,7 @@ function UserActions() {
   const [showNowPlaying, setShowNowPlaying] = useState(false);
   const [isNowPlayingHovered, setIsNowPlayingHovered] = useState(false);
   const location = useLocation();
-  const profileUser = spotifyUser ?? user;
+  const profileUser = isSpotifyUser ? (spotifyUser ?? user) : user;
   const canShowNowPlaying = Boolean(user?.isPro && isSpotifyConnected && spotifyToken);
   const activeTrack = currentlyPlaying?.is_playing && currentlyPlaying?.item ? currentlyPlaying.item : null;
   const isShowingTrack = Boolean(showNowPlaying && activeTrack);
