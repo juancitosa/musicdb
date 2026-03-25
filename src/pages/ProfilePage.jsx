@@ -266,7 +266,7 @@ function mapPasswordUpdateError(errorCode) {
   }
 }
 
-function PreviewGrid({ imageUrl, zoom = 1, shape = "square", aspectClassName = "" }) {
+function PreviewGrid({ imageUrl, zoom = 1, offsetX = 0, offsetY = 0, shape = "square", aspectClassName = "" }) {
   return (
     <div className={`relative overflow-hidden border border-white/12 bg-black/30 ${shape === "circle" ? "rounded-full" : "rounded-[1.2rem]"} ${aspectClassName}`}>
       {imageUrl ? (
@@ -275,6 +275,7 @@ function PreviewGrid({ imageUrl, zoom = 1, shape = "square", aspectClassName = "
           style={{
             backgroundImage: `url(${imageUrl})`,
             backgroundSize: `${Math.max(zoom, 1) * 100}%`,
+            backgroundPosition: `${50 + offsetX * 50}% ${50 + offsetY * 50}%`,
           }}
         />
       ) : null}
@@ -284,7 +285,7 @@ function PreviewGrid({ imageUrl, zoom = 1, shape = "square", aspectClassName = "
   );
 }
 
-async function renderZoomedImageFile(file, zoom, outputWidth, outputHeight) {
+async function renderZoomedImageFile(file, zoom, offsetX, offsetY, outputWidth, outputHeight) {
   const objectUrl = URL.createObjectURL(file);
 
   try {
@@ -322,8 +323,12 @@ async function renderZoomedImageFile(file, zoom, outputWidth, outputHeight) {
     const safeZoom = Math.max(1, Number(zoom) || 1);
     const sourceWidth = baseCropWidth / safeZoom;
     const sourceHeight = baseCropHeight / safeZoom;
-    const sourceX = (imageWidth - sourceWidth) / 2;
-    const sourceY = (imageHeight - sourceHeight) / 2;
+    const maxOffsetX = (baseCropWidth - sourceWidth) / 2;
+    const maxOffsetY = (baseCropHeight - sourceHeight) / 2;
+    const safeOffsetX = Math.max(-1, Math.min(1, Number(offsetX) || 0));
+    const safeOffsetY = Math.max(-1, Math.min(1, Number(offsetY) || 0));
+    const sourceX = (imageWidth - sourceWidth) / 2 + maxOffsetX * safeOffsetX;
+    const sourceY = (imageHeight - sourceHeight) / 2 + maxOffsetY * safeOffsetY;
 
     context.drawImage(
       image,
@@ -363,6 +368,10 @@ function LocalProfileSettings({
   bannerPreviewUrl,
   avatarZoom,
   bannerZoom,
+  avatarOffsetX,
+  avatarOffsetY,
+  bannerOffsetX,
+  bannerOffsetY,
   form,
   onAvatarChange,
   onAvatarUpload,
@@ -370,6 +379,10 @@ function LocalProfileSettings({
   onOpenBannerPicker,
   onSetAvatarZoom,
   onSetBannerZoom,
+  onSetAvatarOffsetX,
+  onSetAvatarOffsetY,
+  onSetBannerOffsetX,
+  onSetBannerOffsetY,
   onChange,
   onClose,
   onSubmit,
@@ -427,7 +440,7 @@ function LocalProfileSettings({
       <div className="mt-6 flex flex-col gap-4 rounded-[1.6rem] border border-white/10 bg-black/18 p-4 sm:flex-row sm:items-center">
         <div className="mx-auto sm:mx-0">
           {avatarUrl ? (
-            <PreviewGrid imageUrl={avatarUrl} zoom={avatarZoom} shape="circle" aspectClassName="h-20 w-20" />
+            <PreviewGrid imageUrl={avatarUrl} zoom={avatarZoom} offsetX={avatarOffsetX} offsetY={avatarOffsetY} shape="circle" aspectClassName="h-20 w-20" />
           ) : (
             <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-secondary/80">
               <UserRound className="h-8 w-8 text-muted-foreground" />
@@ -464,7 +477,7 @@ function LocalProfileSettings({
         </Button>
       </div>
 
-      {avatarUrl ? (
+      {pendingAvatarName ? (
         <div className="mt-3 rounded-[1.6rem] border border-white/10 bg-black/14 p-4">
           <div className="flex items-center justify-between gap-4">
             <div>
@@ -475,10 +488,10 @@ function LocalProfileSettings({
           </div>
 
           <div className="mt-4 flex justify-center">
-            <PreviewGrid imageUrl={avatarUrl} zoom={avatarZoom} shape="circle" aspectClassName="h-32 w-32" />
+            <PreviewGrid imageUrl={avatarUrl} zoom={avatarZoom} offsetX={avatarOffsetX} offsetY={avatarOffsetY} shape="circle" aspectClassName="h-32 w-32" />
           </div>
 
-          <div className="mt-4">
+          <div className="mt-4 space-y-4">
             <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.22em] text-white/58">Zoom avatar</label>
             <input
               type="range"
@@ -489,6 +502,32 @@ function LocalProfileSettings({
               onChange={(event) => onSetAvatarZoom(Number(event.target.value))}
               className="h-2 w-full cursor-pointer appearance-none rounded-full bg-white/14 accent-violet-400"
             />
+
+            <div>
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.22em] text-white/58">Mover horizontal</label>
+              <input
+                type="range"
+                min="-1"
+                max="1"
+                step="0.01"
+                value={avatarOffsetX}
+                onChange={(event) => onSetAvatarOffsetX(Number(event.target.value))}
+                className="h-2 w-full cursor-pointer appearance-none rounded-full bg-white/14 accent-violet-400"
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.22em] text-white/58">Mover vertical</label>
+              <input
+                type="range"
+                min="-1"
+                max="1"
+                step="0.01"
+                value={avatarOffsetY}
+                onChange={(event) => onSetAvatarOffsetY(Number(event.target.value))}
+                className="h-2 w-full cursor-pointer appearance-none rounded-full bg-white/14 accent-violet-400"
+              />
+            </div>
           </div>
         </div>
       ) : null}
@@ -497,7 +536,7 @@ function LocalProfileSettings({
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
           <div className="h-20 w-full overflow-hidden rounded-[1.2rem] border border-white/10 bg-black/30 sm:w-48">
             {bannerPreviewUrl ? (
-              <PreviewGrid imageUrl={bannerPreviewUrl} zoom={bannerZoom} aspectClassName="h-full w-full" />
+              <PreviewGrid imageUrl={bannerPreviewUrl} zoom={bannerZoom} offsetX={bannerOffsetX} offsetY={bannerOffsetY} aspectClassName="h-full w-full" />
             ) : (
               <div className="flex h-full w-full items-center justify-center bg-[linear-gradient(135deg,rgba(245,158,11,0.12),rgba(255,255,255,0.02),rgba(245,158,11,0.08))] text-[11px] font-semibold uppercase tracking-[0.24em] text-amber-100/70">
                 Banner PRO
@@ -543,7 +582,7 @@ function LocalProfileSettings({
           </Button>
         </div>
 
-        {bannerPreviewUrl ? (
+        {pendingBannerName ? (
           <div className="mt-4 rounded-[1.35rem] border border-white/10 bg-black/20 p-4">
             <div className="flex items-center justify-between gap-4">
               <div>
@@ -554,10 +593,10 @@ function LocalProfileSettings({
             </div>
 
             <div className="mt-4">
-              <PreviewGrid imageUrl={bannerPreviewUrl} zoom={bannerZoom} aspectClassName="aspect-[3.2/1] w-full" />
+              <PreviewGrid imageUrl={bannerPreviewUrl} zoom={bannerZoom} offsetX={bannerOffsetX} offsetY={bannerOffsetY} aspectClassName="aspect-[3.2/1] w-full" />
             </div>
 
-            <div className="mt-4">
+            <div className="mt-4 space-y-4">
               <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.22em] text-amber-100/58">Zoom banner</label>
               <input
                 type="range"
@@ -568,6 +607,32 @@ function LocalProfileSettings({
                 onChange={(event) => onSetBannerZoom(Number(event.target.value))}
                 className="h-2 w-full cursor-pointer appearance-none rounded-full bg-white/14 accent-amber-300"
               />
+
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.22em] text-amber-100/58">Mover horizontal</label>
+                <input
+                  type="range"
+                  min="-1"
+                  max="1"
+                  step="0.01"
+                  value={bannerOffsetX}
+                  onChange={(event) => onSetBannerOffsetX(Number(event.target.value))}
+                  className="h-2 w-full cursor-pointer appearance-none rounded-full bg-white/14 accent-amber-300"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.22em] text-amber-100/58">Mover vertical</label>
+                <input
+                  type="range"
+                  min="-1"
+                  max="1"
+                  step="0.01"
+                  value={bannerOffsetY}
+                  onChange={(event) => onSetBannerOffsetY(Number(event.target.value))}
+                  className="h-2 w-full cursor-pointer appearance-none rounded-full bg-white/14 accent-amber-300"
+                />
+              </div>
             </div>
           </div>
         ) : null}
@@ -1064,6 +1129,10 @@ export default function ProfilePage() {
   const [pendingBannerPreview, setPendingBannerPreview] = useState("");
   const [avatarZoom, setAvatarZoom] = useState(1);
   const [bannerZoom, setBannerZoom] = useState(1);
+  const [avatarOffsetX, setAvatarOffsetX] = useState(0);
+  const [avatarOffsetY, setAvatarOffsetY] = useState(0);
+  const [bannerOffsetX, setBannerOffsetX] = useState(0);
+  const [bannerOffsetY, setBannerOffsetY] = useState(0);
   const bannerInputRef = useRef(null);
   const proUntilLabel = user?.isPro ? formatProUntil(user?.proUntil) : "";
 
@@ -1298,6 +1367,8 @@ export default function ProfilePage() {
   function clearPendingAvatarSelection() {
     setPendingAvatarFile(null);
     setAvatarZoom(1);
+    setAvatarOffsetX(0);
+    setAvatarOffsetY(0);
     setPendingAvatarPreview((current) => {
       if (current) {
         URL.revokeObjectURL(current);
@@ -1310,6 +1381,8 @@ export default function ProfilePage() {
   function clearPendingBannerSelection() {
     setPendingBannerFile(null);
     setBannerZoom(1);
+    setBannerOffsetX(0);
+    setBannerOffsetY(0);
     setPendingBannerPreview((current) => {
       if (current) {
         URL.revokeObjectURL(current);
@@ -1341,6 +1414,8 @@ export default function ProfilePage() {
     setProfileSaveError("");
     setProfileSaveStatus(null);
     setAvatarZoom(1);
+    setAvatarOffsetX(0);
+    setAvatarOffsetY(0);
     setPendingAvatarPreview((current) => {
       if (current) {
         URL.revokeObjectURL(current);
@@ -1401,6 +1476,8 @@ export default function ProfilePage() {
     setProfileSaveError("");
     setProfileSaveStatus(null);
     setBannerZoom(1);
+    setBannerOffsetX(0);
+    setBannerOffsetY(0);
     setPendingBannerPreview((current) => {
       if (current) {
         URL.revokeObjectURL(current);
@@ -1421,7 +1498,7 @@ export default function ProfilePage() {
     setProfileSaveStatus(null);
 
     try {
-      const processedAvatarFile = await renderZoomedImageFile(pendingAvatarFile, avatarZoom, 512, 512);
+      const processedAvatarFile = await renderZoomedImageFile(pendingAvatarFile, avatarZoom, avatarOffsetX, avatarOffsetY, 512, 512);
       const response = await uploadProfileAvatar(user.id, processedAvatarFile, appToken);
       const nextAvatar = response?.user?.avatar_url ?? response?.profile?.avatar_url ?? response?.publicUrl ?? "";
 
@@ -1464,7 +1541,7 @@ export default function ProfilePage() {
     setProfileSaveStatus(null);
 
     try {
-      const processedBannerFile = await renderZoomedImageFile(pendingBannerFile, bannerZoom, 1600, 500);
+      const processedBannerFile = await renderZoomedImageFile(pendingBannerFile, bannerZoom, bannerOffsetX, bannerOffsetY, 1600, 500);
       const response = await uploadProfileBanner(user.id, processedBannerFile, appToken);
       const nextBanner = response?.user?.banner_url ?? response?.profile?.banner_url ?? response?.publicUrl ?? "";
 
@@ -1719,6 +1796,10 @@ export default function ProfilePage() {
                   bannerPreviewUrl={pendingBannerPreview || user?.banner}
                   avatarZoom={avatarZoom}
                   bannerZoom={bannerZoom}
+                  avatarOffsetX={avatarOffsetX}
+                  avatarOffsetY={avatarOffsetY}
+                  bannerOffsetX={bannerOffsetX}
+                  bannerOffsetY={bannerOffsetY}
                   form={profileForm}
                   onAvatarChange={handleAvatarFileChange}
                   onAvatarUpload={handleAvatarUpload}
@@ -1726,6 +1807,10 @@ export default function ProfilePage() {
                   onOpenBannerPicker={handleOpenBannerPicker}
                   onSetAvatarZoom={setAvatarZoom}
                   onSetBannerZoom={setBannerZoom}
+                  onSetAvatarOffsetX={setAvatarOffsetX}
+                  onSetAvatarOffsetY={setAvatarOffsetY}
+                  onSetBannerOffsetX={setBannerOffsetX}
+                  onSetBannerOffsetY={setBannerOffsetY}
                   onChange={setProfileFormField}
                   onClose={() => {
                     clearPendingAvatarSelection();
