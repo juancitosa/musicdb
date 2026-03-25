@@ -166,6 +166,14 @@ function clearSpotifyCachePromise(cache, key, promise) {
   }
 }
 
+function invalidateCachedRankings(entityType) {
+  Object.keys(spotifyEnrichedRankingsCache).forEach((cacheKey) => {
+    if (cacheKey.startsWith(`rankings-enriched:${entityType}:`)) {
+      delete spotifyEnrichedRankingsCache[cacheKey];
+    }
+  });
+}
+
 async function getCachedSpotifyResponse(cache, key, fetcher) {
   const freshValue = getSpotifyCacheEntry(cache, key);
 
@@ -2977,6 +2985,8 @@ app.post(
       entityId,
       ratingValue,
     });
+
+    invalidateCachedRankings(entityType);
 
     const summary = await getEntityRatingsSummary(supabase, {
       entityType,
