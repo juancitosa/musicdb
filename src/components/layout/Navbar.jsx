@@ -340,10 +340,6 @@ function UserActions() {
               <button
                 type="button"
                 onClick={() => {
-                  if (isCurrentUserLoading) {
-                    return;
-                  }
-
                   setShowProfileMenu((current) => !current);
                 }}
                 className={`relative flex max-w-[min(72vw,260px)] items-center rounded-full border border-white/5 bg-zinc-900 py-1.5 pr-10 pl-3 text-sm font-medium text-foreground transition hover:bg-zinc-800 sm:max-w-none ${
