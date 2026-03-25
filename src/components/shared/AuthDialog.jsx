@@ -15,7 +15,9 @@ function emptyForm() {
     email: "",
     username: "",
     password: "",
+    repeatPassword: "",
     phone: "",
+    acceptedTerms: false,
   };
 }
 
@@ -23,6 +25,10 @@ function mapAuthError(errorCode) {
   switch (errorCode) {
     case "INVALID_REGISTER_PAYLOAD":
       return "Completa email, username y una contrasena de al menos 6 caracteres.";
+    case "REGISTER_PASSWORD_MISMATCH":
+      return "La contrasena y su repeticion no coinciden.";
+    case "REGISTER_TERMS_REQUIRED":
+      return "Debes aceptar los Terminos y condiciones de MusicDB.";
     case "INVALID_LOGIN_PAYLOAD":
       return "Completa email y contrasena.";
     case "EMAIL_ALREADY_EXISTS":
@@ -166,6 +172,14 @@ export default function AuthDialog({
 
     try {
       if (mode === "register") {
+        if (form.password.trim() !== form.repeatPassword.trim()) {
+          throw new Error("REGISTER_PASSWORD_MISMATCH");
+        }
+
+        if (!form.acceptedTerms) {
+          throw new Error("REGISTER_TERMS_REQUIRED");
+        }
+
         const response = await registerLocalUser({
           email: form.email,
           username: form.username,
@@ -178,6 +192,7 @@ export default function AuthDialog({
         setForm((current) => ({
           ...current,
           password: "",
+          repeatPassword: "",
         }));
         setStatusMessage("Revisa tu email para confirmar");
 
@@ -393,17 +408,61 @@ export default function AuthDialog({
                           </div>
 
                           {mode === "register" ? (
-                            <div>
-                              <label className="mb-2 block text-sm font-medium text-foreground">Telefono (opcional)</label>
-                              <input
-                                type="tel"
-                                value={form.phone}
-                                onChange={(event) => updateField("phone", event.target.value)}
-                                autoComplete="tel"
-                                className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none transition focus:border-primary"
-                                placeholder="+54 11 1234 5678"
-                              />
-                            </div>
+                            <>
+                              <div>
+                                <label className="mb-2 block text-sm font-medium text-foreground">Repetir contrasena</label>
+                                <input
+                                  type="password"
+                                  value={form.repeatPassword}
+                                  onChange={(event) => updateField("repeatPassword", event.target.value)}
+                                  autoComplete="new-password"
+                                  className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none transition focus:border-primary"
+                                  placeholder="Vuelve a escribir tu contrasena"
+                                  required
+                                />
+                              </div>
+
+                              <div>
+                                <label className="mb-2 block text-sm font-medium text-foreground">Telefono (opcional)</label>
+                                <input
+                                  type="tel"
+                                  value={form.phone}
+                                  onChange={(event) => updateField("phone", event.target.value)}
+                                  autoComplete="tel"
+                                  className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none transition focus:border-primary"
+                                  placeholder="+54 11 1234 5678"
+                                />
+                              </div>
+
+                              <label className="group flex cursor-pointer items-start gap-3 rounded-[1.4rem] border border-violet-500/16 bg-black/16 px-4 py-3 text-sm text-white/82 transition hover:border-violet-400/28 hover:bg-black/22">
+                                <input
+                                  type="checkbox"
+                                  checked={form.acceptedTerms}
+                                  onChange={(event) => updateField("acceptedTerms", event.target.checked)}
+                                  className="peer sr-only"
+                                  required
+                                />
+                                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border border-violet-400/40 bg-black/45 shadow-[0_0_0_rgba(168,85,247,0)] transition-all duration-300 peer-checked:border-violet-300 peer-checked:bg-violet-500/14 peer-checked:shadow-[0_0_18px_rgba(168,85,247,0.42)]">
+                                  <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="none" aria-hidden="true">
+                                    <path
+                                      d="M3.5 8.5 6.5 11.5 12.5 4.5"
+                                      className="stroke-violet-300 drop-shadow-[0_0_6px_rgba(196,181,253,0.95)] transition-all duration-300 ease-out"
+                                      strokeWidth="2.2"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      style={{
+                                        strokeDasharray: 20,
+                                        strokeDashoffset: form.acceptedTerms ? 0 : 20,
+                                        opacity: form.acceptedTerms ? 1 : 0,
+                                      }}
+                                    />
+                                  </svg>
+                                </span>
+                                <span className="leading-relaxed text-white/76 transition group-hover:text-white/90">
+                                  Estoy de acuerdo con los <span className="font-semibold text-violet-300">Terminos y condiciones de MusicDB</span>
+                                </span>
+                              </label>
+                            </>
                           ) : null}
 
                           {error ? <p className="rounded-2xl border border-destructive/25 bg-destructive/8 px-4 py-3 text-sm text-destructive">{error}</p> : null}
