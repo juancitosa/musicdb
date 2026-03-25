@@ -341,7 +341,7 @@ export function AuthProvider({ children }) {
   const value = useMemo(
     () => ({
       user,
-      currentUser,
+      currentUser: currentUser ?? user,
       appToken,
       hasActiveSession,
       isLoading,

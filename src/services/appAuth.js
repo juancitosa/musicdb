@@ -531,7 +531,7 @@ export async function fetchCurrentUserByEmail(email) {
   }
 
   const supabase = getSupabaseClient();
-  const { data, error } = await supabase.from("users").select("*").eq("email", email).single();
+  const { data, error } = await supabase.from("users").select("*").eq("email", email).maybeSingle();
 
   if (error) {
     throw new Error(error.message || "APP_AUTH_ERROR");
