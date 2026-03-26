@@ -17,8 +17,10 @@ import LoginPage from "./pages/LoginPage";
 import NotFoundPage from "./pages/NotFoundPage";
 import ProPage from "./pages/ProPage";
 import ProfilePage from "./pages/ProfilePage";
+import PrivacyPage from "./pages/PrivacyPage";
 import RegisterPage from "./pages/RegisterPage";
 import SearchPage from "./pages/SearchPage";
+import TermsPage from "./pages/TermsPage";
 import VerifyEmailPage from "./pages/VerifyEmailPage";
 
 const MAINTENANCE_MODE = false;
@@ -73,6 +75,8 @@ export default function App() {
                   <Route path="/album/:id" element={<AlbumPage />} />
                   <Route path="/login" element={<LoginPage />} />
                   <Route path="/register" element={<RegisterPage />} />
+                  <Route path="/terms" element={<TermsPage />} />
+                  <Route path="/privacy" element={<PrivacyPage />} />
                   <Route path="/verify-email" element={<VerifyEmailPage />} />
                   <Route path="/profile" element={<ProfilePage />} />
                   <Route path="/profile/stats" element={<ProfilePage />} />

@@ -1,7 +1,7 @@
 import { LoaderCircle, LogIn, Mail, MailCheck, UserPlus, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../../hooks/useAuth";
 import { useSpotifyAuth } from "../../hooks/useSpotifyAuth";
@@ -459,7 +459,16 @@ export default function AuthDialog({
                                   </svg>
                                 </span>
                                 <span className="leading-relaxed text-white/76 transition group-hover:text-white/90">
-                                  Estoy de acuerdo con los <span className="font-semibold text-violet-300">Terminos y condiciones de MusicDB</span>
+                                  Estoy de acuerdo con los{" "}
+                                  <Link
+                                    to="/terms"
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    onClick={(event) => event.stopPropagation()}
+                                    className="font-semibold text-violet-300 underline decoration-violet-300/40 underline-offset-4 transition hover:text-violet-200"
+                                  >
+                                    Terminos y condiciones de MusicDB
+                                  </Link>
                                 </span>
                               </label>
                             </>
