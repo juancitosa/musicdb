@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { AudioLines, Check, Disc3, Flame, LoaderCircle, Search, Star, UserRound, X, XCircle } from "lucide-react";
+import { AudioLines, Check, Disc3, Eye, EyeOff, Flame, LoaderCircle, Search, Star, UserRound, X, XCircle } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, NavLink, useLocation, useNavigate } from "react-router-dom";
 
@@ -727,6 +727,49 @@ function LocalPasswordSettings({
   saveStatus,
   isSaving,
 }) {
+  const [visibleFields, setVisibleFields] = useState({
+    currentPassword: false,
+    newPassword: false,
+    repeatPassword: false,
+  });
+
+  function togglePasswordVisibility(field) {
+    setVisibleFields((current) => ({
+      ...current,
+      [field]: !current[field],
+    }));
+  }
+
+  function renderPasswordField(field, label, autoComplete, placeholder) {
+    const isVisible = visibleFields[field];
+
+    return (
+      <div>
+        <label className="mb-2 block text-sm font-medium text-foreground">{label}</label>
+        <div className="relative">
+          <input
+            type={isVisible ? "text" : "password"}
+            value={form[field]}
+            onChange={(event) => onChange(field, event.target.value)}
+            autoComplete={autoComplete}
+            className="w-full rounded-2xl border border-white/10 bg-black/18 px-4 py-3 pr-12 text-sm outline-none transition focus:border-primary"
+            placeholder={placeholder}
+            required
+          />
+          <button
+            type="button"
+            onClick={() => togglePasswordVisibility(field)}
+            className="absolute top-1/2 right-3 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground transition hover:bg-white/10 hover:text-foreground"
+            aria-label={isVisible ? "Ocultar contrasena" : "Mostrar contrasena"}
+            aria-pressed={isVisible}
+          >
+            {isVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <section className="relative w-full max-w-2xl overflow-hidden rounded-[2rem] border border-white/14 bg-[linear-gradient(135deg,rgba(255,255,255,0.18),rgba(255,255,255,0.06))] p-5 shadow-[0_30px_120px_rgba(0,0,0,0.4)] ring-1 ring-white/10 backdrop-blur-3xl sm:p-7">
       <button
@@ -745,44 +788,11 @@ function LocalPasswordSettings({
       </div>
 
       <form onSubmit={onSubmit} className="mt-6 grid gap-4">
-        <div>
-          <label className="mb-2 block text-sm font-medium text-foreground">Contrasena actual</label>
-          <input
-            type="password"
-            value={form.currentPassword}
-            onChange={(event) => onChange("currentPassword", event.target.value)}
-            autoComplete="current-password"
-            className="w-full rounded-2xl border border-white/10 bg-black/18 px-4 py-3 text-sm outline-none transition focus:border-primary"
-            placeholder="Tu contrasena actual"
-            required
-          />
-        </div>
+        {renderPasswordField("currentPassword", "Contrasena actual", "current-password", "Tu contrasena actual")}
 
-        <div>
-          <label className="mb-2 block text-sm font-medium text-foreground">Nueva contrasena</label>
-          <input
-            type="password"
-            value={form.newPassword}
-            onChange={(event) => onChange("newPassword", event.target.value)}
-            autoComplete="new-password"
-            className="w-full rounded-2xl border border-white/10 bg-black/18 px-4 py-3 text-sm outline-none transition focus:border-primary"
-            placeholder="Minimo 6 caracteres"
-            required
-          />
-        </div>
+        {renderPasswordField("newPassword", "Nueva contrasena", "new-password", "Minimo 6 caracteres")}
 
-        <div>
-          <label className="mb-2 block text-sm font-medium text-foreground">Repetir nueva contrasena</label>
-          <input
-            type="password"
-            value={form.repeatPassword}
-            onChange={(event) => onChange("repeatPassword", event.target.value)}
-            autoComplete="new-password"
-            className="w-full rounded-2xl border border-white/10 bg-black/18 px-4 py-3 text-sm outline-none transition focus:border-primary"
-            placeholder="Repite la nueva contrasena"
-            required
-          />
-        </div>
+        {renderPasswordField("repeatPassword", "Repetir nueva contrasena", "new-password", "Repite la nueva contrasena")}
 
         {saveStatus?.type === "success" ? (
           <div className="rounded-2xl border border-emerald-400/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">

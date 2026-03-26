@@ -1,4 +1,4 @@
-import { LoaderCircle, LogIn, Mail, MailCheck, UserPlus, X } from "lucide-react";
+import { Eye, EyeOff, LoaderCircle, LogIn, Mail, MailCheck, UserPlus, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link, useNavigate } from "react-router-dom";
@@ -80,6 +80,44 @@ function PendingVerificationPanel({ email, isResending, onResend, onBackToLogin,
       <button type="button" onClick={onBackToLogin} className="w-full text-sm font-medium text-muted-foreground transition hover:text-foreground">
         Ya verifique mi cuenta, volver al login
       </button>
+    </div>
+  );
+}
+
+function PasswordField({
+  label,
+  value,
+  onChange,
+  autoComplete,
+  className = "w-full rounded-2xl border border-border bg-background px-4 py-3 pr-12 text-sm outline-none transition focus:border-primary",
+  placeholder,
+  required = false,
+}) {
+  const [isVisible, setIsVisible] = useState(false);
+
+  return (
+    <div>
+      <label className="mb-2 block text-sm font-medium text-foreground">{label}</label>
+      <div className="relative">
+        <input
+          type={isVisible ? "text" : "password"}
+          value={value}
+          onChange={onChange}
+          autoComplete={autoComplete}
+          className={className}
+          placeholder={placeholder}
+          required={required}
+        />
+        <button
+          type="button"
+          onClick={() => setIsVisible((current) => !current)}
+          className="absolute top-1/2 right-3 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground transition hover:bg-black/8 hover:text-foreground"
+          aria-label={isVisible ? "Ocultar contrasena" : "Mostrar contrasena"}
+          aria-pressed={isVisible}
+        >
+          {isVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+        </button>
+      </div>
     </div>
   );
 }
@@ -394,33 +432,25 @@ export default function AuthDialog({
                             </div>
                           ) : null}
 
-                          <div>
-                            <label className="mb-2 block text-sm font-medium text-foreground">Contrasena</label>
-                            <input
-                              type="password"
-                              value={form.password}
-                              onChange={(event) => updateField("password", event.target.value)}
-                              autoComplete={mode === "register" ? "new-password" : "current-password"}
-                              className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none transition focus:border-primary"
-                              placeholder={mode === "register" ? "Minimo 6 caracteres" : "Tu contrasena"}
-                              required
-                            />
-                          </div>
+                          <PasswordField
+                            label="Contrasena"
+                            value={form.password}
+                            onChange={(event) => updateField("password", event.target.value)}
+                            autoComplete={mode === "register" ? "new-password" : "current-password"}
+                            placeholder={mode === "register" ? "Minimo 6 caracteres" : "Tu contrasena"}
+                            required
+                          />
 
                           {mode === "register" ? (
                             <>
-                              <div>
-                                <label className="mb-2 block text-sm font-medium text-foreground">Repetir contrasena</label>
-                                <input
-                                  type="password"
-                                  value={form.repeatPassword}
-                                  onChange={(event) => updateField("repeatPassword", event.target.value)}
-                                  autoComplete="new-password"
-                                  className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none transition focus:border-primary"
-                                  placeholder="Vuelve a escribir tu contrasena"
-                                  required
-                                />
-                              </div>
+                              <PasswordField
+                                label="Repetir contrasena"
+                                value={form.repeatPassword}
+                                onChange={(event) => updateField("repeatPassword", event.target.value)}
+                                autoComplete="new-password"
+                                placeholder="Vuelve a escribir tu contrasena"
+                                required
+                              />
 
                               <div>
                                 <label className="mb-2 block text-sm font-medium text-foreground">Telefono (opcional)</label>
