@@ -275,19 +275,19 @@ h6 {
 .review-like-button::before {
   content: "";
   position: absolute;
-  inset: -1px;
+  inset: 0;
   border-radius: inherit;
-  padding: 1px;
+  border: 1px solid transparent;
   background: conic-gradient(
     from 0deg,
     rgba(139, 92, 246, 0) 0deg,
     rgba(139, 92, 246, 0) 245deg,
     rgba(196, 181, 253, 0.96) 300deg,
     rgba(139, 92, 246, 0) 360deg
-  );
+  ) border-box;
   opacity: 0;
   -webkit-mask:
-    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0) padding-box,
     linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
