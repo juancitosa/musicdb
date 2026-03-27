@@ -47,6 +47,7 @@ export default function AlbumPage() {
   const [replyDrafts, setReplyDrafts] = useState({});
   const [expandedReplyComposerId, setExpandedReplyComposerId] = useState(null);
   const [togglingLikeReviewId, setTogglingLikeReviewId] = useState(null);
+  const [animatingLikeReviewId, setAnimatingLikeReviewId] = useState(null);
   const [previewUser, setPreviewUser] = useState(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
@@ -315,6 +316,7 @@ export default function AlbumPage() {
     setReviewError("");
 
     try {
+      const currentReview = reviews.find((review) => review.id === reviewId);
       const nextState = await toggleReviewLike(reviewId, appToken);
       setReviews((currentReviews) =>
         currentReviews.map((review) =>
@@ -323,10 +325,17 @@ export default function AlbumPage() {
                 ...review,
                 likes_count: nextState.likes_count,
                 liked_by_me: nextState.liked_by_me,
-              }
+          }
             : review,
         ),
       );
+
+      if (!currentReview?.liked_by_me && nextState.liked_by_me) {
+        setAnimatingLikeReviewId(reviewId);
+        globalThis.setTimeout(() => {
+          setAnimatingLikeReviewId((currentId) => (currentId === reviewId ? null : currentId));
+        }, 700);
+      }
     } catch {
       setReviewError("No pudimos actualizar el like. Intenta nuevamente.");
     } finally {
@@ -680,13 +689,13 @@ export default function AlbumPage() {
                         type="button"
                         onClick={() => handleToggleReviewLike(review.id)}
                         disabled={togglingLikeReviewId === review.id}
-                        className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+                        className={`review-like-button inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium ${
                           review.liked_by_me
-                            ? "border-rose-300/40 bg-rose-500/10 text-rose-200"
+                            ? "is-liked"
                             : "border-border bg-secondary/50 text-muted-foreground hover:text-foreground"
-                        } disabled:cursor-wait disabled:opacity-60`}
+                        } ${animatingLikeReviewId === review.id ? "is-bursting" : ""} disabled:cursor-wait disabled:opacity-60`}
                       >
-                        <Heart className={`h-3.5 w-3.5 ${review.liked_by_me ? "fill-current" : ""}`} />
+                        <Heart className={`review-like-heart h-3.5 w-3.5 ${review.liked_by_me ? "fill-current" : ""}`} />
                         <span>{review.likes_count} Me gusta</span>
                       </button>
                       <button
