@@ -262,7 +262,8 @@ h6 {
 
 .review-like-button {
   position: relative;
-  overflow: visible;
+  isolation: isolate;
+  overflow: hidden;
   transition:
     transform 180ms ease,
     border-color 220ms ease,
@@ -271,17 +272,44 @@ h6 {
     box-shadow 220ms ease;
 }
 
+.review-like-button::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(
+    from 0deg,
+    rgba(139, 92, 246, 0) 0deg,
+    rgba(139, 92, 246, 0) 245deg,
+    rgba(196, 181, 253, 0.96) 300deg,
+    rgba(139, 92, 246, 0) 360deg
+  );
+  opacity: 0;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
 .review-like-button:hover {
   transform: translateY(-1px);
 }
 
 .review-like-button.is-liked {
-  border-color: rgba(139, 92, 246, 0.42);
+  border-color: rgba(139, 92, 246, 0.24);
   background: linear-gradient(135deg, rgba(124, 58, 237, 0.2), rgba(99, 102, 241, 0.14));
   color: rgb(216, 180, 254);
   box-shadow:
     0 0 0 1px rgba(139, 92, 246, 0.16),
     0 10px 24px -18px rgba(124, 58, 237, 0.75);
+}
+
+.review-like-button.is-liked::before {
+  opacity: 1;
+  animation: review-like-border-trace 2.4s linear infinite;
 }
 
 .review-like-heart {
@@ -299,7 +327,11 @@ h6 {
 }
 
 .review-like-button.is-bursting .review-like-heart {
-  animation: review-like-burst 680ms cubic-bezier(0.22, 1, 0.36, 1);
+  animation: review-like-burst 420ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.review-like-button.is-bursting::before {
+  animation: review-like-border-trace 1s linear infinite;
 }
 
 .footer-neon-text {
@@ -331,22 +363,32 @@ h6 {
 
 @keyframes review-like-burst {
   0% {
-    transform: translateY(0) scale(1);
+    transform: scale(1);
   }
 
-  24% {
-    transform: translateY(-12px) scale(1.22);
+  35% {
+    transform: scale(1.2);
   }
 
-  48% {
-    transform: translateY(-22px) scale(1.34);
+  60% {
+    transform: scale(0.96);
   }
 
-  68% {
-    transform: translateY(-8px) scale(1.08);
+  82% {
+    transform: scale(1.08);
   }
 
   100% {
-    transform: translateY(0) scale(1);
+    transform: scale(1);
+  }
+}
+
+@keyframes review-like-border-trace {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
   }
 }
