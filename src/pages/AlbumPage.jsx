@@ -1,4 +1,5 @@
 ﻿import { Disc3, ExternalLink, ListMusic, Play, Star, Trash2, Users } from "lucide-react";
+import { Heart, MessageCircle, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
@@ -11,7 +12,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../hooks/useToast";
 import { getMockAlbum, getMockAlbumTracks, getMockArtist } from "../services/catalog";
 import { DEFAULT_RATINGS_SUMMARY, getRatings, getUserRating, submitRating } from "../services/ratingHistory";
-import { createReview, deleteReview, fetchPublicUserPreview, getReviews } from "../services/reviewHistory";
+import { createReview, createReviewReply, deleteReview, deleteReviewReply, fetchPublicUserPreview, getReviews, toggleReviewLike } from "../services/reviewHistory";
 import { formatTrackDuration, getAlbumById, getImageUrl } from "../services/spotify";
 
 function formatReviewDate(value) {
@@ -41,11 +42,26 @@ export default function AlbumPage() {
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
   const [reviewError, setReviewError] = useState("");
   const [deletingReviewId, setDeletingReviewId] = useState(null);
+  const [deletingReplyId, setDeletingReplyId] = useState(null);
+  const [submittingReplyForReviewId, setSubmittingReplyForReviewId] = useState(null);
+  const [replyDrafts, setReplyDrafts] = useState({});
+  const [expandedReplyComposerId, setExpandedReplyComposerId] = useState(null);
+  const [togglingLikeReviewId, setTogglingLikeReviewId] = useState(null);
   const [previewUser, setPreviewUser] = useState(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const canInteract = hasActiveSession && isLoggedIn;
   const currentUserId = user?.id ?? null;
+
+  async function reloadReviews(nextAlbum = album) {
+    if (!nextAlbum) {
+      setReviews([]);
+      return;
+    }
+
+    const nextReviews = await getReviews("album", String(nextAlbum.id), appToken);
+    setReviews(nextReviews);
+  }
 
   useEffect(() => {
     async function loadAlbum() {
@@ -158,7 +174,7 @@ export default function AlbumPage() {
       setReviewError("");
 
       try {
-        const nextReviews = await getReviews("album", String(album.id));
+        const nextReviews = await getReviews("album", String(album.id), appToken);
 
         if (!cancelled) {
           setReviews(nextReviews);
@@ -180,7 +196,7 @@ export default function AlbumPage() {
     return () => {
       cancelled = true;
     };
-  }, [album]);
+  }, [album, appToken]);
 
   const localArtist = isLocal && album ? getMockArtist(album.artistId) : null;
   const localTracks = isLocal && album ? getMockAlbumTracks(album.id) : [];
@@ -249,8 +265,7 @@ export default function AlbumPage() {
         rating_value: userRating || null,
       });
 
-      const nextReviews = await getReviews("album", String(album.id));
-      setReviews(nextReviews);
+      await reloadReviews();
       setReviewText("");
       if (response?.usage && !response.usage.is_pro && response.usage.remaining?.reviews !== null) {
         toast({
@@ -287,6 +302,112 @@ export default function AlbumPage() {
       setReviewError("No pudimos eliminar la reseña.");
     } finally {
       setDeletingReviewId(null);
+    }
+  }
+
+  async function handleToggleReviewLike(reviewId) {
+    if (!canInteract || !reviewId || !appToken) {
+      setReviewError("Tenes que iniciar sesion");
+      return;
+    }
+
+    setTogglingLikeReviewId(reviewId);
+    setReviewError("");
+
+    try {
+      const nextState = await toggleReviewLike(reviewId, appToken);
+      setReviews((currentReviews) =>
+        currentReviews.map((review) =>
+          review.id === reviewId
+            ? {
+                ...review,
+                likes_count: nextState.likes_count,
+                liked_by_me: nextState.liked_by_me,
+              }
+            : review,
+        ),
+      );
+    } catch {
+      setReviewError("No pudimos actualizar el like. Intenta nuevamente.");
+    } finally {
+      setTogglingLikeReviewId(null);
+    }
+  }
+
+  function handleReplyDraftChange(reviewId, value) {
+    setReplyDrafts((currentDrafts) => ({
+      ...currentDrafts,
+      [reviewId]: value,
+    }));
+  }
+
+  async function handleSubmitReviewReply(reviewId) {
+    if (!canInteract || !reviewId || !appToken) {
+      setReviewError("Tenes que iniciar sesion");
+      return;
+    }
+
+    const draft = replyDrafts[reviewId]?.trim() ?? "";
+
+    if (!draft) {
+      return;
+    }
+
+    setSubmittingReplyForReviewId(reviewId);
+    setReviewError("");
+
+    try {
+      const response = await createReviewReply({
+        review_id: reviewId,
+        reply_text: draft,
+        session_token: appToken,
+      });
+
+      await reloadReviews();
+      setReplyDrafts((currentDrafts) => ({
+        ...currentDrafts,
+        [reviewId]: "",
+      }));
+      setExpandedReplyComposerId(reviewId);
+
+      if (response?.usage && !response.usage.is_pro && response.usage.remaining?.reviews !== null) {
+        toast({
+          title: "Respuesta guardada",
+          description: `Te quedan ${response.usage.remaining.reviews} reseñas hoy.`,
+        });
+      }
+    } catch (replyError) {
+      if (replyError?.message === "DAILY_REVIEW_LIMIT_REACHED") {
+        setReviewError("Alcanzaste el límite de 10 reseñas/respuestas en 24 horas. Hazte PRO para desbloquear más.");
+      } else {
+        setReviewError("No pudimos guardar la respuesta. Intenta nuevamente.");
+      }
+    } finally {
+      setSubmittingReplyForReviewId(null);
+    }
+  }
+
+  async function handleDeleteReviewReply(replyId) {
+    if (!canInteract || !replyId || !appToken) {
+      setReviewError("Tenes que iniciar sesion");
+      return;
+    }
+
+    setDeletingReplyId(replyId);
+    setReviewError("");
+
+    try {
+      await deleteReviewReply(replyId, appToken);
+      setReviews((currentReviews) =>
+        currentReviews.map((review) => ({
+          ...review,
+          replies: review.replies.filter((reply) => reply.id !== replyId),
+        })),
+      );
+    } catch {
+      setReviewError("No pudimos eliminar la respuesta.");
+    } finally {
+      setDeletingReplyId(null);
     }
   }
 
@@ -554,6 +675,96 @@ export default function AlbumPage() {
                       </div>
                     ) : null}
                     <p className="text-sm leading-relaxed text-muted-foreground">{review.review_text}</p>
+                    <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-border/60 pt-4">
+                      <button
+                        type="button"
+                        onClick={() => handleToggleReviewLike(review.id)}
+                        disabled={togglingLikeReviewId === review.id}
+                        className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+                          review.liked_by_me
+                            ? "border-rose-300/40 bg-rose-500/10 text-rose-200"
+                            : "border-border bg-secondary/50 text-muted-foreground hover:text-foreground"
+                        } disabled:cursor-wait disabled:opacity-60`}
+                      >
+                        <Heart className={`h-3.5 w-3.5 ${review.liked_by_me ? "fill-current" : ""}`} />
+                        <span>{review.likes_count} Me gusta</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setExpandedReplyComposerId((current) => (current === review.id ? null : review.id))}
+                        className="inline-flex items-center gap-2 rounded-full border border-border bg-secondary/50 px-3 py-1.5 text-xs font-medium text-muted-foreground transition hover:text-foreground"
+                      >
+                        <MessageCircle className="h-3.5 w-3.5" />
+                        <span>Responder</span>
+                      </button>
+                      {review.replies.length > 0 ? <span className="text-xs text-muted-foreground">{review.replies.length} respuestas</span> : null}
+                    </div>
+
+                    {review.replies.length > 0 ? (
+                      <div className="mt-4 space-y-3 border-l border-border/80 pl-4">
+                        {review.replies.map((reply) => (
+                          <div key={reply.id} className="rounded-xl border border-border/60 bg-black/10 p-3">
+                            <div className="mb-2 flex items-start justify-between gap-3">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenUserPreview(reply)}
+                                className="flex min-w-0 items-start gap-3 text-left transition hover:opacity-90"
+                              >
+                                {reply.avatar_url ? (
+                                  <img src={reply.avatar_url} alt={reply.username} className="h-8 w-8 shrink-0 rounded-full object-cover" />
+                                ) : (
+                                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-muted-foreground">
+                                    {(reply.username ?? "").trim() ? (reply.username ?? "U").charAt(0).toUpperCase() : <UserRound className="h-3.5 w-3.5" />}
+                                  </div>
+                                )}
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                    <span className={`text-sm font-semibold ${reply.is_pro ? "pro-username" : ""}`}>{reply.username}</span>
+                                    {reply.is_pro ? <Star className="h-3.5 w-3.5 fill-current pro-username" /> : null}
+                                    <span className="text-[11px] text-muted-foreground">{formatReviewDate(reply.created_at)}</span>
+                                  </div>
+                                </div>
+                              </button>
+                              {reply.user_id === currentUserId ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteReviewReply(reply.id)}
+                                  disabled={deletingReplyId === reply.id}
+                                  className="rounded-full p-2 text-muted-foreground transition hover:bg-secondary hover:text-foreground disabled:cursor-wait disabled:opacity-60"
+                                  aria-label="Eliminar respuesta"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              ) : null}
+                            </div>
+                            <p className="text-sm leading-relaxed text-muted-foreground">{reply.reply_text}</p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+
+                    {expandedReplyComposerId === review.id ? (
+                      <div className="mt-4 space-y-3 rounded-xl border border-border/70 bg-secondary/30 p-3">
+                        <textarea
+                          rows={3}
+                          value={replyDrafts[review.id] ?? ""}
+                          onChange={(event) => handleReplyDraftChange(review.id, event.target.value)}
+                          placeholder="Responder esta reseña..."
+                          className="w-full resize-none rounded-xl border border-border bg-background p-3 text-sm outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
+                        />
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <p className="text-xs text-muted-foreground">Si no sos PRO, esta respuesta consume 1 crédito de reseñas.</p>
+                          <Button
+                            type="button"
+                            onClick={() => handleSubmitReviewReply(review.id)}
+                            disabled={!String(replyDrafts[review.id] ?? "").trim() || submittingReplyForReviewId === review.id}
+                            className="rounded-lg"
+                          >
+                            {submittingReplyForReviewId === review.id ? "Respondiendo..." : "Publicar respuesta"}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 ))
               ) : (

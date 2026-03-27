@@ -43,11 +43,15 @@ export async function createReview({ session_token, entity_type, entity_id, revi
   };
 }
 
-export async function getReviews(entity_type, entity_id) {
+export async function getReviews(entity_type, entity_id, session_token = null) {
   let response;
 
   try {
-    response = await fetch(`${import.meta.env.VITE_API_URL}/reviews/${encodeURIComponent(entity_type)}/${encodeURIComponent(entity_id)}`);
+    response = await fetch(`${import.meta.env.VITE_API_URL}/reviews/${encodeURIComponent(entity_type)}/${encodeURIComponent(entity_id)}`, {
+      headers: {
+        ...(session_token ? { Authorization: `Bearer ${session_token}` } : {}),
+      },
+    });
   } catch {
     throw new Error("REVIEWS_BACKEND_UNAVAILABLE");
   }
@@ -62,6 +66,14 @@ export async function getReviews(entity_type, entity_id) {
     ? data.reviews.map((review) => ({
         ...review,
         is_pro: Boolean(review?.is_pro),
+        liked_by_me: Boolean(review?.liked_by_me),
+        likes_count: Number(review?.likes_count || 0),
+        replies: Array.isArray(review?.replies)
+          ? review.replies.map((reply) => ({
+              ...reply,
+              is_pro: Boolean(reply?.is_pro),
+            }))
+          : [],
       }))
     : [];
 }
@@ -91,6 +103,98 @@ export async function deleteReview(review_id, session_token) {
   }
 
   return true;
+}
+
+export async function createReviewReply({ review_id, reply_text, session_token }) {
+  if (!session_token) {
+    throw new Error("Tenes que iniciar sesion");
+  }
+
+  let response;
+
+  try {
+    response = await fetch(`${import.meta.env.VITE_API_URL}/reviews/${encodeURIComponent(review_id)}/replies`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session_token}`,
+      },
+      body: JSON.stringify({
+        reply_text,
+      }),
+    });
+  } catch {
+    throw new Error("REVIEWS_BACKEND_UNAVAILABLE");
+  }
+
+  const data = await parseJsonResponse(response);
+
+  if (!response.ok) {
+    throw new Error(data?.error?.code || "REVIEW_REPLY_CREATE_ERROR");
+  }
+
+  return {
+    reply: data?.reply ?? null,
+    usage: data?.usage ?? null,
+  };
+}
+
+export async function deleteReviewReply(reply_id, session_token) {
+  if (!session_token) {
+    throw new Error("Tenes que iniciar sesion");
+  }
+
+  let response;
+
+  try {
+    response = await fetch(`${import.meta.env.VITE_API_URL}/review-replies/${encodeURIComponent(reply_id)}`, {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session_token}`,
+      },
+    });
+  } catch {
+    throw new Error("REVIEWS_BACKEND_UNAVAILABLE");
+  }
+
+  if (!response.ok) {
+    const data = await parseJsonResponse(response);
+    throw new Error(data?.error?.code || "REVIEW_REPLY_DELETE_ERROR");
+  }
+
+  return true;
+}
+
+export async function toggleReviewLike(review_id, session_token) {
+  if (!session_token) {
+    throw new Error("Tenes que iniciar sesion");
+  }
+
+  let response;
+
+  try {
+    response = await fetch(`${import.meta.env.VITE_API_URL}/reviews/${encodeURIComponent(review_id)}/likes`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session_token}`,
+      },
+    });
+  } catch {
+    throw new Error("REVIEWS_BACKEND_UNAVAILABLE");
+  }
+
+  const data = await parseJsonResponse(response);
+
+  if (!response.ok) {
+    throw new Error(data?.error?.code || "REVIEW_LIKE_TOGGLE_ERROR");
+  }
+
+  return {
+    likes_count: Number(data?.likes_count || 0),
+    liked_by_me: Boolean(data?.liked_by_me),
+  };
 }
 
 export async function fetchPublicUserPreview(user_id) {

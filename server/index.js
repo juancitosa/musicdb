@@ -363,6 +363,10 @@ function normalizeReviewId(reviewId) {
   return normalizeUserId(reviewId);
 }
 
+function normalizeReviewReplyId(replyId) {
+  return normalizeUserId(replyId);
+}
+
 function sanitizeUsername(value) {
   const normalized = value
     .normalize("NFKD")
@@ -1327,6 +1331,36 @@ async function authenticateAppUser(req, _res, next) {
   }
 }
 
+async function authenticateOptionalAppUser(req, _res, next) {
+  try {
+    const token = getBearerToken(req);
+
+    if (!token) {
+      req.user_id = null;
+      req.auth_provider = null;
+      req.spotify_user_id = null;
+      req.current_user = null;
+      next();
+      return;
+    }
+
+    const auth = await resolveAuthenticatedUserFromToken(token);
+    const supabase = getSupabaseAdmin();
+    const user = await getUserById(supabase, auth.userId);
+    req.user_id = auth.userId;
+    req.auth_provider = auth.provider;
+    req.spotify_user_id = auth.spotifyUserId ?? null;
+    req.current_user = user;
+    next();
+  } catch {
+    req.user_id = null;
+    req.auth_provider = null;
+    req.spotify_user_id = null;
+    req.current_user = null;
+    next();
+  }
+}
+
 async function ensureUserUniqueness(supabase, { email, username }) {
   const [{ data: emailMatch, error: emailError }, { data: usernameMatch, error: usernameError }] = await Promise.all([
     supabase.from("users").select("id").eq("email", email).maybeSingle(),
@@ -1579,6 +1613,18 @@ async function getUserReviewsCountLast24Hours(supabase, userId) {
   return Number(count || 0);
 }
 
+async function getUserReviewRepliesCountLast24Hours(supabase, userId) {
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { count, error } = await supabase
+    .from("review_replies")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .gte("created_at", since);
+
+  handleSupabaseError(error, "Failed to count recent review replies");
+  return Number(count || 0);
+}
+
 async function getUserRatingsCountLast24Hours(supabase, userId) {
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const { count, error } = await supabase
@@ -1597,9 +1643,13 @@ async function enforceDailyUsageLimit(supabase, user, type, options = {}) {
   }
 
   if (type === "review") {
-    const reviewsCount = await getUserReviewsCountLast24Hours(supabase, user.id);
+    const [reviewsCount, repliesCount] = await Promise.all([
+      getUserReviewsCountLast24Hours(supabase, user.id),
+      getUserReviewRepliesCountLast24Hours(supabase, user.id),
+    ]);
+    const reviewWritesCount = reviewsCount + repliesCount;
 
-    if (reviewsCount >= 10) {
+    if (reviewWritesCount >= 10) {
       throw createHttpError(
         429,
         "DAILY_REVIEW_LIMIT_REACHED",
@@ -1646,10 +1696,12 @@ async function getDailyUsageStatus(supabase, user) {
     };
   }
 
-  const [ratingsCount, reviewsCount] = await Promise.all([
+  const [ratingsCount, reviewsCount, repliesCount] = await Promise.all([
     getUserRatingsCountLast24Hours(supabase, user.id),
     getUserReviewsCountLast24Hours(supabase, user.id),
+    getUserReviewRepliesCountLast24Hours(supabase, user.id),
   ]);
+  const reviewWritesCount = reviewsCount + repliesCount;
 
   return {
     is_pro: false,
@@ -1659,7 +1711,7 @@ async function getDailyUsageStatus(supabase, user) {
     },
     remaining: {
       ratings: Math.max(10 - ratingsCount, 0),
-      reviews: Math.max(10 - reviewsCount, 0),
+      reviews: Math.max(10 - reviewWritesCount, 0),
     },
   };
 }
@@ -1774,7 +1826,111 @@ async function createReview(supabase, { userId, entityType, entityId, reviewText
   return data;
 }
 
-async function getReviewsForEntityFromDb(supabase, { entityType, entityId }) {
+async function createReviewReply(supabase, { reviewId, userId, replyText }) {
+  const { data, error } = await supabase
+    .from("review_replies")
+    .insert({
+      review_id: reviewId,
+      user_id: userId,
+      reply_text: replyText,
+    })
+    .select("id, review_id, user_id, reply_text, created_at, updated_at")
+    .single();
+
+  handleSupabaseError(error, "Failed to create review reply");
+
+  return data;
+}
+
+async function getReviewRepliesByReviewIds(supabase, reviewIds = []) {
+  const normalizedIds = [...new Set((reviewIds ?? []).map((reviewId) => normalizeReviewId(reviewId)).filter(Boolean))];
+
+  if (normalizedIds.length === 0) {
+    return new Map();
+  }
+
+  const userColumns = await getUserTableColumns(supabase);
+  const replyUserFields = ["username"];
+
+  if (userColumns.has("avatar_url")) {
+    replyUserFields.push("avatar_url");
+  }
+
+  if (userColumns.has("is_pro")) {
+    replyUserFields.push("is_pro");
+  }
+
+  if (userColumns.has("pro_until")) {
+    replyUserFields.push("pro_until");
+  }
+
+  const { data, error } = await supabase
+    .from("review_replies")
+    .select(`id, review_id, user_id, reply_text, created_at, users(${replyUserFields.join(",")})`)
+    .in("review_id", normalizedIds)
+    .order("created_at", { ascending: true });
+
+  handleSupabaseError(error, "Failed to fetch review replies");
+
+  const repliesByReviewId = new Map();
+
+  for (const reply of data ?? []) {
+    const reviewId = String(reply.review_id);
+    const currentReplies = repliesByReviewId.get(reviewId) ?? [];
+    currentReplies.push({
+      id: reply.id,
+      review_id: reply.review_id,
+      user_id: reply.user_id,
+      username: reply.users?.username ?? "Usuario",
+      avatar_url: reply.users?.avatar_url ?? "",
+      is_pro: mapUserRecord(reply.users ?? {}).is_pro,
+      reply_text: reply.reply_text,
+      created_at: reply.created_at,
+    });
+    repliesByReviewId.set(reviewId, currentReplies);
+  }
+
+  return repliesByReviewId;
+}
+
+async function getReviewLikesSummaryByReviewIds(supabase, reviewIds = [], currentUserId = null) {
+  const normalizedIds = [...new Set((reviewIds ?? []).map((reviewId) => normalizeReviewId(reviewId)).filter(Boolean))];
+
+  if (normalizedIds.length === 0) {
+    return new Map();
+  }
+
+  const [likesCountResponse, likedByMeResponse] = await Promise.all([
+    supabase.from("review_likes").select("review_id").in("review_id", normalizedIds),
+    currentUserId
+      ? supabase.from("review_likes").select("review_id").eq("user_id", currentUserId).in("review_id", normalizedIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  handleSupabaseError(likesCountResponse.error, "Failed to fetch review likes");
+  handleSupabaseError(likedByMeResponse.error, "Failed to fetch current user review likes");
+
+  const likesByReviewId = new Map();
+
+  for (const like of likesCountResponse.data ?? []) {
+    const reviewId = String(like.review_id);
+    likesByReviewId.set(reviewId, Number(likesByReviewId.get(reviewId) || 0) + 1);
+  }
+
+  const likedByMeSet = new Set((likedByMeResponse.data ?? []).map((like) => String(like.review_id)));
+  const summary = new Map();
+
+  normalizedIds.forEach((reviewId) => {
+    summary.set(String(reviewId), {
+      likes_count: Number(likesByReviewId.get(String(reviewId)) || 0),
+      liked_by_me: likedByMeSet.has(String(reviewId)),
+    });
+  });
+
+  return summary;
+}
+
+async function getReviewsForEntityFromDb(supabase, { entityType, entityId, currentUserId = null }) {
   const userColumns = await getUserTableColumns(supabase);
   const reviewUserFields = ["username"];
 
@@ -1799,7 +1955,14 @@ async function getReviewsForEntityFromDb(supabase, { entityType, entityId }) {
 
   handleSupabaseError(error, "Failed to fetch reviews");
 
-  return (data ?? []).map((review) => ({
+  const reviews = data ?? [];
+  const reviewIds = reviews.map((review) => review.id).filter(Boolean);
+  const [repliesByReviewId, likesSummaryByReviewId] = await Promise.all([
+    getReviewRepliesByReviewIds(supabase, reviewIds),
+    getReviewLikesSummaryByReviewIds(supabase, reviewIds, currentUserId),
+  ]);
+
+  return reviews.map((review) => ({
     id: review.id,
     user_id: review.user_id,
     username: review.users?.username ?? "Usuario",
@@ -1808,13 +1971,16 @@ async function getReviewsForEntityFromDb(supabase, { entityType, entityId }) {
     review_text: review.review_text,
     rating_value: review.rating_value,
     created_at: review.created_at,
+    likes_count: likesSummaryByReviewId.get(String(review.id))?.likes_count ?? 0,
+    liked_by_me: likesSummaryByReviewId.get(String(review.id))?.liked_by_me ?? false,
+    replies: repliesByReviewId.get(String(review.id)) ?? [],
   }));
 }
 
 async function getReviewById(supabase, reviewId) {
   const { data, error } = await supabase
     .from("reviews")
-    .select("id, user_id")
+    .select("id, user_id, entity_type, entity_id")
     .eq("id", reviewId)
     .maybeSingle();
 
@@ -1830,6 +1996,53 @@ async function getReviewById(supabase, reviewId) {
 async function deleteReviewById(supabase, reviewId) {
   const { error } = await supabase.from("reviews").delete().eq("id", reviewId);
   handleSupabaseError(error, "Failed to delete review");
+}
+
+async function getReviewReplyById(supabase, replyId) {
+  const { data, error } = await supabase
+    .from("review_replies")
+    .select("id, review_id, user_id")
+    .eq("id", replyId)
+    .maybeSingle();
+
+  handleSupabaseError(error, "Failed to fetch review reply");
+
+  if (!data) {
+    throw createHttpError(404, "REVIEW_REPLY_NOT_FOUND", "Review reply not found");
+  }
+
+  return data;
+}
+
+async function deleteReviewReplyById(supabase, replyId) {
+  const { error } = await supabase.from("review_replies").delete().eq("id", replyId);
+  handleSupabaseError(error, "Failed to delete review reply");
+}
+
+async function getExistingReviewLike(supabase, { reviewId, userId }) {
+  const { data, error } = await supabase
+    .from("review_likes")
+    .select("id")
+    .eq("review_id", reviewId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  handleSupabaseError(error, "Failed to fetch existing review like");
+  return data ?? null;
+}
+
+async function createReviewLike(supabase, { reviewId, userId }) {
+  const { error } = await supabase.from("review_likes").insert({
+    review_id: reviewId,
+    user_id: userId,
+  });
+
+  handleSupabaseError(error, "Failed to create review like");
+}
+
+async function deleteReviewLikeById(supabase, likeId) {
+  const { error } = await supabase.from("review_likes").delete().eq("id", likeId);
+  handleSupabaseError(error, "Failed to delete review like");
 }
 
 async function getAppAccessToken() {
@@ -3908,6 +4121,7 @@ app.post(
 
 app.get(
   "/api/reviews/:entity_type/:entity_id",
+  authenticateOptionalAppUser,
   asyncRoute(async (req, res) => {
     const entityType = normalizeEntityType(req.params.entity_type);
     const entityId = normalizeEntityId(req.params.entity_id);
@@ -3924,9 +4138,93 @@ app.get(
     const reviews = await getReviewsForEntityFromDb(supabase, {
       entityType,
       entityId,
+      currentUserId: normalizeUserId(req.user_id),
     });
 
     res.json({ reviews });
+  }),
+);
+
+app.post(
+  "/api/reviews/:review_id/replies",
+  authenticateAppUser,
+  asyncRoute(async (req, res) => {
+    const reviewId = normalizeReviewId(req.params.review_id);
+    const userId = normalizeUserId(req.user_id);
+    const currentUser = req.current_user;
+    const replyText = normalizeReviewText(req.body.reply_text);
+
+    if (!reviewId || !userId || !replyText) {
+      throw createHttpError(400, "INVALID_REVIEW_REPLY_PAYLOAD", "review_id and reply_text are required");
+    }
+
+    const supabase = getSupabaseAdmin();
+    await enforceDailyUsageLimit(supabase, currentUser, "review");
+    await getReviewById(supabase, reviewId);
+
+    const reply = await createReviewReply(supabase, {
+      reviewId,
+      userId,
+      replyText,
+    });
+    const usage = await getDailyUsageStatus(supabase, currentUser);
+
+    res.status(201).json({ reply, usage });
+  }),
+);
+
+app.delete(
+  "/api/review-replies/:reply_id",
+  authenticateAppUser,
+  asyncRoute(async (req, res) => {
+    const replyId = normalizeReviewReplyId(req.params.reply_id);
+    const userId = normalizeUserId(req.user_id);
+
+    if (!replyId || !userId) {
+      throw createHttpError(400, "INVALID_REVIEW_REPLY_DELETE", "reply_id is required");
+    }
+
+    const supabase = getSupabaseAdmin();
+    const reply = await getReviewReplyById(supabase, replyId);
+
+    if (reply.user_id !== userId) {
+      throw createHttpError(403, "REVIEW_REPLY_FORBIDDEN", "You can only delete your own reply");
+    }
+
+    await deleteReviewReplyById(supabase, replyId);
+
+    res.status(204).send();
+  }),
+);
+
+app.post(
+  "/api/reviews/:review_id/likes",
+  authenticateAppUser,
+  asyncRoute(async (req, res) => {
+    const reviewId = normalizeReviewId(req.params.review_id);
+    const userId = normalizeUserId(req.user_id);
+
+    if (!reviewId || !userId) {
+      throw createHttpError(400, "INVALID_REVIEW_LIKE_PAYLOAD", "review_id is required");
+    }
+
+    const supabase = getSupabaseAdmin();
+    await getReviewById(supabase, reviewId);
+    const existingLike = await getExistingReviewLike(supabase, { reviewId, userId });
+
+    if (existingLike?.id) {
+      await deleteReviewLikeById(supabase, existingLike.id);
+    } else {
+      await createReviewLike(supabase, { reviewId, userId });
+    }
+
+    const summary = await getReviewLikesSummaryByReviewIds(supabase, [reviewId], userId);
+    const nextSummary = summary.get(String(reviewId)) ?? {
+      likes_count: 0,
+      liked_by_me: false,
+    };
+
+    res.json(nextSummary);
   }),
 );
 
