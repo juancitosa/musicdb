@@ -307,11 +307,6 @@ h6 {
     0 10px 24px -18px rgba(124, 58, 237, 0.75);
 }
 
-.review-like-button.is-liked::before {
-  opacity: 1;
-  animation: review-like-border-trace 2.4s linear infinite;
-}
-
 .review-like-heart {
   position: relative;
   z-index: 1;
@@ -331,7 +326,7 @@ h6 {
 }
 
 .review-like-button.is-bursting::before {
-  animation: review-like-border-trace 1s linear infinite;
+  animation: review-like-border-trace 760ms linear 1;
 }
 
 .footer-neon-text {
@@ -385,10 +380,20 @@ h6 {
 
 @keyframes review-like-border-trace {
   0% {
+    opacity: 0;
     transform: rotate(0deg);
   }
 
+  10% {
+    opacity: 1;
+  }
+
+  82% {
+    opacity: 1;
+  }
+
   100% {
+    opacity: 0;
     transform: rotate(360deg);
   }
 }
