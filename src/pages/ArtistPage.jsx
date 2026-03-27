@@ -93,6 +93,7 @@ export default function ArtistPage() {
   const [artist, setArtist] = useState(null);
   const [albums, setAlbums] = useState([]);
   const [likedTracks, setLikedTracks] = useState([]);
+  const [likedTracksTotal, setLikedTracksTotal] = useState(0);
   const [isLoadingLikedTracks, setIsLoadingLikedTracks] = useState(false);
   const [likedTracksError, setLikedTracksError] = useState("");
   const [showLikedTracks, setShowLikedTracks] = useState(false);
@@ -127,6 +128,7 @@ export default function ArtistPage() {
         setArtist(localArtist);
         setAlbums(getMockArtistAlbums(id));
         setLikedTracks([]);
+        setLikedTracksTotal(0);
         setLikedTracksError("");
         setIsLocal(true);
         setIsLoading(false);
@@ -157,6 +159,7 @@ export default function ArtistPage() {
     async function loadLikedTracks() {
       if (!id || isLocal || !hasSpotifyFeatures) {
         setLikedTracks([]);
+        setLikedTracksTotal(0);
         setLikedTracksError("");
         setShowLikedTracks(false);
         return;
@@ -168,8 +171,10 @@ export default function ArtistPage() {
       try {
         const response = await getLikedTracksByArtist(spotifyToken, id);
         setLikedTracks(response.items ?? []);
+        setLikedTracksTotal(Number(response.total) || 0);
       } catch {
         setLikedTracks([]);
+        setLikedTracksTotal(0);
         setLikedTracksError("Reconecta Spotify para ver tus canciones guardadas de este artista.");
       } finally {
         setIsLoadingLikedTracks(false);
@@ -352,7 +357,7 @@ export default function ArtistPage() {
   const followers = isLocal ? artist.followers : artist.followers?.total ?? 0;
   const popularity = artist.popularity ?? 0;
   const filteredAlbums = albums.filter((album) => releaseFilter === "all" || getReleaseType(album) === releaseFilter);
-  const likedSongsCount = likedTracks.length;
+  const likedSongsCount = likedTracksTotal;
   const rankingBadge = artistRankingPosition ? getArtistRankingBadge(artistRankingPosition) : null;
 
   async function handleRateArtist(nextRating) {

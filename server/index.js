@@ -2268,23 +2268,44 @@ async function getAllArtistAlbums(artistId, token, query = {}) {
 
 async function getSavedTracksByArtist(token, artistId, query = {}) {
   try {
-    const limit = Math.min(Number(query.limit) || 50, 50);
-    const data = await spotifyRequest("/me/tracks", {
-      token,
-      query: {
-        limit,
-        offset: Number(query.offset) || 0,
-        market: query.market || "US",
-      },
-    });
+    const responseLimit = Math.min(Number(query.limit) || 50, 50);
+    const market = query.market || "US";
+    const pageSize = 50;
+    let offset = 0;
+    let totalSavedTracks = 0;
+    const filteredItems = [];
 
-    const filteredItems = (data.items ?? []).filter((item) =>
-      item.track?.artists?.some((artist) => artist.id === artistId),
-    );
+    do {
+      const data = await spotifyRequest("/me/tracks", {
+        token,
+        query: {
+          limit: pageSize,
+          offset,
+          market,
+        },
+      });
+
+      totalSavedTracks = Number(data?.total) || 0;
+
+      const matchingItems = (data.items ?? []).filter((item) =>
+        item.track?.artists?.some((artist) => artist.id === artistId),
+      );
+
+      filteredItems.push(...matchingItems);
+      offset += data.items?.length ?? 0;
+
+      if (!data.items?.length || offset >= totalSavedTracks) {
+        break;
+      }
+    } while (offset < totalSavedTracks);
 
     return {
-      ...data,
-      items: filteredItems,
+      href: `/me/liked-tracks/by-artist/${artistId}`,
+      items: filteredItems.slice(0, responseLimit),
+      limit: responseLimit,
+      next: filteredItems.length > responseLimit ? "truncated" : null,
+      offset: 0,
+      previous: null,
       total: filteredItems.length,
     };
   } catch (error) {
