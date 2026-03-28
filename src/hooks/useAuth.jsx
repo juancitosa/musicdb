@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
-import { fetchAuthenticatedUser, fetchLocalSession, fetchLocalSupabaseUser, fetchSupabaseProfile } from "../services/appAuth";
+import { fetchAuthenticatedUser, fetchSupabaseProfile } from "../services/appAuth";
 
 const SESSION_KEY = "musicdb_app_session";
 
@@ -170,42 +170,22 @@ export function AuthProvider({ children }) {
       }
 
       try {
-        let effectiveToken = session.token;
-
-        if (session.user?.authProvider === "local") {
-          const activeSession = await fetchLocalSession();
-
-          if (!activeSession) {
-            if (!cancelled) {
-              setUser(null);
-              setCurrentUser(null);
-              setAppToken(null);
-              setHasActiveSession(false);
-              persistSession(null);
-            }
-            return;
-          }
-
-          effectiveToken = activeSession.access_token || session.token;
-        }
-
         let normalizedUser = null;
 
         try {
-          const localSupabaseUser = await fetchLocalSupabaseUser(effectiveToken);
-          const backendUser = await fetchAuthenticatedUser(effectiveToken).catch(() => null);
-          normalizedUser = mergeBackendStatusIntoLocalUser(localSupabaseUser, backendUser);
+          const backendUser = await fetchAuthenticatedUser(session.token);
+          normalizedUser = backendUser ? normalizeUser(backendUser) : normalizeUser(session.user);
         } catch {
-          const backendUser = await fetchAuthenticatedUser(effectiveToken).catch(() => null);
+          const backendUser = await fetchAuthenticatedUser(session.token).catch(() => null);
           normalizedUser = backendUser ? normalizeUser(backendUser) : normalizeUser(session.user);
         }
 
         if (!cancelled && normalizedUser) {
           setUser(normalizedUser);
-          setAppToken(effectiveToken);
+          setAppToken(session.token);
           setHasActiveSession(true);
           persistSession({
-            token: effectiveToken,
+            token: session.token,
             user: normalizedUser,
           });
         }

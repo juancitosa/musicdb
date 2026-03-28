@@ -1097,6 +1097,33 @@ async function getUserByEmail(supabase, email) {
   return syncExpiredProStatusIfNeeded(supabase, data);
 }
 
+async function hardDeleteAppUser(supabase, userId) {
+  const { error: authDeleteError } = await supabase.auth.admin.deleteUser(userId);
+
+  if (authDeleteError) {
+    handleSupabaseError(authDeleteError, "Failed to delete auth user");
+  }
+
+  const deleteSteps = [
+    () => supabase.from("review_likes").delete().eq("user_id", userId),
+    () => supabase.from("review_replies").delete().eq("user_id", userId),
+    () => supabase.from("ratings").delete().eq("user_id", userId),
+    () => supabase.from("reviews").delete().eq("user_id", userId),
+    () => supabase.from("spotify_accounts").delete().eq("user_id", userId),
+    () => supabase.from("processed_payments").delete().eq("user_id", userId),
+    () => supabase.from("profiles").delete().eq("id", userId),
+    () => supabase.from("users").delete().eq("id", userId),
+  ];
+
+  for (const step of deleteSteps) {
+    const { error } = await step();
+
+    if (error && !isMissingRelationError(error) && !isNotFoundError(error)) {
+      handleSupabaseError(error, "Failed to delete related user records");
+    }
+  }
+}
+
 async function getUserAuthByEmail(supabase, email) {
   if (!email) {
     return null;
@@ -4067,8 +4094,7 @@ app.delete(
     }
 
     const supabase = getSupabaseAdmin();
-    const { error } = await supabase.from("users").delete().eq("id", userId);
-    handleSupabaseError(error, "Failed to delete admin user");
+    await hardDeleteAppUser(supabase, userId);
 
     res.status(204).send();
   }),
@@ -4149,6 +4175,7 @@ app.patch(
     const username = normalizeUsername(req.body?.username);
     const phone = normalizePhone(req.body?.phone);
     const avatarUrl = normalizeAvatarUrl(req.body?.avatar_url);
+    const bannerUrl = normalizeAvatarUrl(req.body?.banner_url);
 
     if (!userId) {
       throw createHttpError(400, "INVALID_PROFILE_UPDATE", "valid user_id is required");
@@ -4166,9 +4193,14 @@ app.patch(
       throw createHttpError(400, "INVALID_PROFILE_UPDATE", "avatar_url must be a valid URL");
     }
 
+    if (req.body?.banner_url !== undefined && !bannerUrl) {
+      throw createHttpError(400, "INVALID_PROFILE_UPDATE", "banner_url must be a valid URL");
+    }
+
     const supabase = getSupabaseAdmin();
     const userColumns = await getUserTableColumns(supabase);
     const updatePayload = {};
+    const profileUpdatePayload = {};
 
     if (req.body?.username !== undefined) {
       const { data: existingUsername, error: usernameError } = await supabase
@@ -4196,22 +4228,64 @@ app.patch(
       updatePayload.avatar_url = avatarUrl;
     }
 
-    if (Object.keys(updatePayload).length === 0) {
+    if (req.body?.banner_url !== undefined) {
+      if (!req.current_user?.is_pro) {
+        throw createHttpError(403, "PRO_REQUIRED", "MusicDB PRO is required to update banner_url");
+      }
+
+      profileUpdatePayload.banner_url = bannerUrl;
+    }
+
+    if (Object.keys(updatePayload).length === 0 && Object.keys(profileUpdatePayload).length === 0) {
       throw createHttpError(400, "INVALID_PROFILE_UPDATE", "No supported profile fields were provided");
     }
 
-    const userSelect = await buildUserSelect(supabase);
-    const { data, error } = await supabase
-      .from("users")
-      .update(updatePayload)
-      .eq("id", userId)
-      .select(userSelect)
-      .single();
+    let data = req.current_user;
 
-    handleSupabaseError(error, "Failed to update authenticated profile");
+    if (Object.keys(updatePayload).length > 0) {
+      const userSelect = await buildUserSelect(supabase);
+      const userUpdateResult = await supabase
+        .from("users")
+        .update(updatePayload)
+        .eq("id", userId)
+        .select(userSelect)
+        .single();
+
+      handleSupabaseError(userUpdateResult.error, "Failed to update authenticated profile");
+      data = userUpdateResult.data;
+    }
+
+    if (Object.keys(profileUpdatePayload).length > 0) {
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .upsert(
+          {
+            id: userId,
+            ...profileUpdatePayload,
+          },
+          {
+            onConflict: "id",
+          },
+        );
+
+      handleSupabaseError(profileError, "Failed to update authenticated profile banner");
+    }
+
+    const { data: profile, error: profileFetchError } = await supabase
+      .from("profiles")
+      .select("banner_url")
+      .eq("id", userId)
+      .maybeSingle();
+
+    if (profileFetchError && !isNotFoundError(profileFetchError)) {
+      handleSupabaseError(profileFetchError, "Failed to fetch authenticated profile banner");
+    }
 
     res.json({
-      user: mapUserRecord(data),
+      user: {
+        ...mapUserRecord(data),
+        banner_url: profile?.banner_url ?? null,
+      },
     });
   }),
 );

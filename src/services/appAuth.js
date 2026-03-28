@@ -332,82 +332,20 @@ export function syncSpotifyUser(accessToken) {
 
 export async function registerLocalUser(payload) {
   const sanitizedPayload = sanitizeCredentials(payload);
-  const supabase = getSupabaseClient();
-  const emailRedirectTo = typeof window !== "undefined" ? `${window.location.origin}/login` : undefined;
-  const { data, error } = await supabase.auth.signUp({
+  return postAuthRequest("/auth/register", {
     email: sanitizedPayload.email,
+    username: sanitizedPayload.username,
     password: sanitizedPayload.password,
-    options: {
-      emailRedirectTo,
-      data: {
-        username: sanitizedPayload.username || undefined,
-      },
-    },
+    phone: payload?.phone?.trim() || undefined,
   });
-
-  if (error) {
-    const message = (error.message || "").toLowerCase();
-    const code = (error.code || "").toLowerCase();
-
-    if (error.status === 429) {
-      throw new Error("TOO_MANY_SIGNUP_ATTEMPTS");
-    }
-
-    if (message.includes("already registered") || code === "user_already_exists") {
-      throw new Error("EMAIL_ALREADY_EXISTS");
-    }
-
-    throw new Error(error.message || "APP_AUTH_ERROR");
-  }
-
-  const user = data?.user ? mapSupabaseUser(data.user) : { email: sanitizedPayload.email };
-
-  return {
-    user,
-    requires_email_verification: true,
-    verification_email_sent: true,
-    verification_delivery: "supabase",
-  };
 }
 
 export async function loginLocalUser(payload) {
   const sanitizedPayload = sanitizeCredentials(payload);
-  const supabase = getSupabaseClient();
-  const { data, error } = await supabase.auth.signInWithPassword({
+  return postAuthRequest("/auth/login", {
     email: sanitizedPayload.email,
     password: sanitizedPayload.password,
   });
-
-  if (error) {
-    const message = (error.message || "").toLowerCase();
-    const code = (error.code || "").toLowerCase();
-
-    if (message.includes("email not confirmed") || code === "email_not_confirmed") {
-      throw new Error("EMAIL_NOT_VERIFIED");
-    }
-
-    if (
-      message.includes("invalid login credentials") ||
-      message.includes("invalid credentials") ||
-      code === "invalid_credentials"
-    ) {
-      throw new Error("LOCAL_LOGIN_INVALID");
-    }
-
-    throw new Error(error.message || "LOCAL_LOGIN_INVALID");
-  }
-
-  if (!data?.session?.access_token) {
-    throw new Error("APP_AUTH_ERROR");
-  }
-
-  const backendUser = await fetchAuthenticatedUser(data.session.access_token).catch(() => null);
-  const authUser = mapSupabaseUser(data.user);
-
-  return {
-    token: data.session.access_token,
-    user: backendUser ?? authUser,
-  };
 }
 
 export async function fetchLocalSession() {
@@ -436,33 +374,13 @@ export async function fetchLocalSupabaseUser(token) {
 }
 
 export function resendVerificationEmail(payload) {
-  const supabase = getSupabaseClient();
   const email = payload?.email?.trim().toLowerCase() ?? "";
 
   if (!email) {
     return Promise.reject(new Error("INVALID_EMAIL_VERIFICATION_RESEND_PAYLOAD"));
   }
 
-  const emailRedirectTo = typeof window !== "undefined" ? `${window.location.origin}/login` : undefined;
-
-  return supabase.auth
-    .resend({
-      type: "signup",
-      email,
-      options: {
-        emailRedirectTo,
-      },
-    })
-    .then(({ error }) => {
-      if (error) {
-        throw new Error(error.message || "APP_AUTH_ERROR");
-      }
-
-      return {
-        success: true,
-        verification_delivery: "supabase",
-      };
-    });
+  return postAuthRequest("/auth/verify-email/resend", { email });
 }
 
 export async function verifyEmailToken(token) {
@@ -532,6 +450,10 @@ export async function fetchCurrentUserByEmail(email) {
 }
 
 export async function updateSupabaseProfile(userId, payload) {
+  if (payload.banner_url !== undefined) {
+    throw new Error("BANNER_UPDATE_REQUIRES_BACKEND");
+  }
+
   const supabase = getSupabaseClient();
   const updatePayload = {
     id: userId,
@@ -547,10 +469,6 @@ export async function updateSupabaseProfile(userId, payload) {
 
   if (payload.avatar_url !== undefined) {
     updatePayload.avatar_url = payload.avatar_url;
-  }
-
-  if (payload.banner_url !== undefined) {
-    updatePayload.banner_url = payload.banner_url;
   }
 
   const { data, error } = await supabase
@@ -673,26 +591,20 @@ export async function uploadProfileBanner(userId, file, sessionToken) {
 
   const { data } = supabase.storage.from("avatars").getPublicUrl(filePath);
   const publicUrl = data?.publicUrl ?? "";
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .upsert({
-      id: userId,
-      banner_url: publicUrl,
-    }, {
-      onConflict: "id",
-    })
-    .select("*")
-    .single();
 
-  if (profileError) {
-    throw new Error(profileError.message || "APP_AUTH_ERROR");
+  if (!sessionToken || !publicUrl) {
+    throw new Error("APP_AUTH_REQUIRED");
   }
+
+  const response = await patchAuthenticatedRequest("/auth/profile", sessionToken, {
+    banner_url: publicUrl,
+  });
 
   return {
     path: filePath,
     publicUrl,
-    profile,
-    user: null,
+    profile: null,
+    user: response?.user ?? null,
   };
 }
 

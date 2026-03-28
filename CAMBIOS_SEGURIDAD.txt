@@ -1,0 +1,134 @@
+CAMBIOS DE SEGURIDAD Y CORRECCIONES
+Fecha: 28/03/2026
+
+1. AUTENTICACION DEL FRONTEND
+
+Problema detectado:
+- El login, el registro y el reenvio del mail de verificacion usaban Supabase Auth directo desde el frontend.
+- Eso dejaba afuera el rate limiting que se implemento en el backend.
+
+Cambio aplicado:
+- El frontend ahora usa el backend para:
+  - /api/auth/login
+  - /api/auth/register
+  - /api/auth/verify-email/resend
+
+Impacto:
+- El flujo real que usa el usuario queda cubierto por los limites de intentos del backend.
+- Los mensajes de error del rate limit ahora pueden mostrarse correctamente en la interfaz.
+
+
+2. RATE LIMITING EFECTIVO
+
+Estado final:
+- Login bloquea por demasiados intentos.
+- Registro bloquea por demasiados intentos.
+- Reenvio de verificacion bloquea por demasiados intentos.
+
+Mensajes expuestos al cliente:
+- AUTH_LOGIN_RATE_LIMITED
+  "Too many login attempts, please try again later"
+- AUTH_REGISTER_RATE_LIMITED
+  "Too many registration attempts, please try again later"
+- AUTH_VERIFY_EMAIL_RESEND_RATE_LIMITED
+  "Too many verification email requests, please try again later"
+
+Impacto:
+- Reduce brute force, abuso de formularios y spam de reenvios.
+
+
+3. BORRADO REAL DE USUARIOS DESDE ADMIN
+
+Problema detectado:
+- El panel admin eliminaba solo la fila local en la tabla users.
+- Si la cuenta seguia viva en Supabase Auth, el usuario podia reaparecer al volver a iniciar sesion.
+
+Cambio aplicado:
+- El borrado admin ahora intenta eliminar primero la cuenta de autenticacion real.
+- Luego limpia registros relacionados del usuario en tablas de la app.
+
+Impacto:
+- El borrado desde admin pasa a ser mucho mas coherente con lo que espera quien administra.
+
+
+4. RESTRICCION PRO PARA BANNER
+
+Problema detectado:
+- La restriccion "solo PRO puede subir banner" estaba apoyada sobre todo en frontend.
+
+Cambio aplicado:
+- La actualizacion de banner ahora pasa por backend.
+- El backend rechaza el cambio si el usuario no es PRO.
+- El helper frontend que intentaba escribir banner_url directo en Supabase ya no se usa para eso.
+
+Impacto:
+- La restriccion comercial deja de depender solo del cliente.
+
+
+5. TOKENS DE VERIFICACION DE EMAIL
+
+Problema detectado:
+- Los tokens de verificacion se guardaban en texto plano.
+
+Cambio aplicado:
+- Los nuevos tokens se guardan hasheados con SHA-256.
+- La verificacion sigue aceptando tokens viejos en texto plano para no romper enlaces ya emitidos.
+
+Impacto:
+- Si alguien leyera la tabla de tokens, no podria reutilizar directamente los nuevos tokens.
+
+
+6. SANITIZACION DEL EMAIL HTML
+
+Problema detectado:
+- Valores controlados por usuario podian interpolarse en el HTML del correo.
+
+Cambio aplicado:
+- Se escapan los valores antes de insertarlos en la plantilla del mail.
+
+Impacto:
+- Reduce riesgo de inyeccion de markup dentro del correo transaccional.
+
+
+7. DEPENDENCIA VULNERABLE DEL BACKEND
+
+Problema detectado:
+- npm audit marco una vulnerabilidad en path-to-regexp usada por el backend.
+
+Cambio aplicado:
+- Se fijo una version corregida mediante override.
+- Se actualizo package-lock del backend.
+
+Impacto:
+- Se elimina el hallazgo reportado por npm audit para esa cadena de dependencias.
+
+
+8. DOCUMENTACION RELACIONADA
+
+Archivos relevantes:
+- server/index.js
+- src/services/appAuth.js
+- src/hooks/useAuth.jsx
+- src/components/shared/AuthDialog.jsx
+- server/package.json
+- server/package-lock.json
+- supabase/create_rate_limits.sql
+- supabase/fix_consume_rate_limit_signature.sql
+- SECURITY_NOTES.md
+
+
+9. COSAS A TENER EN CUENTA
+
+- .env no debe subirse al repositorio.
+- El webhook de Mercado Pago debe seguir teniendo configurado su secreto en produccion.
+- El fallback en memoria del rate limiting existe para resiliencia, pero el modo deseado en produccion es el respaldado por Supabase.
+
+
+10. RESULTADO GENERAL
+
+Estado final esperado despues de deploy:
+- Login, registro y resend pasan por backend.
+- El rate limiting protege el flujo real del usuario.
+- El borrado admin deja de ser solo superficial.
+- El banner PRO queda reforzado del lado servidor.
+- Los tokens de verificacion quedan mejor protegidos.

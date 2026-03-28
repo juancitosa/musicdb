@@ -45,6 +45,14 @@ function mapAuthError(errorCode) {
       return "Falta configurar la base de datos para verificar emails.";
     case "APP_BACKEND_UNAVAILABLE":
       return "No pudimos conectar con el backend de la app.";
+    case "APP_AUTH_REQUIRED":
+      return "Necesitas iniciar sesion para completar esta accion.";
+    case "AUTH_LOGIN_RATE_LIMITED":
+      return "Hiciste demasiados intentos de ingreso. Espera un momento y vuelve a probar.";
+    case "AUTH_REGISTER_RATE_LIMITED":
+      return "Hiciste demasiados intentos de registro. Espera un momento y vuelve a probar.";
+    case "AUTH_VERIFY_EMAIL_RESEND_RATE_LIMITED":
+      return "Pediste demasiados reenvios del mail de verificacion. Espera un momento y vuelve a probar.";
     case "SUPABASE_CLIENT_CONFIG_MISSING":
       return "Falta configurar Supabase en el frontend.";
     case "TOO_MANY_SIGNUP_ATTEMPTS":
