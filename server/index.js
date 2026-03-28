@@ -103,8 +103,10 @@ const RATE_LIMIT_MAX_ATTEMPTS = {
 
 const rateLimitStore = new Map();
 const RATE_LIMIT_SWEEP_INTERVAL_MS = 60 * 1000;
+const RATE_LIMIT_SUPABASE_RETRY_AFTER_MS = 30 * 1000;
 let rateLimitStorageMode = "auto";
 let rateLimitStorageWarningLogged = false;
+let rateLimitSupabaseRetryAt = 0;
 
 function getRateLimitClientIp(req) {
   if (typeof req.ip === "string" && req.ip.trim()) {
@@ -169,6 +171,11 @@ function warnRateLimitStorageFallback(reason, error) {
   });
 }
 
+function resetRateLimitStorageFallback() {
+  rateLimitStorageWarningLogged = false;
+  rateLimitSupabaseRetryAt = 0;
+}
+
 async function consumeRateLimitWithSupabase({ key, scope, limit, windowMs }) {
   const supabase = getSupabaseAdmin();
   const windowSeconds = Math.max(Math.ceil(windowMs / 1000), 1);
@@ -198,7 +205,9 @@ async function consumeRateLimitWithSupabase({ key, scope, limit, windowMs }) {
 }
 
 async function checkRateLimit({ key, scope, limit, windowMs, now }) {
-  if (rateLimitStorageMode !== "memory") {
+  const shouldUseSupabase = rateLimitStorageMode !== "memory" || now >= rateLimitSupabaseRetryAt;
+
+  if (shouldUseSupabase) {
     try {
       const result = await consumeRateLimitWithSupabase({
         key,
@@ -207,12 +216,16 @@ async function checkRateLimit({ key, scope, limit, windowMs, now }) {
         windowMs,
       });
       rateLimitStorageMode = "supabase";
+      resetRateLimitStorageFallback();
       return result;
     } catch (error) {
       if (isMissingRelationError(error) || isMissingRpcFunctionError(error, "consume_rate_limit")) {
         rateLimitStorageMode = "memory";
+        rateLimitSupabaseRetryAt = now + RATE_LIMIT_SUPABASE_RETRY_AFTER_MS;
         warnRateLimitStorageFallback("schema_missing", error);
       } else {
+        rateLimitStorageMode = "memory";
+        rateLimitSupabaseRetryAt = now + RATE_LIMIT_SUPABASE_RETRY_AFTER_MS;
         warnRateLimitStorageFallback("supabase_unavailable", error);
       }
     }
