@@ -11,6 +11,7 @@ import { createClient } from "@supabase/supabase-js";
 dotenv.config();
 
 const app = express();
+app.set("trust proxy", 1);
 const PORT = Number(process.env.PORT || 3000);
 const SPOTIFY_CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
 const SPOTIFY_CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
@@ -82,6 +83,264 @@ app.use(
 );
 
 app.use(express.json());
+
+const RATE_LIMIT_WINDOW_MS = {
+  login: 10 * 60 * 1000,
+  register: 60 * 60 * 1000,
+  verifyEmailResend: 60 * 60 * 1000,
+  paymentsWebhook: 5 * 60 * 1000,
+};
+
+const RATE_LIMIT_MAX_ATTEMPTS = {
+  loginByIp: 30,
+  loginByIpAndEmail: 8,
+  registerByIp: 5,
+  registerByIpAndEmail: 3,
+  verifyEmailResendByIp: 20,
+  verifyEmailResendByIpAndEmail: 5,
+  paymentsWebhookByIp: 120,
+};
+
+const rateLimitStore = new Map();
+const RATE_LIMIT_SWEEP_INTERVAL_MS = 60 * 1000;
+
+function getRateLimitClientIp(req) {
+  const forwardedFor = req.headers["x-forwarded-for"];
+
+  if (typeof forwardedFor === "string" && forwardedFor.trim()) {
+    const forwardedIp = forwardedFor
+      .split(",")
+      .map((value) => value.trim())
+      .find(Boolean);
+
+    if (forwardedIp) {
+      return forwardedIp;
+    }
+  }
+
+  if (typeof req.ip === "string" && req.ip.trim()) {
+    return req.ip.trim();
+  }
+
+  if (typeof req.socket?.remoteAddress === "string" && req.socket.remoteAddress.trim()) {
+    return req.socket.remoteAddress.trim();
+  }
+
+  return "unknown";
+}
+
+function buildRateLimitKey(scope, keyParts = []) {
+  return [scope, ...keyParts.map((value) => (value == null || value === "" ? "unknown" : String(value).trim().toLowerCase()))].join(":");
+}
+
+function getOrCreateRateLimitEntry(key, now, windowMs) {
+  const existingEntry = rateLimitStore.get(key);
+
+  if (!existingEntry || now >= existingEntry.resetAt) {
+    const nextEntry = {
+      count: 0,
+      resetAt: now + windowMs,
+    };
+    rateLimitStore.set(key, nextEntry);
+    return nextEntry;
+  }
+
+  return existingEntry;
+}
+
+function checkRateLimit({ key, limit, windowMs, now }) {
+  const entry = getOrCreateRateLimitEntry(key, now, windowMs);
+  entry.count += 1;
+
+  const retryAfterMs = Math.max(entry.resetAt - now, 0);
+
+  return {
+    allowed: entry.count <= limit,
+    count: entry.count,
+    retryAfterMs,
+    resetAt: entry.resetAt,
+  };
+}
+
+function createRateLimitMiddleware({
+  scope,
+  rules,
+  errorCode = "RATE_LIMIT_EXCEEDED",
+  message = "Too many requests, please try again later",
+  onRejected,
+}) {
+  return (req, res, next) => {
+    const now = Date.now();
+    let mostRestrictiveResult = null;
+
+    for (const rule of rules) {
+      const keyParts = rule.keyParts(req);
+      const key = buildRateLimitKey(`${scope}:${rule.name}`, keyParts);
+      const result = checkRateLimit({
+        key,
+        limit: rule.limit,
+        windowMs: rule.windowMs,
+        now,
+      });
+
+      if (!result.allowed) {
+        mostRestrictiveResult =
+          !mostRestrictiveResult || result.retryAfterMs > mostRestrictiveResult.retryAfterMs
+            ? { ...result, ruleName: rule.name, key }
+            : mostRestrictiveResult;
+      }
+    }
+
+    if (!mostRestrictiveResult) {
+      next();
+      return;
+    }
+
+    const retryAfterSeconds = Math.max(Math.ceil(mostRestrictiveResult.retryAfterMs / 1000), 1);
+    res.setHeader("Retry-After", String(retryAfterSeconds));
+
+    if (typeof onRejected === "function") {
+      onRejected(req, {
+        retryAfterSeconds,
+        ruleName: mostRestrictiveResult.ruleName,
+      });
+    }
+
+    next(createHttpError(429, errorCode, message));
+  };
+}
+
+const loginRateLimit = createRateLimitMiddleware({
+  scope: "auth-login",
+  errorCode: "AUTH_LOGIN_RATE_LIMITED",
+  message: "Too many login attempts, please try again later",
+  onRejected(req, metadata) {
+    console.warn("[rate-limit] Login attempts blocked", {
+      ip: getRateLimitClientIp(req),
+      email: normalizeEmail(req.body?.email),
+      rule: metadata.ruleName,
+      retryAfterSeconds: metadata.retryAfterSeconds,
+    });
+  },
+  rules: [
+    {
+      name: "ip",
+      limit: RATE_LIMIT_MAX_ATTEMPTS.loginByIp,
+      windowMs: RATE_LIMIT_WINDOW_MS.login,
+      keyParts(req) {
+        return [getRateLimitClientIp(req)];
+      },
+    },
+    {
+      name: "ip-email",
+      limit: RATE_LIMIT_MAX_ATTEMPTS.loginByIpAndEmail,
+      windowMs: RATE_LIMIT_WINDOW_MS.login,
+      keyParts(req) {
+        return [getRateLimitClientIp(req), normalizeEmail(req.body?.email)];
+      },
+    },
+  ],
+});
+
+const registerRateLimit = createRateLimitMiddleware({
+  scope: "auth-register",
+  errorCode: "AUTH_REGISTER_RATE_LIMITED",
+  message: "Too many registration attempts, please try again later",
+  onRejected(req, metadata) {
+    console.warn("[rate-limit] Registration attempts blocked", {
+      ip: getRateLimitClientIp(req),
+      email: normalizeEmail(req.body?.email),
+      rule: metadata.ruleName,
+      retryAfterSeconds: metadata.retryAfterSeconds,
+    });
+  },
+  rules: [
+    {
+      name: "ip",
+      limit: RATE_LIMIT_MAX_ATTEMPTS.registerByIp,
+      windowMs: RATE_LIMIT_WINDOW_MS.register,
+      keyParts(req) {
+        return [getRateLimitClientIp(req)];
+      },
+    },
+    {
+      name: "ip-email",
+      limit: RATE_LIMIT_MAX_ATTEMPTS.registerByIpAndEmail,
+      windowMs: RATE_LIMIT_WINDOW_MS.register,
+      keyParts(req) {
+        return [getRateLimitClientIp(req), normalizeEmail(req.body?.email)];
+      },
+    },
+  ],
+});
+
+const verifyEmailResendRateLimit = createRateLimitMiddleware({
+  scope: "auth-verify-email-resend",
+  errorCode: "AUTH_VERIFY_EMAIL_RESEND_RATE_LIMITED",
+  message: "Too many verification email requests, please try again later",
+  onRejected(req, metadata) {
+    console.warn("[rate-limit] Verification email resend blocked", {
+      ip: getRateLimitClientIp(req),
+      email: normalizeEmail(req.body?.email),
+      rule: metadata.ruleName,
+      retryAfterSeconds: metadata.retryAfterSeconds,
+    });
+  },
+  rules: [
+    {
+      name: "ip",
+      limit: RATE_LIMIT_MAX_ATTEMPTS.verifyEmailResendByIp,
+      windowMs: RATE_LIMIT_WINDOW_MS.verifyEmailResend,
+      keyParts(req) {
+        return [getRateLimitClientIp(req)];
+      },
+    },
+    {
+      name: "ip-email",
+      limit: RATE_LIMIT_MAX_ATTEMPTS.verifyEmailResendByIpAndEmail,
+      windowMs: RATE_LIMIT_WINDOW_MS.verifyEmailResend,
+      keyParts(req) {
+        return [getRateLimitClientIp(req), normalizeEmail(req.body?.email)];
+      },
+    },
+  ],
+});
+
+const paymentsWebhookRateLimit = createRateLimitMiddleware({
+  scope: "payments-webhook",
+  errorCode: "PAYMENTS_WEBHOOK_RATE_LIMITED",
+  message: "Too many payment webhook requests, please try again later",
+  onRejected(req, metadata) {
+    console.warn("[rate-limit] Payment webhook blocked", {
+      ip: getRateLimitClientIp(req),
+      paymentId: extractMercadoPagoPaymentId(req).paymentId,
+      rule: metadata.ruleName,
+      retryAfterSeconds: metadata.retryAfterSeconds,
+    });
+  },
+  rules: [
+    {
+      name: "ip",
+      limit: RATE_LIMIT_MAX_ATTEMPTS.paymentsWebhookByIp,
+      windowMs: RATE_LIMIT_WINDOW_MS.paymentsWebhook,
+      keyParts(req) {
+        return [getRateLimitClientIp(req)];
+      },
+    },
+  ],
+});
+
+const rateLimitSweepTimer = setInterval(() => {
+  const now = Date.now();
+
+  for (const [key, entry] of rateLimitStore.entries()) {
+    if (now >= entry.resetAt) {
+      rateLimitStore.delete(key);
+    }
+  }
+}, RATE_LIMIT_SWEEP_INTERVAL_MS);
+
+rateLimitSweepTimer.unref?.();
 
 function createHttpError(status, code, message) {
   const error = new Error(message);
@@ -3437,6 +3696,7 @@ app.post(
 
 app.post(
   "/api/payments/webhook",
+  paymentsWebhookRateLimit,
   asyncRoute(async (req, res) => {
     const { paymentId, topic } = extractMercadoPagoPaymentId(req);
 
@@ -3476,16 +3736,19 @@ app.post(
 
 app.post(
   "/api/auth/register",
+  registerRateLimit,
   asyncRoute(handleLocalRegister),
 );
 
 app.post(
   "/api/register",
+  registerRateLimit,
   asyncRoute(handleLocalRegister),
 );
 
 app.post(
   "/api/auth/login",
+  loginRateLimit,
   asyncRoute(async (req, res) => {
     const email = normalizeEmail(req.body.email);
     const password = typeof req.body.password === "string" ? req.body.password : null;
@@ -3586,6 +3849,7 @@ app.get("/api/auth/verify-email", async (req, res) => {
 
 app.post(
   "/api/auth/verify-email/resend",
+  verifyEmailResendRateLimit,
   asyncRoute(handleResendVerificationEmail),
 );
 
