@@ -1126,6 +1126,35 @@ async function getPublicUserPreviewById(supabase, userId) {
   };
 }
 
+async function getProfileBannerUrlByUserId(supabase, userId) {
+  const normalizedUserId = normalizeUserId(userId);
+
+  if (!normalizedUserId) {
+    return null;
+  }
+
+  const { data: profile, error } = await supabase
+    .from("profiles")
+    .select("banner_url")
+    .eq("id", normalizedUserId)
+    .maybeSingle();
+
+  if (error && !isNotFoundError(error)) {
+    handleSupabaseError(error, "Failed to fetch user profile banner");
+  }
+
+  return profile?.banner_url || "";
+}
+
+async function mapAuthenticatedUserRecord(supabase, user) {
+  const banner_url = await getProfileBannerUrlByUserId(supabase, user?.id);
+
+  return {
+    ...mapUserRecord(user),
+    banner_url,
+  };
+}
+
 async function getUserByEmail(supabase, email) {
   if (!email) {
     return null;
@@ -4133,7 +4162,7 @@ app.post(
       await backfillLocalPasswordHash(supabase, fallbackUser.id, password);
 
       res.json({
-        user: mapUserRecord(fallbackUser),
+        user: await mapAuthenticatedUserRecord(supabase, fallbackUser),
         token: createAppSessionToken(fallbackUser),
       });
       return;
@@ -4151,7 +4180,7 @@ app.post(
       await backfillLocalPasswordHash(supabase, fallbackUser.id, password);
 
       res.json({
-        user: mapUserRecord(fallbackUser),
+        user: await mapAuthenticatedUserRecord(supabase, fallbackUser),
         token: createAppSessionToken(fallbackUser),
       });
       return;
@@ -4164,7 +4193,7 @@ app.post(
         await backfillLocalPasswordHash(supabase, fallbackUser.id, password);
 
         res.json({
-          user: mapUserRecord(fallbackUser),
+          user: await mapAuthenticatedUserRecord(supabase, fallbackUser),
           token: createAppSessionToken(fallbackUser),
         });
         return;
@@ -4174,7 +4203,7 @@ app.post(
     }
 
     res.json({
-      user: mapUserRecord(user),
+      user: await mapAuthenticatedUserRecord(supabase, user),
       token: createAppSessionToken(user),
     });
   }),
@@ -4263,7 +4292,7 @@ app.get(
 
     const supabase = getSupabaseAdmin();
     const user = await getUserById(supabase, userId);
-    res.json({ user: mapUserRecord(user) });
+    res.json({ user: await mapAuthenticatedUserRecord(supabase, user) });
   }),
 );
 

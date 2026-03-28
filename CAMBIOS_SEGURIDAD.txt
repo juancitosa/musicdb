@@ -32,17 +32,20 @@ Problemas detectados:
 - Varias ediciones de perfil podian quedar a mitad de camino si fallaba el segundo paso.
 - El banner podia no reaparecer correctamente despues de login o recarga.
 - El modal de perfil podia conservar previews viejas al cerrarse.
+- El preview del banner PRO podia dejar de verse en la cabecera del perfil aunque el banner siguiera guardado.
 
 Cambio aplicado:
 - Las actualizaciones de username, telefono y avatar se consolidaron desde backend.
 - Si un upload de avatar o banner falla al final, se intenta limpiar el archivo recien subido.
 - La hidratacion del usuario local contempla banner.
 - El cierre del modal limpia avatar y banner pendientes en los caminos relevantes.
+- Se reforzo la hidratacion del banner del usuario autenticado para que el perfil no dependa solo de una lectura secundaria del lado cliente.
 
 Impacto:
 - Menos estados parciales.
 - Menos basura en storage por uploads fallidos.
 - Menos desincronizacion visual en perfil.
+- El banner PRO vuelve a mostrarse en la cabecera del perfil despues de login y recarga.
 
 
 1.3. Navegacion, busqueda y experiencia de uso
@@ -141,13 +144,16 @@ Impacto:
 
 Problema detectado:
 - La restriccion "solo PRO puede subir banner" dependia demasiado del frontend.
+- El banner se guardaba en profiles.banner_url, pero varias respuestas autenticadas del backend devolvian solo datos de users y no siempre incluian ese campo.
 
 Cambio aplicado:
 - La actualizacion de banner pasa por backend.
 - El backend rechaza el cambio si el usuario no es PRO.
+- Las respuestas de login y /api/auth/me ahora incorporan banner_url desde profiles para que el usuario autenticado quede completo al hidratar sesion.
 
 Impacto:
 - La restriccion comercial queda reforzada del lado servidor.
+- El perfil ya no pierde el banner por desincronizacion entre users y profiles.
 
 
 2.5. Borrado real de usuarios desde admin
