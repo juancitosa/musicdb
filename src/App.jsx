@@ -23,7 +23,7 @@ import SearchPage from "./pages/SearchPage";
 import TermsPage from "./pages/TermsPage";
 import VerifyEmailPage from "./pages/VerifyEmailPage";
 
-const MAINTENANCE_MODE = false;
+const MAINTENANCE_MODE = true;
 
 function MaintenanceScreen() {
   return (
@@ -39,6 +39,7 @@ function MaintenanceScreen() {
 
           <p className="mt-6 text-[11px] font-semibold uppercase tracking-[0.32em] text-amber-100/75">Mantenimiento</p>
           <h1 className="mt-4 text-4xl font-black tracking-tight text-white sm:text-5xl">Estamos en mantenimiento</h1>
+          <p className="mt-3 text-sm font-semibold tracking-[0.18em] text-amber-100/80">MusicDB Beta 1.0.6</p>
           <p className="mx-auto mt-5 max-w-xl text-sm leading-relaxed text-white/72 sm:text-base">
             Estamos ajustando la integracion con Spotify para estabilizar la plataforma. Durante este proceso, el acceso a la app queda pausado temporalmente.
           </p>
