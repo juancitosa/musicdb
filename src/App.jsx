@@ -25,7 +25,7 @@ import TermsPage from "./pages/TermsPage";
 import VerifyEmailPage from "./pages/VerifyEmailPage";
 
 const MAINTENANCE_MODE = true;
-const MAINTENANCE_COUNTDOWN_MS = 3 * 60 * 1000;
+const MAINTENANCE_DEADLINE_MS = Date.UTC(2026, 2, 28, 19, 0, 0);
 
 function TikTokIcon(props) {
   return (
@@ -45,12 +45,11 @@ function formatCountdown(remainingMs) {
 }
 
 function MaintenanceScreen() {
-  const [deadline] = useState(() => Date.now() + MAINTENANCE_COUNTDOWN_MS);
-  const [remainingMs, setRemainingMs] = useState(() => Math.max(deadline - Date.now(), 0));
+  const [remainingMs, setRemainingMs] = useState(() => Math.max(MAINTENANCE_DEADLINE_MS - Date.now(), 0));
 
   useEffect(() => {
     function updateRemainingTime() {
-      setRemainingMs(Math.max(deadline - Date.now(), 0));
+      setRemainingMs(Math.max(MAINTENANCE_DEADLINE_MS - Date.now(), 0));
     }
 
     updateRemainingTime();
@@ -60,7 +59,7 @@ function MaintenanceScreen() {
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [deadline]);
+  }, []);
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#020202] text-white">
