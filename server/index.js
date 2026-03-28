@@ -109,6 +109,20 @@ let rateLimitStorageWarningLogged = false;
 let rateLimitSupabaseRetryAt = 0;
 
 function getRateLimitClientIp(req) {
+  const preferredHeaderNames = [
+    "cf-connecting-ip",
+    "true-client-ip",
+    "x-real-ip",
+  ];
+
+  for (const headerName of preferredHeaderNames) {
+    const headerValue = req.headers[headerName];
+
+    if (typeof headerValue === "string" && headerValue.trim()) {
+      return headerValue.trim();
+    }
+  }
+
   if (typeof req.ip === "string" && req.ip.trim()) {
     return req.ip.trim();
   }
@@ -314,11 +328,11 @@ const loginRateLimit = createRateLimitMiddleware({
       },
     },
     {
-      name: "ip-email",
+      name: "email",
       limit: RATE_LIMIT_MAX_ATTEMPTS.loginByIpAndEmail,
       windowMs: RATE_LIMIT_WINDOW_MS.login,
       keyParts(req) {
-        return [getRateLimitClientIp(req), normalizeEmail(req.body?.email)];
+        return [normalizeEmail(req.body?.email)];
       },
     },
   ],
@@ -346,11 +360,11 @@ const registerRateLimit = createRateLimitMiddleware({
       },
     },
     {
-      name: "ip-email",
+      name: "email",
       limit: RATE_LIMIT_MAX_ATTEMPTS.registerByIpAndEmail,
       windowMs: RATE_LIMIT_WINDOW_MS.register,
       keyParts(req) {
-        return [getRateLimitClientIp(req), normalizeEmail(req.body?.email)];
+        return [normalizeEmail(req.body?.email)];
       },
     },
   ],
@@ -378,11 +392,11 @@ const verifyEmailResendRateLimit = createRateLimitMiddleware({
       },
     },
     {
-      name: "ip-email",
+      name: "email",
       limit: RATE_LIMIT_MAX_ATTEMPTS.verifyEmailResendByIpAndEmail,
       windowMs: RATE_LIMIT_WINDOW_MS.verifyEmailResend,
       keyParts(req) {
-        return [getRateLimitClientIp(req), normalizeEmail(req.body?.email)];
+        return [normalizeEmail(req.body?.email)];
       },
     },
   ],
