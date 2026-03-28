@@ -3,7 +3,7 @@ import dotenv from "dotenv";
 import express from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { MercadoPagoConfig, Payment } from "mercadopago";
 import { Resend } from "resend";
 import { createClient } from "@supabase/supabase-js";
@@ -816,6 +816,23 @@ function generateEmailVerificationToken() {
   return randomBytes(32).toString("hex");
 }
 
+function hashEmailVerificationToken(token) {
+  if (typeof token !== "string" || !token.trim()) {
+    return null;
+  }
+
+  return createHash("sha256").update(token.trim()).digest("hex");
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
 function maskEmail(email) {
   if (typeof email !== "string") {
     return null;
@@ -1250,6 +1267,7 @@ async function deleteEmailVerificationTokensForUser(supabase, userId) {
 
 async function createEmailVerificationToken(supabase, userId) {
   const token = generateEmailVerificationToken();
+  const tokenHash = hashEmailVerificationToken(token);
   const expiresAt = getEmailVerificationExpiryDate();
 
   console.log("[auth:register] Generating email verification token", {
@@ -1261,7 +1279,7 @@ async function createEmailVerificationToken(supabase, userId) {
 
   const { error } = await supabase.from("email_verification_tokens").insert({
     user_id: userId,
-    token,
+    token: tokenHash,
     expires_at: expiresAt,
   });
 
@@ -1321,6 +1339,9 @@ async function sendVerificationEmail({ email, username, token, expiresAt }) {
     dateStyle: "medium",
     timeStyle: "short",
   });
+  const safeUsername = escapeHtml(username ? String(username).trim() : "MusicDB User");
+  const safeExpirationDate = escapeHtml(expirationDate);
+  const safeVerificationLink = escapeHtml(verificationLink);
   const resend = getResendClient();
 
   if (!resend) {
@@ -1350,15 +1371,15 @@ async function sendVerificationEmail({ email, username, token, expiresAt }) {
           <div style="padding:38px 32px 22px 32px;">
             <div style="display:inline-block;padding:8px 13px;border-radius:999px;background:rgba(123,97,255,0.10);border:1px solid rgba(123,97,255,0.24);color:#b6a7ff;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;">Verificacion de cuenta</div>
             <h1 style="margin:18px 0 12px 0;font-size:34px;line-height:1.08;font-weight:800;letter-spacing:-0.04em;color:#ffffff;">Confirma tu direccion de correo electronico</h1>
-            <p style="margin:0 0 12px 0;font-size:16px;line-height:1.75;color:#b0b0ba;">Hola ${username ? String(username).trim() : "MusicDB User"}, estas a un paso de activar tu cuenta en <strong style="color:#ffffff;">MusicDB</strong>.</p>
-            <p style="margin:0;font-size:15px;line-height:1.75;color:#8f8f9c;">El enlace vence el ${expirationDate}. Si no creaste esta cuenta, puedes ignorar este correo.</p>
+            <p style="margin:0 0 12px 0;font-size:16px;line-height:1.75;color:#b0b0ba;">Hola ${safeUsername}, estas a un paso de activar tu cuenta en <strong style="color:#ffffff;">MusicDB</strong>.</p>
+            <p style="margin:0;font-size:15px;line-height:1.75;color:#8f8f9c;">El enlace vence el ${safeExpirationDate}. Si no creaste esta cuenta, puedes ignorar este correo.</p>
           </div>
           <div style="padding:10px 32px 34px 32px;">
-            <a href="${verificationLink}" style="display:inline-block;padding:16px 28px;border-radius:18px;background:linear-gradient(180deg, #876fff 0%, #6e52f5 100%);border:1px solid rgba(173,159,255,0.55);box-shadow:0 0 24px rgba(123,97,255,0.30),0 10px 30px rgba(123,97,255,0.24);color:#ffffff;text-decoration:none;font-size:16px;font-weight:800;">Confirmar direccion de correo electronico</a>
+            <a href="${safeVerificationLink}" style="display:inline-block;padding:16px 28px;border-radius:18px;background:linear-gradient(180deg, #876fff 0%, #6e52f5 100%);border:1px solid rgba(173,159,255,0.55);box-shadow:0 0 24px rgba(123,97,255,0.30),0 10px 30px rgba(123,97,255,0.24);color:#ffffff;text-decoration:none;font-size:16px;font-weight:800;">Confirmar direccion de correo electronico</a>
           </div>
           <div style="padding:0 32px 34px 32px;">
             <p style="margin:0 0 10px 0;font-size:13px;line-height:1.7;color:#8f8f9c;">Si el boton no funciona, copia y pega este enlace en tu navegador:</p>
-            <p style="margin:0;word-break:break-all;font-size:13px;line-height:1.7;"><a href="${verificationLink}" style="color:#b6a7ff;text-decoration:none;">${verificationLink}</a></p>
+            <p style="margin:0;word-break:break-all;font-size:13px;line-height:1.7;"><a href="${safeVerificationLink}" style="color:#b6a7ff;text-decoration:none;">${safeVerificationLink}</a></p>
           </div>
         </div>
       </div>
@@ -1428,10 +1449,12 @@ async function issueVerificationEmail(supabase, user) {
 }
 
 async function getEmailVerificationRecordByToken(supabase, token) {
+  const hashedToken = hashEmailVerificationToken(token);
+  const tokenCandidates = [hashedToken, token].filter(Boolean);
   const { data, error } = await supabase
     .from("email_verification_tokens")
     .select("user_id, token, expires_at, created_at")
-    .eq("token", token)
+    .in("token", tokenCandidates)
     .maybeSingle();
 
   if (error) {
