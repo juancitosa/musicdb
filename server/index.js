@@ -105,19 +105,6 @@ const rateLimitStore = new Map();
 const RATE_LIMIT_SWEEP_INTERVAL_MS = 60 * 1000;
 
 function getRateLimitClientIp(req) {
-  const forwardedFor = req.headers["x-forwarded-for"];
-
-  if (typeof forwardedFor === "string" && forwardedFor.trim()) {
-    const forwardedIp = forwardedFor
-      .split(",")
-      .map((value) => value.trim())
-      .find(Boolean);
-
-    if (forwardedIp) {
-      return forwardedIp;
-    }
-  }
-
   if (typeof req.ip === "string" && req.ip.trim()) {
     return req.ip.trim();
   }
@@ -350,11 +337,11 @@ function createHttpError(status, code, message) {
 }
 
 function isSpotifyRateLimitError(error) {
-  return Number(error?.status || error?.statusCode) === 429;
+  return error?.code === "SPOTIFY_RATE_LIMIT" || error?.code === "SPOTIFY_API_ERROR";
 }
 
 function normalizeSpotifyError(error, fallbackCode = "SPOTIFY_REQUEST_FAILED", fallbackMessage = "Spotify request failed") {
-  if (isSpotifyRateLimitError(error)) {
+  if (Number(error?.status || error?.statusCode) === 429 || isSpotifyRateLimitError(error)) {
     return createHttpError(429, "SPOTIFY_RATE_LIMIT", "Spotify rate limit exceeded");
   }
 
@@ -4930,10 +4917,13 @@ app.get("/health", (_req, res) => {
 app.use((error, _req, res, _next) => {
   const status = error.status || 500;
   const statusCode = [400, 401, 403, 404, 409, 429].includes(status) ? status : status >= 400 && status < 600 ? status : 500;
+  const isSpotify429 =
+    statusCode === 429 &&
+    (error.code === "SPOTIFY_RATE_LIMIT" || error.code === "SPOTIFY_API_ERROR" || isSpotifyRateLimitError(error));
 
   console.error("[spotify-backend]", error.code || "INTERNAL_SERVER_ERROR", error.message);
 
-  if (statusCode === 429 && (error.code === "SPOTIFY_RATE_LIMIT" || error.code === "SPOTIFY_API_ERROR" || isSpotifyRateLimitError(error))) {
+  if (isSpotify429) {
     res.status(429).json({ error: "spotify_rate_limit" });
     return;
   }
@@ -4949,7 +4939,7 @@ app.use((error, _req, res, _next) => {
             : statusCode === 404
               ? error.message || "Resource not found"
               : statusCode === 429
-                ? "Spotify rate limit exceeded"
+                ? error.message || "Too many requests, please try again later"
                 : error.message || "Unexpected server error",
     },
   });
