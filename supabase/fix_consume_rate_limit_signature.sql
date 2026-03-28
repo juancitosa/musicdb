@@ -1,36 +1,4 @@
-create table if not exists rate_limits (
-  key text primary key,
-  scope varchar not null,
-  count integer not null default 0,
-  window_started_at timestamptz not null default timezone('utc', now()),
-  expires_at timestamptz not null,
-  created_at timestamptz not null default timezone('utc', now()),
-  updated_at timestamptz not null default timezone('utc', now())
-);
-
-create index if not exists rate_limits_expires_at_idx
-on rate_limits(expires_at);
-
-alter table rate_limits enable row level security;
-
-revoke all on table rate_limits from public, anon, authenticated;
-
-create or replace function set_rate_limits_updated_at()
-returns trigger
-language plpgsql
-as $$
-begin
-  new.updated_at = timezone('utc', now());
-  return new;
-end;
-$$;
-
-drop trigger if exists rate_limits_set_updated_at on rate_limits;
-
-create trigger rate_limits_set_updated_at
-before update on rate_limits
-for each row
-execute function set_rate_limits_updated_at();
+drop function if exists consume_rate_limit(text, text, integer, integer);
 
 create or replace function consume_rate_limit(
   p_key text,
