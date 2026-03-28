@@ -10,7 +10,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useSpotifyAuth } from "../hooks/useSpotifyAuth";
 import { useToast } from "../hooks/useToast";
 import { getMockAlbum, getMockArtist } from "../services/catalog";
-import { fetchSupabaseProfile, updateAuthenticatedPassword, updateAuthenticatedProfile, updateSupabaseProfile, uploadProfileAvatar, uploadProfileBanner, verifyCurrentAuthenticatedPassword } from "../services/appAuth";
+import { fetchSupabaseProfile, updateAuthenticatedPassword, updateAuthenticatedProfile, uploadProfileAvatar, uploadProfileBanner, verifyCurrentAuthenticatedPassword } from "../services/appAuth";
 import { getMyRatings } from "../services/ratingHistory";
 import {
   formatTrackDuration,
@@ -1261,7 +1261,7 @@ export default function ProfilePage() {
     return () => {
       cancelled = true;
     };
-  }, [isSpotifyUser, setAuthenticatedUser, user?.avatar, user?.id, user?.phone, user?.username]);
+  }, [isSpotifyUser, setAuthenticatedUser, user?.avatar, user?.banner, user?.id, user?.phone, user?.username]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1523,7 +1523,7 @@ export default function ProfilePage() {
     try {
       const processedAvatarFile = await renderZoomedImageFile(pendingAvatarFile, avatarZoom, avatarOffsetX, avatarOffsetY, 512, 512);
       const response = await uploadProfileAvatar(user.id, processedAvatarFile, appToken);
-      const nextAvatar = response?.user?.avatar_url ?? response?.profile?.avatar_url ?? response?.publicUrl ?? "";
+      const nextAvatar = response?.user?.avatar_url ?? response?.publicUrl ?? "";
 
       setAuthenticatedUser({
         ...user,
@@ -1539,6 +1539,8 @@ export default function ProfilePage() {
     } catch (error) {
       if (error?.message === "INVALID_AVATAR_TYPE") {
         setProfileSaveError("Solo puedes subir imagenes JPG o PNG.");
+      } else if (error?.message === "INVALID_AVATAR_SIZE") {
+        setProfileSaveError("La foto de perfil no puede superar los 5 MB.");
       } else {
         setProfileSaveError("No pudimos subir tu foto de perfil.");
       }
@@ -1566,7 +1568,7 @@ export default function ProfilePage() {
     try {
       const processedBannerFile = await renderZoomedImageFile(pendingBannerFile, bannerZoom, bannerOffsetX, bannerOffsetY, 1600, 500);
       const response = await uploadProfileBanner(user.id, processedBannerFile, appToken);
-      const nextBanner = response?.user?.banner_url ?? response?.profile?.banner_url ?? response?.publicUrl ?? "";
+      const nextBanner = response?.user?.banner_url ?? response?.publicUrl ?? "";
 
       setAuthenticatedUser({
         ...user,
@@ -1621,10 +1623,6 @@ export default function ProfilePage() {
     }
 
     try {
-      const profile = await updateSupabaseProfile(user.id, {
-        username: trimmedUsername,
-        phone: trimmedPhone,
-      });
       const backendUser = await updateAuthenticatedProfile(appToken, {
         username: trimmedUsername,
         phone: trimmedPhone,
@@ -1632,18 +1630,20 @@ export default function ProfilePage() {
 
       setAuthenticatedUser({
         ...user,
-        username: backendUser?.username ?? profile?.username ?? trimmedUsername,
-        phone: backendUser?.phone ?? profile?.phone ?? trimmedPhone,
-        avatar_url: backendUser?.avatar_url ?? profile?.avatar_url ?? user.avatar ?? "",
-        avatar: backendUser?.avatar_url ?? profile?.avatar_url ?? user.avatar ?? "",
-        display_name: backendUser?.display_name ?? profile?.username ?? trimmedUsername,
-        displayName: backendUser?.display_name ?? profile?.username ?? trimmedUsername,
-        name: backendUser?.display_name ?? profile?.username ?? trimmedUsername,
+        username: backendUser?.username ?? trimmedUsername,
+        phone: backendUser?.phone ?? trimmedPhone,
+        avatar_url: backendUser?.avatar_url ?? user.avatar ?? "",
+        avatar: backendUser?.avatar_url ?? user.avatar ?? "",
+        banner_url: backendUser?.banner_url ?? user.banner ?? "",
+        banner: backendUser?.banner_url ?? user.banner ?? "",
+        display_name: backendUser?.display_name ?? trimmedUsername,
+        displayName: backendUser?.display_name ?? trimmedUsername,
+        name: backendUser?.display_name ?? trimmedUsername,
       });
       setProfileForm((current) => ({
         ...current,
-        username: backendUser?.username ?? profile?.username ?? trimmedUsername,
-        phone: backendUser?.phone ?? profile?.phone ?? trimmedPhone,
+        username: backendUser?.username ?? trimmedUsername,
+        phone: backendUser?.phone ?? trimmedPhone,
       }));
 
       toast({

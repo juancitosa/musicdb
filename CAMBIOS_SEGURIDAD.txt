@@ -132,3 +132,32 @@ Estado final esperado despues de deploy:
 - El borrado admin deja de ser solo superficial.
 - El banner PRO queda reforzado del lado servidor.
 - Los tokens de verificacion quedan mejor protegidos.
+
+
+11. CORRECCIONES FUNCIONALES POSTERIORES
+
+Problemas detectados:
+- El flujo de compra PRO enviaba al login, pero despues del inicio de sesion mandaba siempre a /profile.
+- Varias ediciones de perfil podian quedar a mitad de camino si fallaba el segundo paso.
+- El banner podia no reaparecer correctamente despues de login o recarga.
+- La pagina de artista podia dejar reseñas y likes desactualizados al cambiar el estado de sesion.
+- Si fallaba la creacion del pago PRO, la UI casi no mostraba feedback.
+- La busqueda manual podia disparar requests duplicados.
+- Los filtros de fecha del admin podian correrse por zona horaria.
+
+Cambio aplicado:
+- El login ahora respeta redirectTo y vuelve a /pro cuando corresponde.
+- Las actualizaciones de username, telefono y avatar pasan a consolidarse desde backend.
+- Si un upload de avatar o banner falla en el paso final, se intenta limpiar el archivo recien subido para no dejar basura.
+- El avatar ahora valida maximo 5 MB igual que la interfaz.
+- La hidratacion del usuario local ahora contempla banner.
+- ArtistPage vuelve a cargar reseñas cuando cambia el token de sesion.
+- ProPage ahora muestra feedback visible si falla la preferencia de pago.
+- Admin envia fechas como ISO explicito para evitar corrimientos por timezone.
+- SearchPage evita duplicar la misma busqueda al enviar el formulario.
+
+Impacto:
+- Menos estados parciales.
+- Mejor continuidad del funnel PRO.
+- Menos desincronizacion visual en perfil y reseñas.
+- Menos requests redundantes.

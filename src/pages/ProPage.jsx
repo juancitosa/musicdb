@@ -6,6 +6,7 @@ import PaymentResultModal from "../components/shared/PaymentResultModal";
 import PricingModal from "../components/shared/PricingModal";
 import Button from "../components/ui/Button";
 import { useAuth } from "../hooks/useAuth";
+import { useToast } from "../hooks/useToast";
 
 const freeFeatures = [
   "Puntuar artistas y álbumes",
@@ -91,6 +92,7 @@ function FeatureList({ items, accent = "text-foreground" }) {
 
 export default function ProPage() {
   const { user, appToken } = useAuth();
+  const { toast } = useToast();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const isPro = Boolean(user?.isPro);
@@ -177,6 +179,11 @@ export default function ProPage() {
           status: res.status,
           data,
         });
+        toast({
+          title: "No pudimos iniciar el pago",
+          description: data?.error?.message || data?.message || "Intenta nuevamente en unos segundos.",
+          variant: "destructive",
+        });
         return;
       }
 
@@ -187,8 +194,18 @@ export default function ProPage() {
       }
 
       console.error("[MusicDB PRO] No init_point received");
+      toast({
+        title: "No pudimos iniciar el pago",
+        description: "Mercado Pago no devolvio el enlace de pago. Intenta nuevamente.",
+        variant: "destructive",
+      });
     } catch (err) {
       console.error("[MusicDB PRO] Error creating payment:", err);
+      toast({
+        title: "No pudimos iniciar el pago",
+        description: "No logramos conectarnos con el backend de pagos.",
+        variant: "destructive",
+      });
     } finally {
       setIsCreatingPreference(false);
       setSelectedPlan("");

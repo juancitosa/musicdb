@@ -240,6 +240,7 @@ export function AuthProvider({ children }) {
           mergedUser?.username === user.username &&
           mergedUser?.phone === user.phone &&
           mergedUser?.avatar === user.avatar &&
+          mergedUser?.banner === user.banner &&
           mergedUser?.displayName === user.displayName &&
           mergedUser?.isAdmin === user.isAdmin
         ) {

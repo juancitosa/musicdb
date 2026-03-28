@@ -145,9 +145,12 @@ export default function SearchPage() {
 
   useEffect(() => {
     if (initialQuery) {
+      setQuery(initialQuery);
       runSearch(initialQuery);
     } else {
+      setQuery("");
       setHasSearched(false);
+      setError(null);
     }
   }, [initialQuery, runSearch]);
 
@@ -195,10 +198,12 @@ export default function SearchPage() {
   function handleSearch(event) {
     event.preventDefault();
     const trimmedQuery = query.trim();
+    const shouldRunImmediately = trimmedQuery && trimmedQuery === initialQuery;
     setSearchParams(trimmedQuery ? { q: trimmedQuery } : {});
 
     if (!trimmedQuery) {
       setHasSearched(false);
+      setError(null);
       setSpotifyArtists([]);
       setSpotifyAlbums([]);
       setLocalArtists([]);
@@ -206,7 +211,9 @@ export default function SearchPage() {
       return;
     }
 
-    runSearch(trimmedQuery);
+    if (shouldRunImmediately) {
+      runSearch(trimmedQuery);
+    }
   }
 
   const usingLocalResults = spotifyArtists.length + spotifyAlbums.length === 0;

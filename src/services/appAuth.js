@@ -57,6 +57,18 @@ async function patchAuthenticatedRequest(path, token, payload) {
   return data;
 }
 
+async function cleanupUploadedAvatarPath(supabase, filePath) {
+  if (!filePath) {
+    return;
+  }
+
+  try {
+    await supabase.storage.from("avatars").remove([filePath]);
+  } catch {
+    // Ignore cleanup failures. The original upload/update error is the important one.
+  }
+}
+
 function mapSupabaseUser(user) {
   if (!user) {
     return null;
@@ -512,6 +524,10 @@ export async function uploadProfileAvatar(userId, file, sessionToken) {
     throw new Error("INVALID_AVATAR_TYPE");
   }
 
+  if (file.size > 5 * 1024 * 1024) {
+    throw new Error("INVALID_AVATAR_SIZE");
+  }
+
   const fileExt = file.name.split(".").pop();
   const filePath = `${userId}/avatar-${Date.now()}.${fileExt}`;
   const { error: uploadError } = await supabase.storage
@@ -528,36 +544,27 @@ export async function uploadProfileAvatar(userId, file, sessionToken) {
 
   const { data } = supabase.storage.from("avatars").getPublicUrl(filePath);
   const publicUrl = data?.publicUrl ?? "";
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .upsert({
-      id: userId,
-      avatar_url: publicUrl,
-    }, {
-      onConflict: "id",
-    })
-    .select("*")
-    .single();
 
-  if (profileError) {
-    throw new Error(profileError.message || "APP_AUTH_ERROR");
+  if (!sessionToken || !publicUrl) {
+    await cleanupUploadedAvatarPath(supabase, filePath);
+    throw new Error("APP_AUTH_REQUIRED");
   }
 
-  let user = null;
-
-  if (sessionToken && publicUrl) {
+  try {
     const response = await patchAuthenticatedRequest("/auth/profile", sessionToken, {
       avatar_url: publicUrl,
     });
-    user = response?.user ?? null;
-  }
 
-  return {
-    path: filePath,
-    publicUrl,
-    profile,
-    user,
-  };
+    return {
+      path: filePath,
+      publicUrl,
+      profile: null,
+      user: response?.user ?? null,
+    };
+  } catch (error) {
+    await cleanupUploadedAvatarPath(supabase, filePath);
+    throw error;
+  }
 }
 
 export async function uploadProfileBanner(userId, file, sessionToken) {
@@ -593,19 +600,25 @@ export async function uploadProfileBanner(userId, file, sessionToken) {
   const publicUrl = data?.publicUrl ?? "";
 
   if (!sessionToken || !publicUrl) {
+    await cleanupUploadedAvatarPath(supabase, filePath);
     throw new Error("APP_AUTH_REQUIRED");
   }
 
-  const response = await patchAuthenticatedRequest("/auth/profile", sessionToken, {
-    banner_url: publicUrl,
-  });
+  try {
+    const response = await patchAuthenticatedRequest("/auth/profile", sessionToken, {
+      banner_url: publicUrl,
+    });
 
-  return {
-    path: filePath,
-    publicUrl,
-    profile: null,
-    user: response?.user ?? null,
-  };
+    return {
+      path: filePath,
+      publicUrl,
+      profile: null,
+      user: response?.user ?? null,
+    };
+  } catch (error) {
+    await cleanupUploadedAvatarPath(supabase, filePath);
+    throw error;
+  }
 }
 
 export async function updateAuthenticatedPassword(password) {

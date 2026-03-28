@@ -1,7 +1,7 @@
 import { Eye, EyeOff, LoaderCircle, LogIn, Mail, MailCheck, UserPlus, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../../hooks/useAuth";
 import { useSpotifyAuth } from "../../hooks/useSpotifyAuth";
@@ -138,6 +138,7 @@ export default function AuthDialog({
   initialMode = "login",
   autoOpen = false,
 }) {
+  const location = useLocation();
   const navigate = useNavigate();
   const { setAuthenticatedSession } = useAuth();
   const { connectSpotify, isLoadingSpotify, isSpotifyConnected, spotifyUser } = useSpotifyAuth();
@@ -210,6 +211,16 @@ export default function AuthDialog({
     setPendingVerificationEmail("");
   }
 
+  function resolvePostLoginPath() {
+    const redirectTo = typeof location.state?.redirectTo === "string" ? location.state.redirectTo.trim() : "";
+
+    if (redirectTo.startsWith("/")) {
+      return redirectTo;
+    }
+
+    return "/profile";
+  }
+
   async function handleLocalAuth(event) {
     event.preventDefault();
     setIsSubmitting(true);
@@ -258,7 +269,10 @@ export default function AuthDialog({
 
       setAuthenticatedSession(response);
       setIsOpen(false);
-      navigate("/profile");
+      navigate(resolvePostLoginPath(), {
+        replace: true,
+        state: null,
+      });
       toast({
         title: "Sesion iniciada",
         description: "Ya puedes usar MusicDB sin depender de Spotify.",

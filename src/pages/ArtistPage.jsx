@@ -333,7 +333,7 @@ export default function ArtistPage() {
     return () => {
       cancelled = true;
     };
-  }, [artist]);
+  }, [appToken, artist]);
 
   if (isLoading) {
     return (

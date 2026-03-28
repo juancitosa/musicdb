@@ -6,6 +6,20 @@ async function parseJsonResponse(response) {
   }
 }
 
+function serializeLocalDateTime(value) {
+  if (!value) {
+    return "";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return date.toISOString();
+}
+
 export async function fetchAdminUsers(sessionToken, { page = 0, pageSize = 30, search = "", fromDate = "", toDate = "", proStatus = "all", sortOrder = "desc" } = {}) {
   if (!sessionToken) {
     throw new Error("APP_AUTH_REQUIRED");
@@ -23,11 +37,11 @@ export async function fetchAdminUsers(sessionToken, { page = 0, pageSize = 30, s
   }
 
   if (fromDate) {
-    params.set("from_date", fromDate);
+    params.set("from_date", serializeLocalDateTime(fromDate));
   }
 
   if (toDate) {
-    params.set("to_date", toDate);
+    params.set("to_date", serializeLocalDateTime(toDate));
   }
 
   let response;
