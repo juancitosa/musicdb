@@ -25,8 +25,7 @@ import TermsPage from "./pages/TermsPage";
 import VerifyEmailPage from "./pages/VerifyEmailPage";
 
 const MAINTENANCE_MODE = true;
-const ARGENTINA_TIMEZONE = "America/Argentina/Buenos_Aires";
-const MAINTENANCE_TARGET_HOUR = 12;
+const MAINTENANCE_COUNTDOWN_MS = 3 * 60 * 1000;
 
 function TikTokIcon(props) {
   return (
@@ -34,68 +33,6 @@ function TikTokIcon(props) {
       <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.12v12.12a2.77 2.77 0 1 1-2-2.66V8.3a5.9 5.9 0 1 0 5.12 5.86V8.02a7.9 7.9 0 0 0 4.77 1.6V6.69Z" />
     </svg>
   );
-}
-
-function getArgentinaDateParts(timestamp = Date.now()) {
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: ARGENTINA_TIMEZONE,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hourCycle: "h23",
-  });
-
-  const parts = Object.fromEntries(
-    formatter
-      .formatToParts(new Date(timestamp))
-      .filter((part) => part.type !== "literal")
-      .map((part) => [part.type, Number.parseInt(part.value, 10)]),
-  );
-
-  return {
-    year: parts.year,
-    month: parts.month,
-    day: parts.day,
-    hour: parts.hour,
-    minute: parts.minute,
-    second: parts.second,
-  };
-}
-
-function getTimeZoneOffsetMs(timeZone, timestamp) {
-  const parts = getArgentinaDateParts(timestamp);
-  const zonedAsUtc = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
-  return zonedAsUtc - timestamp;
-}
-
-function getArgentinaNoonDeadline() {
-  const now = Date.now();
-  const nowParts = getArgentinaDateParts(now);
-  const targetDate = new Date(Date.UTC(nowParts.year, nowParts.month - 1, nowParts.day));
-  const isAfterTargetTime =
-    nowParts.hour > MAINTENANCE_TARGET_HOUR ||
-    (nowParts.hour === MAINTENANCE_TARGET_HOUR && (nowParts.minute > 0 || nowParts.second > 0));
-
-  if (isAfterTargetTime) {
-    targetDate.setUTCDate(targetDate.getUTCDate() + 1);
-  }
-
-  const targetParts = {
-    year: targetDate.getUTCFullYear(),
-    month: targetDate.getUTCMonth() + 1,
-    day: targetDate.getUTCDate(),
-    hour: MAINTENANCE_TARGET_HOUR,
-    minute: 0,
-    second: 0,
-  };
-
-  const targetAsUtc = Date.UTC(targetParts.year, targetParts.month - 1, targetParts.day, targetParts.hour, targetParts.minute, targetParts.second);
-  const argentinaOffsetMs = getTimeZoneOffsetMs(ARGENTINA_TIMEZONE, targetAsUtc);
-
-  return targetAsUtc - argentinaOffsetMs;
 }
 
 function formatCountdown(remainingMs) {
@@ -108,7 +45,7 @@ function formatCountdown(remainingMs) {
 }
 
 function MaintenanceScreen() {
-  const [deadline] = useState(() => getArgentinaNoonDeadline());
+  const [deadline] = useState(() => Date.now() + MAINTENANCE_COUNTDOWN_MS);
   const [remainingMs, setRemainingMs] = useState(() => Math.max(deadline - Date.now(), 0));
 
   useEffect(() => {
