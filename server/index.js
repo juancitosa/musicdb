@@ -3,12 +3,34 @@ import dotenv from "dotenv";
 import express from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
+import { fileURLToPath } from "node:url";
 import { MercadoPagoConfig, Payment } from "mercadopago";
 import { Resend } from "resend";
 import { createClient } from "@supabase/supabase-js";
 
-dotenv.config();
+const __dirname = dirname(fileURLToPath(import.meta.url));
+
+function loadEnvFile(relativePath) {
+  const envPath = resolve(__dirname, relativePath);
+
+  if (!existsSync(envPath)) {
+    return;
+  }
+
+  const parsedEnv = dotenv.parse(readFileSync(envPath));
+
+  for (const [key, value] of Object.entries(parsedEnv)) {
+    if (process.env[key] === undefined) {
+      process.env[key] = value;
+    }
+  }
+}
+
+loadEnvFile(".env");
+loadEnvFile("../.env");
 
 const app = express();
 app.set("trust proxy", 1);
@@ -18,6 +40,7 @@ const SPOTIFY_CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET;
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY =
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || "";
 const APP_JWT_SECRET = process.env.APP_JWT_SECRET || "";
 const SPOTIFY_API_BASE_URL = "https://api.spotify.com/v1";
 const SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token";
@@ -46,6 +69,7 @@ const VERCEL_APP_ORIGIN_PATTERN = /^https:\/\/[a-z0-9-]+\.vercel\.app$/i;
 
 let cachedAppToken = null;
 let supabaseAdmin = null;
+let supabasePublicAuthClient = null;
 let cachedUserTableColumns = null;
 let mercadoPagoClient = null;
 let mercadoPagoPaymentClient = null;
@@ -762,6 +786,24 @@ function getSupabaseAdmin() {
   return supabaseAdmin;
 }
 
+function getSupabasePublicAuthClient() {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    throw createHttpError(500, "SUPABASE_AUTH_PUBLIC_CONFIG_MISSING", "Supabase public auth credentials are not configured");
+  }
+
+  if (!supabasePublicAuthClient) {
+    supabasePublicAuthClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+        detectSessionInUrl: false,
+      },
+    });
+  }
+
+  return supabasePublicAuthClient;
+}
+
 function getMercadoPagoPaymentClient() {
   if (!MERCADO_PAGO_ACCESS_TOKEN) {
     throw createHttpError(500, "MERCADO_PAGO_CONFIG_MISSING", "Mercado Pago access token is not configured");
@@ -851,6 +893,10 @@ function maskEmail(email) {
 
 function buildEmailVerificationUrl(token) {
   return `${normalizeUrl(PUBLIC_APP_URL, "https://musicdb.online")}/verify-email?token=${encodeURIComponent(token)}`;
+}
+
+function buildEmailVerificationRedirectUrl() {
+  return `${normalizeUrl(PUBLIC_APP_URL, "https://musicdb.online")}/verify-email`;
 }
 
 function getEmailVerificationExpiryDate() {
@@ -1849,10 +1895,25 @@ async function ensureUserUniqueness(supabase, { email, username }) {
   }
 }
 
-async function createLocalUser(supabase, { email, username, password, phone }) {
-  await ensureUserUniqueness(supabase, { email, username });
+async function createLocalUser(
+  supabase,
+  {
+    id = null,
+    email,
+    username,
+    password,
+    phone,
+    isVerified = false,
+    verifiedAt = null,
+    verificationSentAt = null,
+    skipUniquenessCheck = false,
+  },
+) {
+  if (!skipUniquenessCheck) {
+    await ensureUserUniqueness(supabase, { email, username });
+  }
 
-  const hashedPassword = await bcrypt.hash(password, 10);
+  const hashedPassword = password ? await bcrypt.hash(password, 10) : null;
   const userColumns = await getUserTableColumns(supabase);
   ensureVerificationColumnsExist(userColumns);
   const userSelect = await buildUserSelect(supabase);
@@ -1862,10 +1923,14 @@ async function createLocalUser(supabase, { email, username, password, phone }) {
     password_hash: hashedPassword,
     display_name: username,
     auth_provider: "local",
-    is_verified: false,
-    verified_at: null,
-    verification_sent_at: null,
+    is_verified: Boolean(isVerified),
+    verified_at: verifiedAt ?? null,
+    verification_sent_at: verificationSentAt ?? null,
   };
+
+  if (id) {
+    payload.id = id;
+  }
 
   if (phone && userColumns.has("phone")) {
     payload.phone = phone;
@@ -1877,11 +1942,8 @@ async function createLocalUser(supabase, { email, username, password, phone }) {
     hasPhone: Boolean(phone),
   });
 
-  const { data, error } = await supabase
-    .from("users")
-    .insert(payload)
-    .select(userSelect)
-    .single();
+  const insertQuery = id ? supabase.from("users").upsert(payload, { onConflict: "id" }) : supabase.from("users").insert(payload);
+  const { data, error } = await insertQuery.select(userSelect).single();
 
   if (error?.message?.includes("phone")) {
     console.warn("[auth:register] Retrying user creation without phone column", {
@@ -1889,20 +1951,25 @@ async function createLocalUser(supabase, { email, username, password, phone }) {
       username,
     });
 
-    const { data: fallbackData, error: fallbackError } = await supabase
-      .from("users")
-      .insert({
-        email,
-        username,
-        password_hash: hashedPassword,
-        display_name: username,
-        auth_provider: "local",
-        is_verified: false,
-        verified_at: null,
-        verification_sent_at: null,
-      })
-      .select(userSelect)
-      .single();
+    const fallbackPayload = {
+      email,
+      username,
+      password_hash: hashedPassword,
+      display_name: username,
+      auth_provider: "local",
+      is_verified: Boolean(isVerified),
+      verified_at: verifiedAt ?? null,
+      verification_sent_at: verificationSentAt ?? null,
+    };
+
+    if (id) {
+      fallbackPayload.id = id;
+    }
+
+    const fallbackInsertQuery = id
+      ? supabase.from("users").upsert(fallbackPayload, { onConflict: "id" })
+      : supabase.from("users").insert(fallbackPayload);
+    const { data: fallbackData, error: fallbackError } = await fallbackInsertQuery.select(userSelect).single();
 
     if (fallbackError) {
       console.error("[auth:register] Fallback local user insert failed", {
@@ -1939,6 +2006,59 @@ async function createLocalUser(supabase, { email, username, password, phone }) {
   });
 
   return data;
+}
+
+function isSupabaseUserAlreadyRegisteredError(error) {
+  const message = error?.message?.toLowerCase() || "";
+  return error?.code === "user_already_exists" || message.includes("already registered") || message.includes("already been registered");
+}
+
+async function registerLocalUserWithSupabaseAuth({ email, username, password, phone }) {
+  const supabaseAuthClient = getSupabasePublicAuthClient();
+  const { data, error } = await supabaseAuthClient.auth.signUp({
+    email,
+    password,
+    options: {
+      emailRedirectTo: buildEmailVerificationRedirectUrl(),
+      data: {
+        username,
+        ...(phone ? { phone } : {}),
+      },
+    },
+  });
+
+  if (error) {
+    if (isSupabaseUserAlreadyRegisteredError(error)) {
+      throw createHttpError(409, "EMAIL_ALREADY_EXISTS", "There is already an account with that email");
+    }
+
+    throw createHttpError(error.status || 500, "SUPABASE_AUTH_SIGNUP_FAILED", error.message || "Failed to create Supabase auth user");
+  }
+
+  if (!data?.user?.id) {
+    throw createHttpError(500, "REGISTER_USER_ID_MISSING", "Supabase auth user was created without a valid id");
+  }
+
+  return data.user;
+}
+
+async function resendLocalVerificationEmailWithSupabase(email) {
+  const supabaseAuthClient = getSupabasePublicAuthClient();
+  const { error } = await supabaseAuthClient.auth.resend({
+    type: "signup",
+    email,
+    options: {
+      emailRedirectTo: buildEmailVerificationRedirectUrl(),
+    },
+  });
+
+  if (error) {
+    if (Number(error.status) === 429) {
+      throw createHttpError(429, "AUTH_VERIFY_EMAIL_RESEND_RATE_LIMITED", "Too many verification email requests, please try again later");
+    }
+
+    throw createHttpError(error.status || 500, "SUPABASE_AUTH_RESEND_FAILED", error.message || "Failed to resend Supabase verification email");
+  }
 }
 
 async function updateUserProStatus(supabase, userId, nextProUntil) {
@@ -3744,12 +3864,43 @@ async function handleLocalRegister(req, res) {
   }
 
   const supabase = getSupabaseAdmin();
-  const user = await createLocalUser(supabase, {
+  await ensureUserUniqueness(supabase, { email, username });
+
+  const authUser = await registerLocalUserWithSupabaseAuth({
     email,
     username,
     password,
     phone,
   });
+
+  let user;
+
+  try {
+    user = await createLocalUser(supabase, {
+      id: authUser.id,
+      email,
+      username,
+      password,
+      phone,
+      isVerified: Boolean(authUser.email_confirmed_at),
+      verifiedAt: authUser.email_confirmed_at ?? null,
+      verificationSentAt: authUser.email_confirmed_at ? null : new Date().toISOString(),
+      skipUniquenessCheck: true,
+    });
+  } catch (error) {
+    const { error: cleanupError } = await supabase.auth.admin.deleteUser(authUser.id);
+
+    if (cleanupError) {
+      console.error("[auth:register] Failed to rollback Supabase auth user after local insert error", {
+        email,
+        userId: authUser.id,
+        errorCode: cleanupError.code ?? null,
+        errorMessage: cleanupError.message ?? "Unknown cleanup error",
+      });
+    }
+
+    throw error;
+  }
 
   if (!user?.id) {
     console.error("[auth:register] User insert returned no UUID", {
@@ -3760,20 +3911,18 @@ async function handleLocalRegister(req, res) {
     throw createHttpError(500, "REGISTER_USER_ID_MISSING", "User was created without a valid id");
   }
 
-  console.log("[auth:register] Using user UUID for verification token", {
+  console.log("[auth:register] User created and delegated email verification to Supabase", {
     userId: user.id,
     email,
   });
 
-  const verification = await issueVerificationEmail(supabase, user);
-
   res.status(201).json({
-    message: "Revisa tu email para verificar la cuenta",
+    message: user.is_verified ? "La cuenta se creo correctamente" : "Revisa tu email para verificar la cuenta",
     user: mapUserRecord(user),
-    requires_email_verification: true,
-    verification_email_sent: true,
-    verification_expires_at: verification.expiresAt ?? null,
-    verification_delivery: verification.delivery?.delivered ? verification.delivery?.provider ?? "email" : "logged",
+    requires_email_verification: !user.is_verified,
+    verification_email_sent: !user.is_verified,
+    verification_expires_at: null,
+    verification_delivery: user.is_verified ? "already_verified" : "supabase",
   });
 }
 
@@ -3786,7 +3935,10 @@ async function handleResendVerificationEmail(req, res) {
   if (!email) {
     return res.status(400).json({
       success: false,
-      error: "Email invalido",
+      error: {
+        code: "INVALID_EMAIL_VERIFICATION_RESEND_PAYLOAD",
+        message: "Email invalido",
+      },
     });
   }
 
@@ -3808,7 +3960,10 @@ async function handleResendVerificationEmail(req, res) {
 
       return res.status(500).json({
         success: false,
-        error: "Error buscando usuario",
+        error: {
+          code: "VERIFY_EMAIL_RESEND_LOOKUP_FAILED",
+          message: "Error buscando usuario",
+        },
       });
     }
 
@@ -3829,17 +3984,13 @@ async function handleResendVerificationEmail(req, res) {
       email,
     });
 
-    const { token, expiresAt } = await createEmailVerificationToken(supabase, user.id);
-    const delivery = await sendVerificationEmail({
-      email: user.email,
-      username: user.username,
-      token,
-      expiresAt,
-    });
-
+    await resendLocalVerificationEmailWithSupabase(user.email);
     await markVerificationEmailSent(supabase, user.id);
 
-    return res.json(successPayload);
+    return res.json({
+      ...successPayload,
+      verification_delivery: "supabase",
+    });
   } catch (error) {
     console.error("[auth:verify-email:resend] Resend verification failed", {
       email,
@@ -3847,9 +3998,12 @@ async function handleResendVerificationEmail(req, res) {
       errorMessage: error?.message ?? "Unknown resend error",
     });
 
-    return res.status(500).json({
+    return res.status(error?.status || 500).json({
       success: false,
-      error: "Error enviando email",
+      error: {
+        code: error?.code || "SUPABASE_AUTH_RESEND_FAILED",
+        message: error?.message || "Error enviando email",
+      },
     });
   }
 }
@@ -4004,6 +4158,18 @@ app.post(
     }
 
     if (userColumns.has("is_verified") && !user.is_verified) {
+      const fallbackUser = await loginViaSupabaseAuthFallback(supabase, { email, password });
+
+      if (fallbackUser?.is_verified) {
+        await backfillLocalPasswordHash(supabase, fallbackUser.id, password);
+
+        res.json({
+          user: mapUserRecord(fallbackUser),
+          token: createAppSessionToken(fallbackUser),
+        });
+        return;
+      }
+
       throw createHttpError(403, "EMAIL_NOT_VERIFIED", "Email verification is required before logging in");
     }
 

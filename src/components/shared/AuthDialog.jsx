@@ -43,6 +43,14 @@ function mapAuthError(errorCode) {
       return "Necesitamos un email valido para reenviar la verificacion.";
     case "EMAIL_VERIFICATION_SCHEMA_MISSING":
       return "Falta configurar la base de datos para verificar emails.";
+    case "SUPABASE_AUTH_PUBLIC_CONFIG_MISSING":
+      return "Falta configurar Supabase Auth para mandar el mail de verificacion.";
+    case "SUPABASE_AUTH_SIGNUP_FAILED":
+      return "No pudimos crear la cuenta en Supabase. Intenta nuevamente.";
+    case "SUPABASE_AUTH_RESEND_FAILED":
+      return "No pudimos reenviar el mail de verificacion desde Supabase.";
+    case "VERIFY_EMAIL_RESEND_LOOKUP_FAILED":
+      return "No pudimos buscar tu cuenta para reenviar el mail.";
     case "APP_BACKEND_UNAVAILABLE":
       return "No pudimos conectar con el backend de la app.";
     case "APP_AUTH_REQUIRED":

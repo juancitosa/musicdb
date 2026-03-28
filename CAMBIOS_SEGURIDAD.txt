@@ -1,250 +1,295 @@
 CAMBIOS DE SEGURIDAD Y CORRECCIONES
 Fecha: 28/03/2026
 
-1. AUTENTICACION DEL FRONTEND
+Documento reorganizado por tipo de arreglo para dejar mas claro que cambios quedaron del lado del frontend, backend, base de datos y configuracion general.
 
-Problema detectado:
-- El login, el registro y el reenvio del mail de verificacion usaban Supabase Auth directo desde el frontend.
-- Eso dejaba afuera el rate limiting que se implemento en el backend.
+
+1. FRONTEND
+
+1.1. Autenticacion y verificacion
+
+Problemas detectados:
+- El login, el registro y el reenvio del mail de verificacion dependian de flujos que no siempre mostraban errores claros al usuario.
+- El frontend habia quedado atado a un flujo de verificacion que esperaba tokens propios del backend.
+- Si el registro fallaba por configuracion o por reenvio, la interfaz no siempre podia distinguir bien la causa.
 
 Cambio aplicado:
-- El frontend ahora usa el backend para:
-  - /api/auth/login
-  - /api/auth/register
-  - /api/auth/verify-email/resend
+- El frontend usa los endpoints del backend para login, registro y reenvio de verificacion.
+- Se agregaron mensajes de error mas claros para fallos de Supabase Auth y para lookup de reenvio.
+- La pagina /verify-email ahora acepta dos escenarios:
+  - el flujo viejo con ?token=
+  - el redirect nuevo de Supabase Auth sin depender del token propio del backend
 
 Impacto:
-- El flujo real que usa el usuario queda cubierto por los limites de intentos del backend.
-- Los mensajes de error del rate limit ahora pueden mostrarse correctamente en la interfaz.
+- La interfaz deja de quedar muda cuando falla el envio o el reenvio.
+- El enlace que llega desde Supabase ahora puede completarse correctamente en la pagina de verificacion.
+- Se reduce la confusion del usuario final cuando la cuenta existe pero aun no esta confirmada.
 
 
-2. RATE LIMITING EFECTIVO
+1.2. Perfil, banner y consistencia visual
 
-Estado final:
-- Login bloquea por demasiados intentos.
-- Registro bloquea por demasiados intentos.
-- Reenvio de verificacion bloquea por demasiados intentos.
+Problemas detectados:
+- Varias ediciones de perfil podian quedar a mitad de camino si fallaba el segundo paso.
+- El banner podia no reaparecer correctamente despues de login o recarga.
+- El modal de perfil podia conservar previews viejas al cerrarse.
+
+Cambio aplicado:
+- Las actualizaciones de username, telefono y avatar se consolidaron desde backend.
+- Si un upload de avatar o banner falla al final, se intenta limpiar el archivo recien subido.
+- La hidratacion del usuario local contempla banner.
+- El cierre del modal limpia avatar y banner pendientes en los caminos relevantes.
+
+Impacto:
+- Menos estados parciales.
+- Menos basura en storage por uploads fallidos.
+- Menos desincronizacion visual en perfil.
+
+
+1.3. Navegacion, busqueda y experiencia de uso
+
+Problemas detectados:
+- El flujo de compra PRO podia llevar al login y luego mandar siempre a /profile.
+- La busqueda manual podia duplicar requests.
+- SearchPage podia mostrar resultados viejos si dos respuestas llegaban fuera de orden.
+- El autocomplete del navbar podia mostrar sugerencias stale al escribir rapido.
+- ArtistPage podia dejar resenas y likes desactualizados al cambiar la sesion.
+- ProPage casi no mostraba feedback si fallaba la creacion del pago.
+- Los filtros de fecha del admin podian correrse por timezone.
+
+Cambio aplicado:
+- El login respeta redirectTo y vuelve a /pro cuando corresponde.
+- SearchPage evita requests duplicados y descarta respuestas atrasadas.
+- El autocomplete del navbar descarta respuestas viejas y limpia mejor su estado.
+- ArtistPage vuelve a cargar resenas cuando cambia el token de sesion.
+- ProPage muestra feedback visible si falla la preferencia de pago.
+- Admin envia fechas como ISO explicito.
+
+Impacto:
+- Mejor continuidad del funnel PRO.
+- Menos requests redundantes.
+- Menos resultados incoherentes al buscar rapido.
+- Menos desincronizacion visual en paginas de contenido.
+
+
+2. BACKEND
+
+2.1. Rate limiting real sobre el flujo de autenticacion
+
+Problema detectado:
+- Parte del flujo de autenticacion no siempre quedaba cubierto por los limites del backend.
+
+Cambio aplicado:
+- Login, registro y reenvio de verificacion quedaron cubiertos por endpoints con rate limiting efectivo.
 
 Mensajes expuestos al cliente:
 - AUTH_LOGIN_RATE_LIMITED
-  "Too many login attempts, please try again later"
 - AUTH_REGISTER_RATE_LIMITED
-  "Too many registration attempts, please try again later"
 - AUTH_VERIFY_EMAIL_RESEND_RATE_LIMITED
-  "Too many verification email requests, please try again later"
 
 Impacto:
-- Reduce brute force, abuso de formularios y spam de reenvios.
+- Reduce brute force.
+- Reduce abuso del registro.
+- Reduce spam de reenvios de verificacion.
 
 
-3. BORRADO REAL DE USUARIOS DESDE ADMIN
+2.2. Verificacion de email delegada a Supabase Auth
 
 Problema detectado:
-- El panel admin eliminaba solo la fila local en la tabla users.
-- Si la cuenta seguia viva en Supabase Auth, el usuario podia reaparecer al volver a iniciar sesion.
+- El backend mantenia un flujo propio de verificacion y el envio podia no ocurrir aunque el registro devolviera exito.
+- El proyecto no queria enviar ese mail con Resend ni con otro proveedor propio del backend, sino desde Supabase.
+- El backend podia no ver la configuracion publica de Supabase si esa variable existia solo en el .env raiz.
 
 Cambio aplicado:
-- El borrado admin ahora intenta eliminar primero la cuenta de autenticacion real.
-- Luego limpia registros relacionados del usuario en tablas de la app.
+- El registro local ahora crea la cuenta en Supabase Auth mediante signUp.
+- El reenvio de verificacion ahora usa supabase.auth.resend.
+- El backend toma como fallback el .env raiz para leer configuracion compartida si hace falta.
+- Se agrega uso de SUPABASE_ANON_KEY o VITE_SUPABASE_ANON_KEY para poder hablar con Supabase Auth desde el backend.
+- Si falta esa configuracion, ahora se devuelve un error explicito en vez de fallar en silencio.
 
 Impacto:
-- El borrado desde admin pasa a ser mucho mas coherente con lo que espera quien administra.
+- El mail de verificacion pasa a depender del sistema correcto: Supabase Auth.
+- Si el correo no sale, el siguiente punto a revisar ya no es el codigo del envio local sino la configuracion de Supabase.
+- El usuario recibe feedback real si falta configuracion o si el reenvio falla.
+
+Estado esperado ahora:
+- Usuario se registra.
+- El backend crea la cuenta en auth.users.
+- Supabase envia el mail de confirmacion.
+- La tabla users de la app se sincroniza con ese usuario.
+- Si el usuario aun no confirmo, el login sigue bloqueado.
+- Una vez confirmado, el login puede avanzar y el backend actualiza el estado local si hacia falta.
 
 
-4. RESTRICCION PRO PARA BANNER
+2.3. Compatibilidad de login para cuentas heredadas
 
 Problema detectado:
-- La restriccion "solo PRO puede subir banner" estaba apoyada sobre todo en frontend.
+- Existian cuentas con auth_provider = local pero sin password_hash en users.
+- Eso hacia que /api/auth/login devolviera 401 incluso para usuarios validos.
 
 Cambio aplicado:
-- La actualizacion de banner ahora pasa por backend.
+- El login intenta primero el hash local.
+- Si el hash falta o no coincide, prueba un fallback controlado contra Supabase Auth.
+- Si el usuario entra por ese fallback, se reescribe un password_hash valido en users.
+- Ademas, si el usuario ya verifico su mail en Supabase pero la tabla local seguia vieja, el login re-sincroniza ese estado antes de bloquearlo.
+
+Impacto:
+- Usuarios heredados pueden volver a iniciar sesion.
+- Menos cuentas rotas por desincronizacion entre users y auth.users.
+
+
+2.4. Restriccion PRO para banner
+
+Problema detectado:
+- La restriccion "solo PRO puede subir banner" dependia demasiado del frontend.
+
+Cambio aplicado:
+- La actualizacion de banner pasa por backend.
 - El backend rechaza el cambio si el usuario no es PRO.
-- El helper frontend que intentaba escribir banner_url directo en Supabase ya no se usa para eso.
 
 Impacto:
-- La restriccion comercial deja de depender solo del cliente.
+- La restriccion comercial queda reforzada del lado servidor.
 
 
-5. TOKENS DE VERIFICACION DE EMAIL
+2.5. Borrado real de usuarios desde admin
 
-Problema detectado:
+Problemas detectados:
+- El panel admin podia borrar solo la fila local y dejar viva la cuenta en Auth.
+- En algunos casos el borrado fallaba por registros relacionados no limpiados.
+- Algunas cuentas heredadas no existian ya en Supabase Auth y ese 404 se trataba como error fatal.
+
+Cambio aplicado:
+- El borrado admin limpia registros relacionados del usuario antes de eliminar la cuenta de Auth.
+- Tambien elimina email_verification_tokens del usuario.
+- Se tolera user_not_found y status 404 como casos validos cuando la cuenta ya no existe en Auth.
+
+Impacto:
+- El borrado admin es mas coherente.
+- Menos fallos por relaciones colgantes.
+- Menos errores falsos en cuentas huerfanas o heredadas.
+
+
+2.6. Hardening del correo HTML y de los tokens
+
+Problemas detectados:
+- Valores controlados por usuario podian interpolarse en el HTML del correo.
 - Los tokens de verificacion se guardaban en texto plano.
 
 Cambio aplicado:
-- Los nuevos tokens se guardan hasheados con SHA-256.
-- La verificacion sigue aceptando tokens viejos en texto plano para no romper enlaces ya emitidos.
+- Se escaparon valores antes de insertarlos en la plantilla HTML.
+- Los nuevos tokens de verificacion se guardan hasheados con SHA-256.
+- La verificacion sigue aceptando tokens viejos en texto plano para no romper enlaces emitidos antes del cambio.
 
 Impacto:
-- Si alguien leyera la tabla de tokens, no podria reutilizar directamente los nuevos tokens.
+- Menor riesgo de inyeccion de markup en correos.
+- Menor riesgo si alguien accede a la tabla de tokens.
+
+Nota:
+- Aunque el flujo principal nuevo de verificacion pasa por Supabase Auth, este hardening se mantiene para compatibilidad con enlaces antiguos y para no romper datos ya existentes.
 
 
-6. SANITIZACION DEL EMAIL HTML
-
-Problema detectado:
-- Valores controlados por usuario podian interpolarse en el HTML del correo.
-
-Cambio aplicado:
-- Se escapan los valores antes de insertarlos en la plantilla del mail.
-
-Impacto:
-- Reduce riesgo de inyeccion de markup dentro del correo transaccional.
-
-
-7. DEPENDENCIA VULNERABLE DEL BACKEND
+2.7. Dependencias y mantenimiento
 
 Problema detectado:
-- npm audit marco una vulnerabilidad en path-to-regexp usada por el backend.
+- npm audit habia marcado una vulnerabilidad en path-to-regexp usada por el backend.
 
 Cambio aplicado:
 - Se fijo una version corregida mediante override.
-- Se actualizo package-lock del backend.
+- Se actualizo el package-lock del backend.
 
 Impacto:
 - Se elimina el hallazgo reportado por npm audit para esa cadena de dependencias.
 
 
-8. DOCUMENTACION RELACIONADA
+3. BASE DE DATOS
 
-Archivos relevantes:
-- server/index.js
-- src/services/appAuth.js
-- src/hooks/useAuth.jsx
-- src/components/shared/AuthDialog.jsx
-- server/package.json
-- server/package-lock.json
-- supabase/create_rate_limits.sql
-- supabase/fix_consume_rate_limit_signature.sql
-- SECURITY_NOTES.md
+3.1. Tablas y columnas usadas por autenticacion
+
+Estado cubierto por los cambios:
+- users mantiene estado local de verificacion:
+  - is_verified
+  - verified_at
+  - verification_sent_at
+- email_verification_tokens sigue existiendo para compatibilidad con el flujo anterior.
+- profiles sigue sincronizado con usuarios autenticados.
+
+Impacto:
+- La app conserva compatibilidad con datos existentes mientras migra el flujo principal hacia Supabase Auth.
 
 
-9. COSAS A TENER EN CUENTA
+3.2. Rate limiting persistente
 
+Cambio aplicado:
+- Se dejaron scripts de Supabase para sostener el rate limiting del backend:
+  - supabase/create_rate_limits.sql
+  - supabase/fix_consume_rate_limit_signature.sql
+
+Impacto:
+- El modo deseado en produccion es el respaldado por Supabase, no solo memoria local.
+
+
+4. CONFIGURACION Y OPERACION
+
+4.1. Cosas a verificar en Supabase para el mail de verificacion
+
+Para que el flujo nuevo funcione de punta a punta, debe cumplirse esto:
+- Email Confirmations habilitado en Supabase Auth.
+- Redirect URL permitida para /verify-email.
+- Proveedor de correo configurado dentro de Supabase si no se usa el sender por defecto del entorno.
+- Revisar spam si el mail sigue sin verse en bandeja principal.
+
+
+4.2. Variables y secretos
+
+Consideraciones:
 - .env no debe subirse al repositorio.
+- El backend ahora necesita poder leer SUPABASE_ANON_KEY o VITE_SUPABASE_ANON_KEY para delegar signUp y resend a Supabase Auth.
 - El webhook de Mercado Pago debe seguir teniendo configurado su secreto en produccion.
-- El fallback en memoria del rate limiting existe para resiliencia, pero el modo deseado en produccion es el respaldado por Supabase.
 
 
-10. RESULTADO GENERAL
+4.3. Estado general operativo
 
 Estado final esperado despues de deploy:
 - Login, registro y resend pasan por backend.
-- El rate limiting protege el flujo real del usuario.
-- El borrado admin deja de ser solo superficial.
+- El rate limiting protege el flujo real.
+- El mail de verificacion sale desde Supabase Auth.
+- El borrado admin deja de ser superficial.
 - El banner PRO queda reforzado del lado servidor.
-- Los tokens de verificacion quedan mejor protegidos.
+- Las cuentas heredadas pueden repararse al iniciar sesion.
+
+Advertencia tecnica no bloqueante:
+- El build sigue mostrando warning de Vite por chunk principal grande. No rompe funcionalidad, pero conviene hacer code splitting mas adelante.
 
 
-11. CORRECCIONES FUNCIONALES POSTERIORES
+5. ARCHIVOS RELEVANTES
 
-Problemas detectados:
-- El flujo de compra PRO enviaba al login, pero despues del inicio de sesion mandaba siempre a /profile.
-- Varias ediciones de perfil podian quedar a mitad de camino si fallaba el segundo paso.
-- El banner podia no reaparecer correctamente despues de login o recarga.
-- La pagina de artista podia dejar reseñas y likes desactualizados al cambiar el estado de sesion.
-- Si fallaba la creacion del pago PRO, la UI casi no mostraba feedback.
-- La busqueda manual podia disparar requests duplicados.
-- Los filtros de fecha del admin podian correrse por zona horaria.
+Backend:
+- server/index.js
+- server/package.json
+- server/package-lock.json
 
-Cambio aplicado:
-- El login ahora respeta redirectTo y vuelve a /pro cuando corresponde.
-- Las actualizaciones de username, telefono y avatar pasan a consolidarse desde backend.
-- Si un upload de avatar o banner falla en el paso final, se intenta limpiar el archivo recien subido para no dejar basura.
-- El avatar ahora valida maximo 5 MB igual que la interfaz.
-- La hidratacion del usuario local ahora contempla banner.
-- ArtistPage vuelve a cargar reseñas cuando cambia el token de sesion.
-- ProPage ahora muestra feedback visible si falla la preferencia de pago.
-- Admin envia fechas como ISO explicito para evitar corrimientos por timezone.
-- SearchPage evita duplicar la misma busqueda al enviar el formulario.
+Frontend:
+- src/services/appAuth.js
+- src/hooks/useAuth.jsx
+- src/components/shared/AuthDialog.jsx
+- src/pages/VerifyEmailPage.jsx
 
-Impacto:
-- Menos estados parciales.
-- Mejor continuidad del funnel PRO.
-- Menos desincronizacion visual en perfil y reseñas.
-- Menos requests redundantes.
+Base de datos y scripts:
+- supabase/create_rate_limits.sql
+- supabase/fix_consume_rate_limit_signature.sql
+
+Otros:
+- SECURITY_NOTES.md
 
 
-12. AJUSTES FINALES DE ESTABILIDAD
+6. RESULTADO GENERAL DE LA PASADA
 
-Problemas detectados:
-- La pagina de busqueda todavia podia mostrar resultados viejos si dos respuestas llegaban fuera de orden.
-- El autocomplete del navbar podia mostrar sugerencias viejas al escribir rapido.
-- El modal de perfil podia conservar una preview de banner vieja si se cerraba despues de guardar solo cambios de texto.
-
-Cambio aplicado:
-- SearchPage ahora invalida requests viejas y solo aplica la respuesta mas reciente.
-- El autocomplete del navbar ahora descarta respuestas atrasadas y limpia mejor su estado al vaciar la busqueda.
-- El cierre del modal de perfil ahora limpia avatar y banner pendientes en todos los caminos de cierre relevantes.
-
-Impacto:
-- Menos parpadeo o resultados incoherentes al buscar rapido.
-- Menos sugerencias stale en la barra superior.
-- Menos estado visual colgado en el editor de perfil.
-
-
-13. ESTADO ACTUAL DE LA PASADA COMPLETA
-
-Estado confirmado:
-- No se detectaron errores funcionales criticos abiertos en esta pasada general.
+Estado confirmado en esta pasada:
+- No se detectaron errores funcionales criticos abiertos.
 - No se detecto una rotura general del frontend ni del backend.
 - Login, registro, resend, rankings, search, artist, album, reviews y ratings respondieron bien en las pruebas hechas.
 
-Advertencia tecnica no bloqueante:
-- El build sigue mostrando un warning de Vite por chunk principal grande. No rompe funcionalidad, pero conviene hacer code splitting mas adelante.
-
-
-14. AJUSTE RECIENTE EN BORRADO ADMIN DE USUARIOS
-
-Problema detectado:
-- Al eliminar usuarios desde admin aparecia un error generico SUPABASE_QUERY_ERROR.
-- El flujo no estaba limpiando todos los registros relacionados antes de borrar la cuenta.
-
-Cambio aplicado:
-- El borrado admin ahora elimina tambien email_verification_tokens del usuario.
-- La eliminacion de la cuenta en Supabase Auth se movio al final, despues de limpiar los registros de la app.
-
-Impacto:
-- Reduce fallos por relaciones colgantes durante el borrado.
-- Evita estados inconsistentes si una limpieza intermedia falla.
-
-
-15. COMPATIBILIDAD DE LOGIN PARA CUENTAS LOCALES HEREDADAS
-
-Problema detectado:
-- Existian cuentas con auth_provider = local pero sin password_hash en la tabla users.
-- Eso hacia que /api/auth/login devolviera 401 incluso para usuarios reales con credenciales validas.
-
-Cambio aplicado:
-- El login ahora intenta primero el password_hash local como flujo principal.
-- Si el hash falta o no coincide, prueba un fallback controlado contra Supabase Auth.
-- Si el usuario entra correctamente por ese fallback, se vuelve a guardar un password_hash valido en users para reparar la cuenta.
-
-Impacto:
-- Usuarios heredados pueden volver a iniciar sesion sin resetear cuenta manualmente.
-- Las cuentas reparadas dejan de depender del fallback en ingresos posteriores.
-
-
-16. AJUSTES DE VERSION Y MANTENIMIENTO
-
-Estado final actual:
-- El footer principal muestra Beta 1.0.6.
-- La pantalla de mantenimiento quedo desactivada en App.jsx, por lo que la app publica vuelve a abrir normalmente.
-- El codigo visual de mantenimiento se conserva preparado, incluyendo el efecto glitch del numero final de version en esa vista.
-
-Impacto:
-- La app queda operativa para usuarios finales.
-- El versionado visible del footer queda alineado con la version actual mostrada por producto.
-
-
-17. FIX ADICIONAL EN BORRADO ADMIN PARA CUENTAS SIN AUTH
-
-Problema detectado:
-- Algunas cuentas existen en las tablas publicas de la app pero no en Supabase Auth.
-- En esos casos, supabase.auth.admin.deleteUser devolvia 404 user_not_found.
-- Ese 404 se estaba tratando como error fatal y el panel admin terminaba mostrando SUPABASE_QUERY_ERROR con status 500.
-
-Cambio aplicado:
-- El backend ahora considera tambien user_not_found y status 404 como casos validos de "no encontrado" en Supabase.
-- Eso evita que el borrado admin falle cuando la cuenta ya no existe en Auth pero si en la base publica.
-
-Impacto:
-- El panel admin puede completar el borrado de usuarios huerfanos o heredados sin romper el flujo.
+Resumen ejecutivo:
+- Se reforzo autenticacion.
+- Se corrigio el flujo de verificacion para que dependa de Supabase Auth.
+- Se mejoro la consistencia del perfil y del admin.
+- Se redujeron estados parciales, errores silenciosos y desincronizaciones entre frontend, backend y Auth.

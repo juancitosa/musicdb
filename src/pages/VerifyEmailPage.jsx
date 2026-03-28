@@ -2,6 +2,7 @@ import { LoaderCircle, MailCheck, MailWarning } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
+import { getSupabaseClient } from "../lib/supabase";
 import { verifyEmailToken } from "../services/appAuth";
 
 function mapVerificationError(errorCode) {
@@ -16,9 +17,33 @@ function mapVerificationError(errorCode) {
       return "El link de verificacion es invalido.";
     case "APP_BACKEND_UNAVAILABLE":
       return "No pudimos conectar con el backend.";
+    case "SUPABASE_EMAIL_NOT_CONFIRMED":
+      return "El link de verificacion no es valido o ya vencio.";
+    case "SUPABASE_CLIENT_CONFIG_MISSING":
+      return "Falta configurar Supabase en la app.";
     default:
       return "No pudimos verificar tu email.";
   }
+}
+
+async function verifyEmailFromSupabaseRedirect() {
+  const supabase = getSupabaseClient();
+  const {
+    data: { session },
+    error: sessionError,
+  } = await supabase.auth.getSession();
+
+  if (sessionError) {
+    throw sessionError;
+  }
+
+  const currentUser = session?.user ?? (await supabase.auth.getUser()).data.user ?? null;
+
+  if (!currentUser?.email_confirmed_at) {
+    throw new Error("SUPABASE_EMAIL_NOT_CONFIRMED");
+  }
+
+  await supabase.auth.signOut().catch(() => undefined);
 }
 
 export default function VerifyEmailPage() {
@@ -30,17 +55,15 @@ export default function VerifyEmailPage() {
   useEffect(() => {
     const token = searchParams.get("token")?.trim() || "";
 
-    if (!token) {
-      setStatus("error");
-      setMessage("Falta el token de verificacion en el enlace.");
-      return;
-    }
-
     let cancelled = false;
 
     async function runVerification() {
       try {
-        await verifyEmailToken(token);
+        if (token) {
+          await verifyEmailToken(token);
+        } else {
+          await verifyEmailFromSupabaseRedirect();
+        }
 
         if (cancelled) {
           return;
