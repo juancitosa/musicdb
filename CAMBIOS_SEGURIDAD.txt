@@ -190,3 +190,61 @@ Estado confirmado:
 
 Advertencia tecnica no bloqueante:
 - El build sigue mostrando un warning de Vite por chunk principal grande. No rompe funcionalidad, pero conviene hacer code splitting mas adelante.
+
+
+14. AJUSTE RECIENTE EN BORRADO ADMIN DE USUARIOS
+
+Problema detectado:
+- Al eliminar usuarios desde admin aparecia un error generico SUPABASE_QUERY_ERROR.
+- El flujo no estaba limpiando todos los registros relacionados antes de borrar la cuenta.
+
+Cambio aplicado:
+- El borrado admin ahora elimina tambien email_verification_tokens del usuario.
+- La eliminacion de la cuenta en Supabase Auth se movio al final, despues de limpiar los registros de la app.
+
+Impacto:
+- Reduce fallos por relaciones colgantes durante el borrado.
+- Evita estados inconsistentes si una limpieza intermedia falla.
+
+
+15. COMPATIBILIDAD DE LOGIN PARA CUENTAS LOCALES HEREDADAS
+
+Problema detectado:
+- Existian cuentas con auth_provider = local pero sin password_hash en la tabla users.
+- Eso hacia que /api/auth/login devolviera 401 incluso para usuarios reales con credenciales validas.
+
+Cambio aplicado:
+- El login ahora intenta primero el password_hash local como flujo principal.
+- Si el hash falta o no coincide, prueba un fallback controlado contra Supabase Auth.
+- Si el usuario entra correctamente por ese fallback, se vuelve a guardar un password_hash valido en users para reparar la cuenta.
+
+Impacto:
+- Usuarios heredados pueden volver a iniciar sesion sin resetear cuenta manualmente.
+- Las cuentas reparadas dejan de depender del fallback en ingresos posteriores.
+
+
+16. AJUSTES DE VERSION Y MANTENIMIENTO
+
+Estado final actual:
+- El footer principal muestra Beta 1.0.6.
+- La pantalla de mantenimiento quedo desactivada en App.jsx, por lo que la app publica vuelve a abrir normalmente.
+- El codigo visual de mantenimiento se conserva preparado, incluyendo el efecto glitch del numero final de version en esa vista.
+
+Impacto:
+- La app queda operativa para usuarios finales.
+- El versionado visible del footer queda alineado con la version actual mostrada por producto.
+
+
+17. FIX ADICIONAL EN BORRADO ADMIN PARA CUENTAS SIN AUTH
+
+Problema detectado:
+- Algunas cuentas existen en las tablas publicas de la app pero no en Supabase Auth.
+- En esos casos, supabase.auth.admin.deleteUser devolvia 404 user_not_found.
+- Ese 404 se estaba tratando como error fatal y el panel admin terminaba mostrando SUPABASE_QUERY_ERROR con status 500.
+
+Cambio aplicado:
+- El backend ahora considera tambien user_not_found y status 404 como casos validos de "no encontrado" en Supabase.
+- Eso evita que el borrado admin falle cuando la cuenta ya no existe en Auth pero si en la base publica.
+
+Impacto:
+- El panel admin puede completar el borrado de usuarios huerfanos o heredados sin romper el flujo.

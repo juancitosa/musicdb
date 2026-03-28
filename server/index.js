@@ -883,7 +883,7 @@ function mapUserRecord(user) {
 }
 
 function isNotFoundError(error) {
-  return error?.code === "PGRST116";
+  return error?.code === "PGRST116" || error?.code === "user_not_found" || error?.status === 404;
 }
 
 function handleSupabaseError(error, fallbackMessage = "Supabase request failed") {
