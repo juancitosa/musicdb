@@ -1,5 +1,6 @@
+import { useEffect, useState } from "react";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
-import { Wrench } from "lucide-react";
+import { Instagram, Wrench } from "lucide-react";
 
 import AppLayout from "./components/layout/AppLayout";
 import { AuthProvider } from "./hooks/useAuth";
@@ -24,8 +25,65 @@ import TermsPage from "./pages/TermsPage";
 import VerifyEmailPage from "./pages/VerifyEmailPage";
 
 const MAINTENANCE_MODE = true;
+const MAINTENANCE_DURATION_MS = 12 * 60 * 60 * 1000;
+const MAINTENANCE_DEADLINE_KEY = "musicdb_maintenance_deadline";
+
+function TikTokIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" {...props}>
+      <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.12v12.12a2.77 2.77 0 1 1-2-2.66V8.3a5.9 5.9 0 1 0 5.12 5.86V8.02a7.9 7.9 0 0 0 4.77 1.6V6.69Z" />
+    </svg>
+  );
+}
+
+function resolveMaintenanceDeadline() {
+  if (typeof window === "undefined") {
+    return Date.now() + MAINTENANCE_DURATION_MS;
+  }
+
+  try {
+    const storedDeadline = Number.parseInt(window.localStorage.getItem(MAINTENANCE_DEADLINE_KEY) ?? "", 10);
+
+    if (Number.isFinite(storedDeadline) && storedDeadline > Date.now()) {
+      return storedDeadline;
+    }
+
+    const nextDeadline = Date.now() + MAINTENANCE_DURATION_MS;
+    window.localStorage.setItem(MAINTENANCE_DEADLINE_KEY, String(nextDeadline));
+    return nextDeadline;
+  } catch {
+    return Date.now() + MAINTENANCE_DURATION_MS;
+  }
+}
+
+function formatCountdown(remainingMs) {
+  const totalSeconds = Math.max(Math.floor(remainingMs / 1000), 0);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  return [hours, minutes, seconds].map((value) => String(value).padStart(2, "0")).join(":");
+}
 
 function MaintenanceScreen() {
+  const [remainingMs, setRemainingMs] = useState(() => Math.max(resolveMaintenanceDeadline() - Date.now(), 0));
+
+  useEffect(() => {
+    const deadline = resolveMaintenanceDeadline();
+
+    function updateRemainingTime() {
+      setRemainingMs(Math.max(deadline - Date.now(), 0));
+    }
+
+    updateRemainingTime();
+
+    const intervalId = window.setInterval(updateRemainingTime, 1000);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, []);
+
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#020202] text-white">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.08),transparent_20%),radial-gradient(circle_at_bottom,rgba(113,94,255,0.14),transparent_24%)]" />
@@ -39,13 +97,39 @@ function MaintenanceScreen() {
 
           <p className="mt-6 text-[11px] font-semibold uppercase tracking-[0.32em] text-amber-100/75">Mantenimiento</p>
           <h1 className="mt-4 text-4xl font-black tracking-tight text-white sm:text-5xl">Estamos en mantenimiento</h1>
-          <p className="mt-3 text-sm font-semibold tracking-[0.18em] text-amber-100/80">MusicDB Beta 1.0.6</p>
+
           <p className="mx-auto mt-5 max-w-xl text-sm leading-relaxed text-white/72 sm:text-base">
-            Estamos ajustando la integracion con Spotify para estabilizar la plataforma. Durante este proceso, el acceso a la app queda pausado temporalmente.
+            Estamos trabajando en una proxima actualizacion, si quieres saber mas esta atento a nuestras redes sociales:
           </p>
-          <p className="mx-auto mt-4 max-w-lg text-sm leading-relaxed text-white/56">
-            En cuanto terminemos, retiramos esta pantalla y todo vuelve a la normalidad.
-          </p>
+
+          <div className="mt-5 flex items-center justify-center gap-3 text-sm font-semibold text-amber-100/90">
+            <a
+              href="https://www.instagram.com/themusicdb_/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/6 px-4 py-2 transition hover:border-amber-200/50 hover:bg-white/10 hover:text-white"
+            >
+              <Instagram className="h-4 w-4" />
+              Instagram
+            </a>
+            <a
+              href="https://www.tiktok.com/@themusicdb?lang=en"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/6 px-4 py-2 transition hover:border-amber-200/50 hover:bg-white/10 hover:text-white"
+            >
+              <TikTokIcon className="h-4 w-4" />
+              TikTok
+            </a>
+          </div>
+
+          <div className="mx-auto mt-8 max-w-md rounded-[1.5rem] border border-white/10 bg-black/22 px-6 py-5 shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-100/70">Cuenta atras</p>
+            <p className="mt-3 font-mono text-4xl font-black tracking-[0.16em] text-white sm:text-5xl">{formatCountdown(remainingMs)}</p>
+            <p className="mt-3 text-xs text-white/52">Tiempo estimado para la proxima actualizacion.</p>
+          </div>
+
+          <p className="mt-8 text-sm font-semibold tracking-[0.18em] text-amber-100/80">MusicDB Beta 1.0.6</p>
         </div>
       </div>
     </div>
