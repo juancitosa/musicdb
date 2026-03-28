@@ -161,3 +161,32 @@ Impacto:
 - Mejor continuidad del funnel PRO.
 - Menos desincronizacion visual en perfil y reseñas.
 - Menos requests redundantes.
+
+
+12. AJUSTES FINALES DE ESTABILIDAD
+
+Problemas detectados:
+- La pagina de busqueda todavia podia mostrar resultados viejos si dos respuestas llegaban fuera de orden.
+- El autocomplete del navbar podia mostrar sugerencias viejas al escribir rapido.
+- El modal de perfil podia conservar una preview de banner vieja si se cerraba despues de guardar solo cambios de texto.
+
+Cambio aplicado:
+- SearchPage ahora invalida requests viejas y solo aplica la respuesta mas reciente.
+- El autocomplete del navbar ahora descarta respuestas atrasadas y limpia mejor su estado al vaciar la busqueda.
+- El cierre del modal de perfil ahora limpia avatar y banner pendientes en todos los caminos de cierre relevantes.
+
+Impacto:
+- Menos parpadeo o resultados incoherentes al buscar rapido.
+- Menos sugerencias stale en la barra superior.
+- Menos estado visual colgado en el editor de perfil.
+
+
+13. ESTADO ACTUAL DE LA PASADA COMPLETA
+
+Estado confirmado:
+- No se detectaron errores funcionales criticos abiertos en esta pasada general.
+- No se detecto una rotura general del frontend ni del backend.
+- Login, registro, resend, rankings, search, artist, album, reviews y ratings respondieron bien en las pruebas hechas.
+
+Advertencia tecnica no bloqueante:
+- El build sigue mostrando un warning de Vite por chunk principal grande. No rompe funcionalidad, pero conviene hacer code splitting mas adelante.

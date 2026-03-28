@@ -1415,6 +1415,12 @@ export default function ProfilePage() {
     });
   }
 
+  function closeEditProfileModal() {
+    clearPendingAvatarSelection();
+    clearPendingBannerSelection();
+    setIsEditProfileOpen(false);
+  }
+
   function handleAvatarFileChange(e) {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -1455,8 +1461,7 @@ export default function ProfilePage() {
     }
 
     if (!user.isPro) {
-      clearPendingBannerSelection();
-      setIsEditProfileOpen(false);
+      closeEditProfileModal();
       navigate("/pro");
       return;
     }
@@ -1480,8 +1485,7 @@ export default function ProfilePage() {
     }
 
     if (!user.isPro) {
-      clearPendingBannerSelection();
-      setIsEditProfileOpen(false);
+      closeEditProfileModal();
       navigate("/pro");
       return;
     }
@@ -1555,8 +1559,7 @@ export default function ProfilePage() {
     }
 
     if (!user.isPro) {
-      clearPendingBannerSelection();
-      setIsEditProfileOpen(false);
+      closeEditProfileModal();
       navigate("/pro");
       return;
     }
@@ -1650,8 +1653,7 @@ export default function ProfilePage() {
         title: "Perfil actualizado",
         description: "Tus datos de perfil ya fueron actualizados.",
       });
-      clearPendingAvatarSelection();
-      setIsEditProfileOpen(false);
+      closeEditProfileModal();
     } catch (error) {
       setProfileSaveError(mapProfileUpdateError(error?.message));
     } finally {
@@ -1710,7 +1712,7 @@ export default function ProfilePage() {
         });
         setPasswordSaveStatus(null);
         setIsPasswordModalOpen(false);
-        setIsEditProfileOpen(false);
+        closeEditProfileModal();
       }, 3000);
     } catch (error) {
       setPasswordSaveError(mapPasswordUpdateError(error?.message));
@@ -1803,7 +1805,7 @@ export default function ProfilePage() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[220] overflow-y-auto bg-[rgba(3,4,10,0.42)] px-3 py-3 backdrop-blur-md sm:px-4 sm:py-6"
-            onClick={() => setIsEditProfileOpen(false)}
+            onClick={closeEditProfileModal}
           >
             <motion.div
               initial={{ opacity: 0, y: 24, scale: 0.96 }}
@@ -1835,11 +1837,7 @@ export default function ProfilePage() {
                   onSetBannerOffsetX={setBannerOffsetX}
                   onSetBannerOffsetY={setBannerOffsetY}
                   onChange={setProfileFormField}
-                  onClose={() => {
-                    clearPendingAvatarSelection();
-                    clearPendingBannerSelection();
-                    setIsEditProfileOpen(false);
-                  }}
+                  onClose={closeEditProfileModal}
                   onSubmit={handleSubmitProfile}
                   pendingAvatarName={pendingAvatarFile?.name ?? ""}
                   pendingBannerName={pendingBannerFile?.name ?? ""}

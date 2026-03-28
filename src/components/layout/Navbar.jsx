@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { BarChart3, ChevronDown, Disc3, LoaderCircle, LogOut, Moon, Search, Shield, Sun, UserRound } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 
@@ -97,6 +97,7 @@ function SearchSuggestionItem({ item, onSelect }) {
 
 function SearchBox() {
   const navigate = useNavigate();
+  const latestSuggestionsRequestRef = useRef(0);
   const [searchTerm, setSearchTerm] = useState("");
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -115,29 +116,53 @@ function SearchBox() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+
     async function fetchSuggestions() {
-      if (!debouncedSearch.trim()) {
+      const trimmedQuery = debouncedSearch.trim();
+
+      if (!trimmedQuery) {
+        latestSuggestionsRequestRef.current += 1;
         setSuggestions([]);
         setShowSuggestions(false);
+        setIsLoadingSuggestions(false);
         return;
       }
 
+      const requestId = latestSuggestionsRequestRef.current + 1;
+      latestSuggestionsRequestRef.current = requestId;
       setIsLoadingSuggestions(true);
 
       try {
-        const result = await searchSpotify(debouncedSearch, null, 5);
+        const result = await searchSpotify(trimmedQuery, null, 5);
+
+        if (cancelled || latestSuggestionsRequestRef.current !== requestId) {
+          return;
+        }
+
         const artistItems = (result.artists?.items ?? []).map((item) => ({ ...item, _type: "artist" }));
         const albumItems = (result.albums?.items ?? []).map((item) => ({ ...item, _type: "album" }));
         setSuggestions([...artistItems, ...albumItems]);
         setShowSuggestions(true);
       } catch {
+        if (cancelled || latestSuggestionsRequestRef.current !== requestId) {
+          return;
+        }
+
         setSuggestions([]);
+        setShowSuggestions(false);
       } finally {
-        setIsLoadingSuggestions(false);
+        if (!cancelled && latestSuggestionsRequestRef.current === requestId) {
+          setIsLoadingSuggestions(false);
+        }
       }
     }
 
     fetchSuggestions();
+
+    return () => {
+      cancelled = true;
+    };
   }, [debouncedSearch]);
 
   function submitSearch(event) {

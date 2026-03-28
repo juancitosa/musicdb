@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { AudioLines, ChevronLeft, ChevronRight, Disc3, Flame, SearchX } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
 import { LocalAlbumCard, SpotifyAlbumCard } from "../components/shared/AlbumCard";
@@ -100,6 +100,7 @@ function TrendingTrackSkeleton() {
 export default function SearchPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialQuery = searchParams.get("q") ?? "";
+  const latestSearchRequestRef = useRef(0);
   const [query, setQuery] = useState(initialQuery);
   const [filter, setFilter] = useState("all");
   const [spotifyArtists, setSpotifyArtists] = useState([]);
@@ -116,30 +117,44 @@ export default function SearchPage() {
   const [hasSearched, setHasSearched] = useState(false);
 
   const runSearch = useCallback(async (nextQuery) => {
-    if (!nextQuery.trim()) {
+    const trimmedQuery = nextQuery.trim();
+
+    if (!trimmedQuery) {
       return;
     }
 
+    const requestId = latestSearchRequestRef.current + 1;
+    latestSearchRequestRef.current = requestId;
     setIsLoading(true);
     setError(null);
     setHasSearched(true);
 
     try {
-      const [artists, albums] = await Promise.all([searchArtists(nextQuery, null, 20), searchAlbums(nextQuery, null, 20)]);
+      const [artists, albums] = await Promise.all([searchArtists(trimmedQuery, null, 20), searchAlbums(trimmedQuery, null, 20)]);
+
+      if (latestSearchRequestRef.current !== requestId) {
+        return;
+      }
 
       setSpotifyArtists(artists);
       setSpotifyAlbums(albums);
       setLocalArtists([]);
       setLocalAlbums([]);
     } catch {
-      const fallback = searchLocalCatalog(nextQuery);
+      if (latestSearchRequestRef.current !== requestId) {
+        return;
+      }
+
+      const fallback = searchLocalCatalog(trimmedQuery);
       setLocalArtists(fallback.artists);
       setLocalAlbums(fallback.albums);
       setSpotifyArtists([]);
       setSpotifyAlbums([]);
       setError("Spotify no respondio. Mostrando resultados limitados.");
     } finally {
-      setIsLoading(false);
+      if (latestSearchRequestRef.current === requestId) {
+        setIsLoading(false);
+      }
     }
   }, []);
 
@@ -148,9 +163,15 @@ export default function SearchPage() {
       setQuery(initialQuery);
       runSearch(initialQuery);
     } else {
+      latestSearchRequestRef.current += 1;
       setQuery("");
       setHasSearched(false);
       setError(null);
+      setSpotifyArtists([]);
+      setSpotifyAlbums([]);
+      setLocalArtists([]);
+      setLocalAlbums([]);
+      setIsLoading(false);
     }
   }, [initialQuery, runSearch]);
 
