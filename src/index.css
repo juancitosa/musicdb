@@ -418,47 +418,47 @@ h6 {
   }
 
   50% {
-    opacity: 0.95;
+    opacity: 1;
     transform: translate(0);
   }
 
   54% {
-    opacity: 0.22;
+    opacity: 0.92;
     transform: translate(-1px, 1px);
   }
 
   58% {
-    opacity: 0.8;
+    opacity: 0.28;
     transform: translate(1px, -1px);
   }
 
   62% {
-    opacity: 0.18;
+    opacity: 0.94;
     transform: translate(0);
   }
 
   68% {
-    opacity: 0.7;
+    opacity: 0.88;
     transform: translate(1px, 0);
   }
 
   74% {
-    opacity: 0.16;
+    opacity: 0.34;
     transform: translate(-1px, 0);
   }
 
   80% {
-    opacity: 0.82;
+    opacity: 0.9;
     transform: translate(0, -1px);
   }
 
   86% {
-    opacity: 0.12;
+    opacity: 0.3;
     transform: translate(1px, 1px);
   }
 
   92% {
-    opacity: 0.9;
+    opacity: 1;
     transform: translate(0);
   }
 }
@@ -472,47 +472,47 @@ h6 {
   }
 
   50% {
-    opacity: 0.35;
+    opacity: 0.06;
     transform: translate(1px, 0);
   }
 
   54% {
-    opacity: 0.88;
+    opacity: 0.18;
     transform: translate(-1px, 1px);
   }
 
   58% {
-    opacity: 0.28;
+    opacity: 0.8;
     transform: translate(1px, -1px);
   }
 
   62% {
-    opacity: 0.95;
+    opacity: 0.1;
     transform: translate(0);
   }
 
   68% {
-    opacity: 0.34;
+    opacity: 0.18;
     transform: translate(-1px, 0);
   }
 
   74% {
-    opacity: 0.9;
+    opacity: 0.72;
     transform: translate(1px, 0);
   }
 
   80% {
-    opacity: 0.22;
+    opacity: 0.16;
     transform: translate(-1px, 1px);
   }
 
   86% {
-    opacity: 0.82;
+    opacity: 0.64;
     transform: translate(0, -1px);
   }
 
   92% {
-    opacity: 0.3;
+    opacity: 0.08;
     transform: translate(0);
   }
 }
@@ -526,28 +526,22 @@ h6 {
     clip-path: inset(0 0 0 0);
   }
 
-  54% {
+  58% {
     opacity: 0.85;
     transform: translate(-2px, 0);
     clip-path: inset(8% 0 48% 0);
   }
 
-  62% {
+  74% {
     opacity: 0.6;
     transform: translate(2px, -1px);
     clip-path: inset(56% 0 6% 0);
   }
 
-  74% {
+  86% {
     opacity: 0.72;
     transform: translate(-1px, 1px);
     clip-path: inset(26% 0 28% 0);
-  }
-
-  86% {
-    opacity: 0.5;
-    transform: translate(2px, 0);
-    clip-path: inset(0 0 66% 0);
   }
 
   92% {
@@ -566,28 +560,22 @@ h6 {
     clip-path: inset(0 0 0 0);
   }
 
-  50% {
+  58% {
     opacity: 0.72;
     transform: translate(2px, 0);
     clip-path: inset(0 0 62% 0);
   }
 
-  58% {
+  74% {
     opacity: 0.82;
     transform: translate(-1px, 1px);
     clip-path: inset(52% 0 0 0);
   }
 
-  68% {
+  86% {
     opacity: 0.58;
     transform: translate(2px, -1px);
     clip-path: inset(18% 0 34% 0);
-  }
-
-  80% {
-    opacity: 0.72;
-    transform: translate(-2px, 0);
-    clip-path: inset(38% 0 12% 0);
   }
 
   92% {
