@@ -103,6 +103,8 @@ const RATE_LIMIT_MAX_ATTEMPTS = {
 
 const rateLimitStore = new Map();
 const RATE_LIMIT_SWEEP_INTERVAL_MS = 60 * 1000;
+let rateLimitStorageMode = "auto";
+let rateLimitStorageWarningLogged = false;
 
 function getRateLimitClientIp(req) {
   if (typeof req.ip === "string" && req.ip.trim()) {
@@ -135,7 +137,7 @@ function getOrCreateRateLimitEntry(key, now, windowMs) {
   return existingEntry;
 }
 
-function checkRateLimit({ key, limit, windowMs, now }) {
+function checkRateLimitInMemory({ key, limit, windowMs, now }) {
   const entry = getOrCreateRateLimitEntry(key, now, windowMs);
   entry.count += 1;
 
@@ -149,6 +151,81 @@ function checkRateLimit({ key, limit, windowMs, now }) {
   };
 }
 
+function isMissingRpcFunctionError(error, functionName) {
+  const message = error?.message?.toLowerCase() || "";
+  return error?.code === "PGRST202" || (message.includes("function") && message.includes(functionName.toLowerCase()));
+}
+
+function warnRateLimitStorageFallback(reason, error) {
+  if (rateLimitStorageWarningLogged) {
+    return;
+  }
+
+  rateLimitStorageWarningLogged = true;
+  console.warn("[rate-limit] Falling back to in-memory storage", {
+    reason,
+    errorCode: error?.code ?? null,
+    errorMessage: error?.message ?? null,
+  });
+}
+
+async function consumeRateLimitWithSupabase({ key, scope, limit, windowMs }) {
+  const supabase = getSupabaseAdmin();
+  const windowSeconds = Math.max(Math.ceil(windowMs / 1000), 1);
+  const { data, error } = await supabase.rpc("consume_rate_limit", {
+    p_key: key,
+    p_scope: scope,
+    p_limit: limit,
+    p_window_seconds: windowSeconds,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  const row = Array.isArray(data) ? data[0] : data;
+
+  if (!row) {
+    throw new Error("consume_rate_limit returned no data");
+  }
+
+  return {
+    allowed: Boolean(row.allowed),
+    count: Number(row.current_count || 0),
+    retryAfterMs: Math.max(Number(row.retry_after_seconds || 0) * 1000, 0),
+    resetAt: row.reset_at ? new Date(row.reset_at).getTime() : Date.now() + windowMs,
+  };
+}
+
+async function checkRateLimit({ key, scope, limit, windowMs, now }) {
+  if (rateLimitStorageMode !== "memory") {
+    try {
+      const result = await consumeRateLimitWithSupabase({
+        key,
+        scope,
+        limit,
+        windowMs,
+      });
+      rateLimitStorageMode = "supabase";
+      return result;
+    } catch (error) {
+      if (isMissingRelationError(error) || isMissingRpcFunctionError(error, "consume_rate_limit")) {
+        rateLimitStorageMode = "memory";
+        warnRateLimitStorageFallback("schema_missing", error);
+      } else {
+        warnRateLimitStorageFallback("supabase_unavailable", error);
+      }
+    }
+  }
+
+  return checkRateLimitInMemory({
+    key,
+    limit,
+    windowMs,
+    now,
+  });
+}
+
 function createRateLimitMiddleware({
   scope,
   rules,
@@ -156,44 +233,49 @@ function createRateLimitMiddleware({
   message = "Too many requests, please try again later",
   onRejected,
 }) {
-  return (req, res, next) => {
+  return async (req, res, next) => {
     const now = Date.now();
     let mostRestrictiveResult = null;
 
-    for (const rule of rules) {
-      const keyParts = rule.keyParts(req);
-      const key = buildRateLimitKey(`${scope}:${rule.name}`, keyParts);
-      const result = checkRateLimit({
-        key,
-        limit: rule.limit,
-        windowMs: rule.windowMs,
-        now,
-      });
+    try {
+      for (const rule of rules) {
+        const keyParts = rule.keyParts(req);
+        const key = buildRateLimitKey(`${scope}:${rule.name}`, keyParts);
+        const result = await checkRateLimit({
+          key,
+          scope: `${scope}:${rule.name}`,
+          limit: rule.limit,
+          windowMs: rule.windowMs,
+          now,
+        });
 
-      if (!result.allowed) {
-        mostRestrictiveResult =
-          !mostRestrictiveResult || result.retryAfterMs > mostRestrictiveResult.retryAfterMs
-            ? { ...result, ruleName: rule.name, key }
-            : mostRestrictiveResult;
+        if (!result.allowed) {
+          mostRestrictiveResult =
+            !mostRestrictiveResult || result.retryAfterMs > mostRestrictiveResult.retryAfterMs
+              ? { ...result, ruleName: rule.name, key }
+              : mostRestrictiveResult;
+        }
       }
+
+      if (!mostRestrictiveResult) {
+        next();
+        return;
+      }
+
+      const retryAfterSeconds = Math.max(Math.ceil(mostRestrictiveResult.retryAfterMs / 1000), 1);
+      res.setHeader("Retry-After", String(retryAfterSeconds));
+
+      if (typeof onRejected === "function") {
+        onRejected(req, {
+          retryAfterSeconds,
+          ruleName: mostRestrictiveResult.ruleName,
+        });
+      }
+
+      next(createHttpError(429, errorCode, message));
+    } catch (error) {
+      next(error?.status ? error : createHttpError(500, "RATE_LIMIT_FAILED", "Rate limit verification failed"));
     }
-
-    if (!mostRestrictiveResult) {
-      next();
-      return;
-    }
-
-    const retryAfterSeconds = Math.max(Math.ceil(mostRestrictiveResult.retryAfterMs / 1000), 1);
-    res.setHeader("Retry-After", String(retryAfterSeconds));
-
-    if (typeof onRejected === "function") {
-      onRejected(req, {
-        retryAfterSeconds,
-        ruleName: mostRestrictiveResult.ruleName,
-      });
-    }
-
-    next(createHttpError(429, errorCode, message));
   };
 }
 
