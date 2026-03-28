@@ -24,7 +24,7 @@ import SearchPage from "./pages/SearchPage";
 import TermsPage from "./pages/TermsPage";
 import VerifyEmailPage from "./pages/VerifyEmailPage";
 
-const MAINTENANCE_MODE = true;
+const MAINTENANCE_MODE = false;
 const MAINTENANCE_DEADLINE_MS = Date.UTC(2026, 2, 28, 19, 0, 0);
 
 function TikTokIcon(props) {
