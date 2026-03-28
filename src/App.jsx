@@ -170,8 +170,11 @@ function MaintenanceScreen() {
 
           <p className="maintenance-version mt-8 text-sm font-semibold tracking-[0.18em] text-amber-100/80">
             MusicDB Beta 1.0.
-            <span className="maintenance-glitch-digit" data-text="6">
-              6
+            <span className="maintenance-glitch-swap" aria-label="5">
+              <span className="maintenance-glitch-stable">5</span>
+              <span className="maintenance-glitch-digit" data-text="6" aria-hidden="true">
+                6
+              </span>
             </span>
           </p>
         </div>
