@@ -1098,13 +1098,8 @@ async function getUserByEmail(supabase, email) {
 }
 
 async function hardDeleteAppUser(supabase, userId) {
-  const { error: authDeleteError } = await supabase.auth.admin.deleteUser(userId);
-
-  if (authDeleteError) {
-    handleSupabaseError(authDeleteError, "Failed to delete auth user");
-  }
-
   const deleteSteps = [
+    () => supabase.from("email_verification_tokens").delete().eq("user_id", userId),
     () => supabase.from("review_likes").delete().eq("user_id", userId),
     () => supabase.from("review_replies").delete().eq("user_id", userId),
     () => supabase.from("ratings").delete().eq("user_id", userId),
@@ -1121,6 +1116,12 @@ async function hardDeleteAppUser(supabase, userId) {
     if (error && !isMissingRelationError(error) && !isNotFoundError(error)) {
       handleSupabaseError(error, "Failed to delete related user records");
     }
+  }
+
+  const { error: authDeleteError } = await supabase.auth.admin.deleteUser(userId);
+
+  if (authDeleteError && !isNotFoundError(authDeleteError)) {
+    handleSupabaseError(authDeleteError, "Failed to delete auth user");
   }
 }
 
@@ -1139,6 +1140,67 @@ async function getUserAuthByEmail(supabase, email) {
   handleSupabaseError(error, "Failed to fetch user credentials");
 
   return syncExpiredProStatusIfNeeded(supabase, data, { includePasswordHash: true });
+}
+
+function isSupabaseInvalidCredentialsError(error) {
+  const message = error?.message?.toLowerCase() || "";
+  return error?.code === "invalid_credentials" || message.includes("invalid login credentials");
+}
+
+function isSupabaseEmailNotConfirmedError(error) {
+  const message = error?.message?.toLowerCase() || "";
+  return error?.code === "email_not_confirmed" || message.includes("email not confirmed");
+}
+
+async function loginViaSupabaseAuthFallback(supabase, { email, password }) {
+  const supabaseAuthClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+  const { data, error } = await supabaseAuthClient.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  if (error) {
+    if (isSupabaseInvalidCredentialsError(error)) {
+      return null;
+    }
+
+    if (isSupabaseEmailNotConfirmedError(error)) {
+      throw createHttpError(403, "EMAIL_NOT_VERIFIED", "Email verification is required before logging in");
+    }
+
+    throw createHttpError(500, "SUPABASE_AUTH_FALLBACK_FAILED", error.message || "Failed to authenticate with Supabase");
+  }
+
+  if (!data?.user) {
+    return null;
+  }
+
+  return ensureSupabaseAuthUserRecord(supabase, data.user);
+}
+
+async function backfillLocalPasswordHash(supabase, userId, password) {
+  const normalizedUserId = normalizeUserId(userId);
+  const normalizedPassword = normalizePassword(password);
+
+  if (!normalizedUserId || !normalizedPassword) {
+    return;
+  }
+
+  const passwordHash = await bcrypt.hash(normalizedPassword, 10);
+  const { error } = await supabase
+    .from("users")
+    .update({
+      password_hash: passwordHash,
+      auth_provider: "local",
+    })
+    .eq("id", normalizedUserId);
+
+  handleSupabaseError(error, "Failed to backfill local password hash");
 }
 
 async function ensureSupabaseProfileRecord(supabase, authUser, { username }) {
@@ -3908,13 +3970,37 @@ app.post(
     const userColumns = await getUserTableColumns(supabase);
 
     if (!user?.password_hash) {
-      throw createHttpError(401, "LOCAL_LOGIN_INVALID", "Invalid email or password");
+      const fallbackUser = await loginViaSupabaseAuthFallback(supabase, { email, password });
+
+      if (!fallbackUser) {
+        throw createHttpError(401, "LOCAL_LOGIN_INVALID", "Invalid email or password");
+      }
+
+      await backfillLocalPasswordHash(supabase, fallbackUser.id, password);
+
+      res.json({
+        user: mapUserRecord(fallbackUser),
+        token: createAppSessionToken(fallbackUser),
+      });
+      return;
     }
 
     const passwordMatches = await bcrypt.compare(password, user.password_hash);
 
     if (!passwordMatches) {
-      throw createHttpError(401, "LOCAL_LOGIN_INVALID", "Invalid email or password");
+      const fallbackUser = await loginViaSupabaseAuthFallback(supabase, { email, password });
+
+      if (!fallbackUser) {
+        throw createHttpError(401, "LOCAL_LOGIN_INVALID", "Invalid email or password");
+      }
+
+      await backfillLocalPasswordHash(supabase, fallbackUser.id, password);
+
+      res.json({
+        user: mapUserRecord(fallbackUser),
+        token: createAppSessionToken(fallbackUser),
+      });
+      return;
     }
 
     if (userColumns.has("is_verified") && !user.is_verified) {
