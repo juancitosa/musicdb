@@ -165,9 +165,7 @@ function MaintenanceScreen() {
           </div>
 
           <div className="mx-auto mt-8 max-w-md rounded-[1.5rem] border border-white/10 bg-black/22 px-6 py-5 shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-100/70">Cuenta atras</p>
-            <p className="mt-3 font-mono text-4xl font-black tracking-[0.16em] text-white sm:text-5xl">{formatCountdown(remainingMs)}</p>
-            <p className="mt-3 text-xs text-white/52">Cuenta atras global fijada a las 12 PM de Argentina.</p>
+            <p className="font-mono text-4xl font-black tracking-[0.16em] text-white sm:text-5xl">{formatCountdown(remainingMs)}</p>
           </div>
 
           <p className="mt-8 text-sm font-semibold tracking-[0.18em] text-amber-100/80">MusicDB Beta 1.0.6</p>
