@@ -25,8 +25,8 @@ import TermsPage from "./pages/TermsPage";
 import VerifyEmailPage from "./pages/VerifyEmailPage";
 
 const MAINTENANCE_MODE = true;
-const MAINTENANCE_DURATION_MS = 12 * 60 * 60 * 1000;
-const MAINTENANCE_DEADLINE_KEY = "musicdb_maintenance_deadline";
+const ARGENTINA_TIMEZONE = "America/Argentina/Buenos_Aires";
+const MAINTENANCE_TARGET_HOUR = 12;
 
 function TikTokIcon(props) {
   return (
@@ -36,24 +36,66 @@ function TikTokIcon(props) {
   );
 }
 
-function resolveMaintenanceDeadline() {
-  if (typeof window === "undefined") {
-    return Date.now() + MAINTENANCE_DURATION_MS;
+function getArgentinaDateParts(timestamp = Date.now()) {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: ARGENTINA_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  });
+
+  const parts = Object.fromEntries(
+    formatter
+      .formatToParts(new Date(timestamp))
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, Number.parseInt(part.value, 10)]),
+  );
+
+  return {
+    year: parts.year,
+    month: parts.month,
+    day: parts.day,
+    hour: parts.hour,
+    minute: parts.minute,
+    second: parts.second,
+  };
+}
+
+function getTimeZoneOffsetMs(timeZone, timestamp) {
+  const parts = getArgentinaDateParts(timestamp);
+  const zonedAsUtc = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second);
+  return zonedAsUtc - timestamp;
+}
+
+function getArgentinaNoonDeadline() {
+  const now = Date.now();
+  const nowParts = getArgentinaDateParts(now);
+  const targetDate = new Date(Date.UTC(nowParts.year, nowParts.month - 1, nowParts.day));
+  const isAfterTargetTime =
+    nowParts.hour > MAINTENANCE_TARGET_HOUR ||
+    (nowParts.hour === MAINTENANCE_TARGET_HOUR && (nowParts.minute > 0 || nowParts.second > 0));
+
+  if (isAfterTargetTime) {
+    targetDate.setUTCDate(targetDate.getUTCDate() + 1);
   }
 
-  try {
-    const storedDeadline = Number.parseInt(window.localStorage.getItem(MAINTENANCE_DEADLINE_KEY) ?? "", 10);
+  const targetParts = {
+    year: targetDate.getUTCFullYear(),
+    month: targetDate.getUTCMonth() + 1,
+    day: targetDate.getUTCDate(),
+    hour: MAINTENANCE_TARGET_HOUR,
+    minute: 0,
+    second: 0,
+  };
 
-    if (Number.isFinite(storedDeadline) && storedDeadline > Date.now()) {
-      return storedDeadline;
-    }
+  const targetAsUtc = Date.UTC(targetParts.year, targetParts.month - 1, targetParts.day, targetParts.hour, targetParts.minute, targetParts.second);
+  const argentinaOffsetMs = getTimeZoneOffsetMs(ARGENTINA_TIMEZONE, targetAsUtc);
 
-    const nextDeadline = Date.now() + MAINTENANCE_DURATION_MS;
-    window.localStorage.setItem(MAINTENANCE_DEADLINE_KEY, String(nextDeadline));
-    return nextDeadline;
-  } catch {
-    return Date.now() + MAINTENANCE_DURATION_MS;
-  }
+  return targetAsUtc - argentinaOffsetMs;
 }
 
 function formatCountdown(remainingMs) {
@@ -66,11 +108,10 @@ function formatCountdown(remainingMs) {
 }
 
 function MaintenanceScreen() {
-  const [remainingMs, setRemainingMs] = useState(() => Math.max(resolveMaintenanceDeadline() - Date.now(), 0));
+  const [deadline] = useState(() => getArgentinaNoonDeadline());
+  const [remainingMs, setRemainingMs] = useState(() => Math.max(deadline - Date.now(), 0));
 
   useEffect(() => {
-    const deadline = resolveMaintenanceDeadline();
-
     function updateRemainingTime() {
       setRemainingMs(Math.max(deadline - Date.now(), 0));
     }
@@ -82,7 +123,7 @@ function MaintenanceScreen() {
     return () => {
       window.clearInterval(intervalId);
     };
-  }, []);
+  }, [deadline]);
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#020202] text-white">
@@ -126,7 +167,7 @@ function MaintenanceScreen() {
           <div className="mx-auto mt-8 max-w-md rounded-[1.5rem] border border-white/10 bg-black/22 px-6 py-5 shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
             <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-amber-100/70">Cuenta atras</p>
             <p className="mt-3 font-mono text-4xl font-black tracking-[0.16em] text-white sm:text-5xl">{formatCountdown(remainingMs)}</p>
-            <p className="mt-3 text-xs text-white/52">Tiempo estimado para la proxima actualizacion.</p>
+            <p className="mt-3 text-xs text-white/52">Cuenta atras global fijada a las 12 PM de Argentina.</p>
           </div>
 
           <p className="mt-8 text-sm font-semibold tracking-[0.18em] text-amber-100/80">MusicDB Beta 1.0.6</p>
