@@ -53,6 +53,7 @@ export default function AlbumPage() {
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const canInteract = hasActiveSession && isLoggedIn;
   const currentUserId = user?.id ?? null;
+  const canModerateReviews = user?.isAdmin === true;
 
   async function reloadReviews(nextAlbum = album) {
     if (!nextAlbum) {
@@ -666,7 +667,7 @@ export default function AlbumPage() {
                           </div>
                         </div>
                       </button>
-                      {review.user_id === currentUserId ? (
+                      {review.user_id === currentUserId || canModerateReviews ? (
                         <button
                           type="button"
                           onClick={() => handleDeleteReview(review.id)}

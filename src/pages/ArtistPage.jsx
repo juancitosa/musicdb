@@ -124,6 +124,7 @@ export default function ArtistPage() {
   const [artistRankingPosition, setArtistRankingPosition] = useState(null);
   const canInteract = hasActiveSession && isLoggedIn;
   const currentUserId = user?.id ?? null;
+  const canModerateReviews = user?.isAdmin === true;
 
   async function reloadReviews(nextArtist = artist) {
     if (!nextArtist) {
@@ -855,7 +856,7 @@ export default function ArtistPage() {
                           </div>
                         </div>
                       </button>
-                      {review.user_id === currentUserId ? (
+                      {review.user_id === currentUserId || canModerateReviews ? (
                         <button
                           type="button"
                           onClick={() => handleDeleteReview(review.id)}

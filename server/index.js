@@ -4972,6 +4972,7 @@ app.delete(
   asyncRoute(async (req, res) => {
     const reviewId = normalizeReviewId(req.params.review_id);
     const userId = normalizeUserId(req.user_id);
+    const currentUser = req.current_user;
 
     if (!reviewId || !userId) {
       throw createHttpError(400, "INVALID_REVIEW_DELETE", "review_id is required");
@@ -4980,8 +4981,8 @@ app.delete(
     const supabase = getSupabaseAdmin();
     const review = await getReviewById(supabase, reviewId);
 
-    if (review.user_id !== userId) {
-      throw createHttpError(403, "REVIEW_FORBIDDEN", "You can only delete your own review");
+    if (review.user_id !== userId && !currentUser?.is_admin) {
+      throw createHttpError(403, "REVIEW_FORBIDDEN", "You can only delete your own review unless you are an admin");
     }
 
     await deleteReviewById(supabase, reviewId);
