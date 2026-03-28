@@ -168,7 +168,12 @@ function MaintenanceScreen() {
             <p className="font-mono text-4xl font-black tracking-[0.16em] text-white sm:text-5xl">{formatCountdown(remainingMs)}</p>
           </div>
 
-          <p className="mt-8 text-sm font-semibold tracking-[0.18em] text-amber-100/80">MusicDB Beta 1.0.6</p>
+          <p className="maintenance-version mt-8 text-sm font-semibold tracking-[0.18em] text-amber-100/80">
+            MusicDB Beta 1.0.
+            <span className="maintenance-glitch-digit" data-text="6">
+              6
+            </span>
+          </p>
         </div>
       </div>
     </div>
