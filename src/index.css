@@ -314,6 +314,65 @@ h6 {
   isolation: isolate;
 }
 
+.maintenance-page::before {
+  content: "";
+  position: absolute;
+  inset: -8%;
+  z-index: 0;
+  background:
+    radial-gradient(circle at 14% 22%, rgba(122, 92, 255, 0.18), transparent 24%),
+    radial-gradient(circle at 86% 20%, rgba(245, 158, 11, 0.12), transparent 20%),
+    radial-gradient(circle at 18% 82%, rgba(255, 255, 255, 0.05), transparent 18%),
+    radial-gradient(circle at 82% 78%, rgba(122, 92, 255, 0.12), transparent 24%);
+  filter: blur(52px);
+  opacity: 0.92;
+  pointer-events: none;
+  animation: maintenance-page-aura 12s ease-in-out infinite;
+}
+
+.maintenance-shell {
+  position: relative;
+  animation: maintenance-shell-float 7s ease-in-out infinite;
+}
+
+.maintenance-wrench-wrap {
+  position: relative;
+}
+
+.maintenance-wrench-wrap::before {
+  content: "";
+  position: absolute;
+  inset: -12px;
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(245, 158, 11, 0.18), transparent 62%);
+  filter: blur(12px);
+  opacity: 0.75;
+  animation: maintenance-orbit-glow 3.6s ease-in-out infinite;
+}
+
+.maintenance-wrench-icon {
+  animation: maintenance-wrench-pulse 3.6s ease-in-out infinite;
+}
+
+.maintenance-countdown {
+  position: relative;
+  overflow: hidden;
+}
+
+.maintenance-countdown::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent 0%, transparent 35%, rgba(255, 255, 255, 0.12) 50%, transparent 65%, transparent 100%);
+  transform: translateX(-160%);
+  animation: maintenance-countdown-sheen 4.8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.maintenance-coming {
+  animation: maintenance-coming-flicker 6s ease-in-out infinite;
+}
+
 .maintenance-glitch-swap {
   position: relative;
   display: inline-grid;
@@ -460,6 +519,112 @@ h6 {
   92% {
     opacity: 1;
     transform: translate(0);
+  }
+}
+
+@keyframes maintenance-shell-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes maintenance-wrench-pulse {
+  0%,
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+
+  18% {
+    transform: scale(1.06) rotate(-4deg);
+  }
+
+  36% {
+    transform: scale(1) rotate(4deg);
+  }
+
+  54% {
+    transform: scale(1.08) rotate(-3deg);
+  }
+
+  72% {
+    transform: scale(1) rotate(2deg);
+  }
+}
+
+@keyframes maintenance-orbit-glow {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(0.94);
+  }
+
+  50% {
+    opacity: 0.9;
+    transform: scale(1.06);
+  }
+}
+
+@keyframes maintenance-countdown-sheen {
+  0%,
+  100% {
+    transform: translateX(-160%);
+    opacity: 0;
+  }
+
+  18% {
+    opacity: 0;
+  }
+
+  34% {
+    transform: translateX(160%);
+    opacity: 0.65;
+  }
+
+  40% {
+    opacity: 0;
+  }
+}
+
+@keyframes maintenance-coming-flicker {
+  0%,
+  100% {
+    opacity: 0.46;
+    letter-spacing: 0.28em;
+  }
+
+  48% {
+    opacity: 0.46;
+  }
+
+  52% {
+    opacity: 0.9;
+    letter-spacing: 0.34em;
+  }
+
+  56% {
+    opacity: 0.34;
+  }
+
+  60% {
+    opacity: 0.78;
+  }
+}
+
+@keyframes maintenance-page-aura {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.78;
+  }
+
+  50% {
+    transform: translate3d(0, -14px, 0) scale(1.04);
+    opacity: 0.98;
   }
 }
 

@@ -62,14 +62,14 @@ function MaintenanceScreen() {
   }, []);
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#020202] text-white">
+    <div className="maintenance-page relative min-h-screen overflow-hidden bg-[#020202] text-white">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.08),transparent_20%),radial-gradient(circle_at_bottom,rgba(113,94,255,0.14),transparent_24%)]" />
       <div className="absolute inset-0 backdrop-blur-sm" />
 
       <div className="relative flex min-h-screen items-center justify-center px-6 py-12">
-        <div className="w-full max-w-2xl rounded-[2rem] border border-white/10 bg-white/6 p-8 text-center shadow-[0_30px_120px_rgba(0,0,0,0.6)] ring-1 ring-white/8 backdrop-blur-3xl sm:p-12">
-          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full border border-amber-300/20 bg-amber-200/10 text-amber-100 shadow-[0_0_40px_rgba(245,158,11,0.18)]">
-            <Wrench className="h-9 w-9" />
+        <div className="maintenance-shell w-full max-w-2xl rounded-[2rem] border border-white/10 bg-white/6 p-8 text-center shadow-[0_30px_120px_rgba(0,0,0,0.6)] ring-1 ring-white/8 backdrop-blur-3xl sm:p-12">
+          <div className="maintenance-wrench-wrap mx-auto flex h-20 w-20 items-center justify-center rounded-full border border-amber-300/20 bg-amber-200/10 text-amber-100 shadow-[0_0_40px_rgba(245,158,11,0.18)]">
+            <Wrench className="maintenance-wrench-icon h-9 w-9" />
           </div>
 
           <p className="mt-6 text-[11px] font-semibold uppercase tracking-[0.32em] text-amber-100/75">Mantenimiento</p>
@@ -100,9 +100,13 @@ function MaintenanceScreen() {
             </a>
           </div>
 
-          <div className="mx-auto mt-8 max-w-md rounded-[1.5rem] border border-white/10 bg-black/22 px-6 py-5 shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
+          <div className="maintenance-countdown mx-auto mt-8 max-w-md rounded-[1.5rem] border border-white/10 bg-black/22 px-6 py-5 shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
             <p className="font-mono text-4xl font-black tracking-[0.16em] text-white sm:text-5xl">{formatCountdown(remainingMs)}</p>
           </div>
+
+          <p className="maintenance-coming mt-5 text-xs font-semibold uppercase tracking-[0.28em] text-white/46">
+            Algo nuevo se esta preparando
+          </p>
 
           <p className="maintenance-version mt-8 text-sm font-semibold tracking-[0.18em] text-amber-100/80">
             MusicDB Beta 1.0.

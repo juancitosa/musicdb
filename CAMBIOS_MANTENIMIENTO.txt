@@ -1,0 +1,22 @@
+VERSION 1.0.6 29/03
+
+OBJETIVO
+- Llevar a la carpeta raiz el diseño final de la pantalla de mantenimiento probado antes en la carpeta de pruebas.
+
+CAMBIOS APLICADOS
+- Se mantuvo MAINTENANCE_MODE = false en src/App.jsx para no activar mantenimiento por accidente.
+- Se incorporaron las clases visuales de la pantalla final de mantenimiento.
+- Se agregaron animaciones suaves al recuadro, al icono de herramienta, al contador y a la frase secundaria.
+- Se agrego un fade atmosferico en el fondo general de la pagina para sumar misterio sin ensuciar el recuadro principal.
+
+ALCANCE
+- Solo se tocaron src/App.jsx y src/index.css.
+- No se tocaron .env, base de datos, backend ni servicios externos.
+
+SEGURIDAD DE ACTIVACION
+- El modo mantenimiento queda preparado pero apagado.
+- Para activarlo en el futuro, alcanza con cambiar MAINTENANCE_MODE a true en src/App.jsx.
+
+PRUEBAS REALIZADAS
+- Se valido visualmente en la carpeta de pruebas.
+- Se dejo pendiente build local de la carpeta raiz despues de trasladar los cambios.
