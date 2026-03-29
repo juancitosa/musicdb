@@ -1086,6 +1086,29 @@ async function getUserById(supabase, userId) {
   return syncExpiredProStatusIfNeeded(supabase, data);
 }
 
+async function getUserByUsername(supabase, username) {
+  const normalizedUsername = normalizeUsername(username);
+
+  if (!normalizedUsername) {
+    throw createHttpError(400, "INVALID_USERNAME", "A valid username is required");
+  }
+
+  const userSelect = await buildUserSelect(supabase);
+  const { data, error } = await supabase
+    .from("users")
+    .select(userSelect)
+    .eq("username", normalizedUsername)
+    .maybeSingle();
+
+  handleSupabaseError(error, "Failed to fetch user by username");
+
+  if (!data) {
+    throw createHttpError(404, "USER_NOT_FOUND", "User not found");
+  }
+
+  return syncExpiredProStatusIfNeeded(supabase, data);
+}
+
 async function getPublicUserPreviewById(supabase, userId) {
   const normalizedUserId = normalizeUserId(userId);
 
@@ -1124,6 +1147,408 @@ async function getPublicUserPreviewById(supabase, userId) {
     banner_url: profile?.banner_url || "",
     is_pro: mapUserRecord(syncedUser).is_pro,
   };
+}
+
+const ACHIEVEMENT_DEFINITIONS = {
+  first_rating: {
+    key: "first_rating",
+    name: "Primer voto",
+    description: "Califico su primer artista o album en MusicDB.",
+    unlock_message: "Votaste por primera vez a un artista o album. Puedes ver esta medalla en tu perfil.",
+    tier: "bronze",
+    tier_label: "Medalla de bronce",
+    icon: "star",
+  },
+  critic_voice: {
+    key: "critic_voice",
+    name: "Voz critica",
+    description: "Publico su primera resena dentro de MusicDB.",
+    unlock_message: "Publicaste tu primera resena en MusicDB. Ya puedes verla reflejada en tu perfil.",
+    tier: "silver",
+    tier_label: "Medalla de plata",
+    icon: "message",
+  },
+  golden_circle: {
+    key: "golden_circle",
+    name: "Circulo dorado",
+    description: "Supero los 50 ranks de artistas dentro de la comunidad.",
+    unlock_message: "Superaste los 50 ranks de artistas y desbloqueaste una medalla dorada.",
+    tier: "gold",
+    tier_label: "Medalla de oro",
+    icon: "spark",
+  },
+};
+
+function mapAchievementRecord(record) {
+  const definition = ACHIEVEMENT_DEFINITIONS[record?.achievement_key];
+
+  if (!definition) {
+    return null;
+  }
+
+  return {
+    ...definition,
+    unlocked_at: record?.unlocked_at ?? null,
+  };
+}
+
+async function getPublicUserProfileByUsername(supabase, username, currentUserId = null) {
+  const normalizedUsername = normalizeUsername(username);
+
+  if (!normalizedUsername) {
+    throw createHttpError(400, "INVALID_USERNAME", "A valid username is required");
+  }
+
+  const userSelect = await buildUserSelect(supabase);
+  const { data: user, error: userError } = await supabase
+    .from("users")
+    .select(userSelect)
+    .eq("username", normalizedUsername)
+    .maybeSingle();
+
+  handleSupabaseError(userError, "Failed to fetch public user by username");
+
+  if (!user) {
+    throw createHttpError(404, "USER_NOT_FOUND", "User not found");
+  }
+
+  const syncedUser = await syncExpiredProStatusIfNeeded(supabase, user);
+  const [
+    profileResult,
+    ratingsCountResult,
+    reviewsCountResult,
+    recentRatings,
+    reviewIdsResult,
+    followersCount,
+    followingCount,
+    followRecord,
+    achievements,
+  ] = await Promise.all([
+    supabase.from("profiles").select("*").eq("id", syncedUser.id).maybeSingle(),
+    supabase.from("ratings").select("id", { count: "exact", head: true }).eq("user_id", syncedUser.id),
+    supabase.from("reviews").select("id", { count: "exact", head: true }).eq("user_id", syncedUser.id),
+    getRatingsHistoryForUser(supabase, syncedUser.id),
+    supabase.from("reviews").select("id").eq("user_id", syncedUser.id),
+    countUserFollowers(supabase, syncedUser.id),
+    countUserFollowing(supabase, syncedUser.id),
+    currentUserId ? getFollowRecordByUsers(supabase, { followerUserId: currentUserId, followedUserId: syncedUser.id }) : Promise.resolve(null),
+    getUserAchievements(supabase, syncedUser.id),
+  ]);
+
+  const { data: profile, error: profileError } = profileResult;
+  const { count: ratingsCount, error: ratingsCountError } = ratingsCountResult;
+  const { count: reviewsCount, error: reviewsCountError } = reviewsCountResult;
+  const { data: reviewIds, error: reviewIdsError } = reviewIdsResult;
+
+  if (profileError && !isNotFoundError(profileError)) {
+    handleSupabaseError(profileError, "Failed to fetch public profile record");
+  }
+
+  handleSupabaseError(ratingsCountError, "Failed to count user ratings");
+  handleSupabaseError(reviewsCountError, "Failed to count user reviews");
+  handleSupabaseError(reviewIdsError, "Failed to fetch user review ids");
+
+  let likesReceived = 0;
+
+  if ((reviewIds ?? []).length > 0) {
+    const { count: likesCount, error: likesCountError } = await supabase
+      .from("review_likes")
+      .select("id", { count: "exact", head: true })
+      .in(
+        "review_id",
+        reviewIds
+          .map((review) => review?.id)
+          .filter(Boolean),
+      );
+
+    handleSupabaseError(likesCountError, "Failed to count review likes");
+    likesReceived = Number(likesCount || 0);
+  }
+
+  const recentRatingsWithEntityData = await Promise.all(
+    recentRatings.slice(0, 3).map(async (rating) => {
+      const cacheRecord = await readEntityCacheRecord(supabase, rating.entity_type, rating.entity_id);
+
+      return {
+        ...rating,
+        entity_name: cacheRecord?.name || rating.entity_id,
+        entity_subtitle: cacheRecord?.subtitle || (rating.entity_type === "artist" ? "Artista" : "Album"),
+        artwork_url: cacheRecord?.image_url || "",
+      };
+    }),
+  );
+
+  return {
+    id: syncedUser.id,
+    username: syncedUser.username || syncedUser.display_name || "Usuario",
+    display_name: syncedUser.display_name || syncedUser.username || "Usuario",
+    avatar_url: syncedUser.avatar_url || "",
+    banner_url: profile?.banner_url || "",
+    bio: typeof profile?.bio === "string" ? profile.bio : "",
+    is_pro: mapUserRecord(syncedUser).is_pro,
+    pro_until: syncedUser.pro_until ?? null,
+    joined_at: syncedUser.created_at ?? null,
+    is_following: Boolean(followRecord?.id),
+    is_own_profile: currentUserId === syncedUser.id,
+    stats: {
+      ratings_count: Number(ratingsCount || 0),
+      reviews_count: Number(reviewsCount || 0),
+      followers_count: followersCount,
+      following_count: followingCount,
+      likes_received: likesReceived,
+    },
+    achievements,
+    recent_ratings: recentRatingsWithEntityData,
+  };
+}
+
+async function getUserAchievements(supabase, userId) {
+  const { data, error } = await supabase
+    .from("user_achievements")
+    .select("achievement_key, unlocked_at")
+    .eq("user_id", userId)
+    .order("unlocked_at", { ascending: true });
+
+  if (isMissingRelationError(error)) {
+    throw createHttpError(500, "USER_ACHIEVEMENTS_SCHEMA_MISSING", "Missing user_achievements table required for achievements");
+  }
+
+  handleSupabaseError(error, "Failed to fetch user achievements");
+
+  return (data ?? []).map(mapAchievementRecord).filter(Boolean);
+}
+
+async function unlockAchievementIfMissing(supabase, { userId, achievementKey }) {
+  const definition = ACHIEVEMENT_DEFINITIONS[achievementKey];
+
+  if (!definition) {
+    return null;
+  }
+
+  const { data: existingAchievement, error: existingAchievementError } = await supabase
+    .from("user_achievements")
+    .select("achievement_key, unlocked_at")
+    .eq("user_id", userId)
+    .eq("achievement_key", achievementKey)
+    .maybeSingle();
+
+  if (isMissingRelationError(existingAchievementError)) {
+    throw createHttpError(500, "USER_ACHIEVEMENTS_SCHEMA_MISSING", "Missing user_achievements table required for achievements");
+  }
+
+  handleSupabaseError(existingAchievementError, "Failed to inspect user achievement");
+
+  if (existingAchievement) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from("user_achievements")
+    .insert({
+      user_id: userId,
+      achievement_key: achievementKey,
+    })
+    .select("achievement_key, unlocked_at")
+    .single();
+
+  if (isMissingRelationError(error)) {
+    throw createHttpError(500, "USER_ACHIEVEMENTS_SCHEMA_MISSING", "Missing user_achievements table required for achievements");
+  }
+
+  handleSupabaseError(error, "Failed to unlock user achievement");
+
+  return mapAchievementRecord(data);
+}
+
+async function countUserArtistRatings(supabase, userId) {
+  const { count, error } = await supabase
+    .from("ratings")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("entity_type", "artist");
+
+  handleSupabaseError(error, "Failed to count user artist ratings");
+  return Number(count || 0);
+}
+
+async function collectUnlockedAchievementsForRating(supabase, { userId, entityType, isNewRating }) {
+  const unlockedAchievements = [];
+
+  if (isNewRating) {
+    const firstRatingAchievement = await unlockAchievementIfMissing(supabase, {
+      userId,
+      achievementKey: "first_rating",
+    });
+
+    if (firstRatingAchievement) {
+      unlockedAchievements.push(firstRatingAchievement);
+    }
+  }
+
+  if (isNewRating && entityType === "artist") {
+    const artistRatingsCount = await countUserArtistRatings(supabase, userId);
+
+    if (artistRatingsCount > 50) {
+      const goldenCircleAchievement = await unlockAchievementIfMissing(supabase, {
+        userId,
+        achievementKey: "golden_circle",
+      });
+
+      if (goldenCircleAchievement) {
+        unlockedAchievements.push(goldenCircleAchievement);
+      }
+    }
+  }
+
+  return unlockedAchievements;
+}
+
+async function collectUnlockedAchievementsForReview(supabase, { userId }) {
+  const criticVoiceAchievement = await unlockAchievementIfMissing(supabase, {
+    userId,
+    achievementKey: "critic_voice",
+  });
+
+  return criticVoiceAchievement ? [criticVoiceAchievement] : [];
+}
+
+async function countUserFollowers(supabase, userId) {
+  const { count, error } = await supabase.from("user_follows").select("id", { count: "exact", head: true }).eq("followed_user_id", userId);
+
+  if (isMissingRelationError(error)) {
+    throw createHttpError(500, "USER_FOLLOWS_SCHEMA_MISSING", "Missing user_follows table required for social profiles");
+  }
+
+  handleSupabaseError(error, "Failed to count user followers");
+  return Number(count || 0);
+}
+
+async function countUserFollowing(supabase, userId) {
+  const { count, error } = await supabase.from("user_follows").select("id", { count: "exact", head: true }).eq("follower_user_id", userId);
+
+  if (isMissingRelationError(error)) {
+    throw createHttpError(500, "USER_FOLLOWS_SCHEMA_MISSING", "Missing user_follows table required for social profiles");
+  }
+
+  handleSupabaseError(error, "Failed to count user following");
+  return Number(count || 0);
+}
+
+async function getFollowRecordByUsers(supabase, { followerUserId, followedUserId }) {
+  const { data, error } = await supabase
+    .from("user_follows")
+    .select("id, follower_user_id, followed_user_id, created_at")
+    .eq("follower_user_id", followerUserId)
+    .eq("followed_user_id", followedUserId)
+    .maybeSingle();
+
+  if (isMissingRelationError(error)) {
+    throw createHttpError(500, "USER_FOLLOWS_SCHEMA_MISSING", "Missing user_follows table required for social profiles");
+  }
+
+  handleSupabaseError(error, "Failed to fetch follow record");
+  return data ?? null;
+}
+
+async function createUserFollow(supabase, { followerUserId, followedUserId }) {
+  const { data, error } = await supabase
+    .from("user_follows")
+    .insert({
+      follower_user_id: followerUserId,
+      followed_user_id: followedUserId,
+    })
+    .select("id, follower_user_id, followed_user_id, created_at")
+    .single();
+
+  if (isMissingRelationError(error)) {
+    throw createHttpError(500, "USER_FOLLOWS_SCHEMA_MISSING", "Missing user_follows table required for social profiles");
+  }
+
+  if (error?.code === "23505") {
+    return getFollowRecordByUsers(supabase, { followerUserId, followedUserId });
+  }
+
+  handleSupabaseError(error, "Failed to create user follow");
+  return data;
+}
+
+async function deleteUserFollowById(supabase, followId) {
+  const { error } = await supabase.from("user_follows").delete().eq("id", followId);
+
+  if (isMissingRelationError(error)) {
+    throw createHttpError(500, "USER_FOLLOWS_SCHEMA_MISSING", "Missing user_follows table required for social profiles");
+  }
+
+  handleSupabaseError(error, "Failed to delete user follow");
+}
+
+async function listUsersByIdsInOrder(supabase, userIds = []) {
+  const normalizedUserIds = [...new Set(userIds.map((userId) => normalizeUserId(userId)).filter(Boolean))];
+
+  if (normalizedUserIds.length === 0) {
+    return [];
+  }
+
+  const userSelect = await buildUserSelect(supabase);
+  const { data, error } = await supabase.from("users").select(userSelect).in("id", normalizedUserIds);
+
+  handleSupabaseError(error, "Failed to fetch users for social list");
+
+  const syncedUsers = await Promise.all((data ?? []).map((user) => syncExpiredProStatusIfNeeded(supabase, user)));
+  const byId = new Map(syncedUsers.map((user) => [user.id, user]));
+
+  return normalizedUserIds
+    .map((userId) => byId.get(userId))
+    .filter(Boolean)
+    .map((user) => ({
+      id: user.id,
+      username: user.username || user.display_name || "usuario",
+      display_name: user.display_name || user.username || "Usuario",
+      avatar_url: user.avatar_url || "",
+      is_pro: mapUserRecord(user).is_pro,
+    }));
+}
+
+async function listFollowersForUser(supabase, userId) {
+  const { data, error } = await supabase
+    .from("user_follows")
+    .select("follower_user_id, created_at")
+    .eq("followed_user_id", userId)
+    .order("created_at", { ascending: false });
+
+  if (isMissingRelationError(error)) {
+    throw createHttpError(500, "USER_FOLLOWS_SCHEMA_MISSING", "Missing user_follows table required for social profiles");
+  }
+
+  handleSupabaseError(error, "Failed to fetch followers");
+
+  const users = await listUsersByIdsInOrder(
+    supabase,
+    (data ?? []).map((entry) => entry.follower_user_id),
+  );
+
+  return users;
+}
+
+async function listFollowingForUser(supabase, userId) {
+  const { data, error } = await supabase
+    .from("user_follows")
+    .select("followed_user_id, created_at")
+    .eq("follower_user_id", userId)
+    .order("created_at", { ascending: false });
+
+  if (isMissingRelationError(error)) {
+    throw createHttpError(500, "USER_FOLLOWS_SCHEMA_MISSING", "Missing user_follows table required for social profiles");
+  }
+
+  handleSupabaseError(error, "Failed to fetch following");
+
+  const users = await listUsersByIdsInOrder(
+    supabase,
+    (data ?? []).map((entry) => entry.followed_user_id),
+  );
+
+  return users;
 }
 
 async function getProfileBannerUrlByUserId(supabase, userId) {
@@ -4307,6 +4732,114 @@ app.get(
 );
 
 app.get(
+  "/api/users/public/:username",
+  authenticateOptionalAppUser,
+  asyncRoute(async (req, res) => {
+    const supabase = getSupabaseAdmin();
+    const user = await getPublicUserProfileByUsername(supabase, req.params.username, normalizeUserId(req.user_id));
+
+    res.json({ user });
+  }),
+);
+
+app.post(
+  "/api/users/public/:username/follow",
+  authenticateAppUser,
+  asyncRoute(async (req, res) => {
+    const followerUserId = normalizeUserId(req.user_id);
+    const supabase = getSupabaseAdmin();
+    const targetUser = await getUserByUsername(supabase, req.params.username);
+
+    if (!followerUserId || !targetUser?.id) {
+      throw createHttpError(400, "INVALID_FOLLOW_PAYLOAD", "A valid target user is required");
+    }
+
+    if (followerUserId === targetUser.id) {
+      throw createHttpError(400, "FOLLOW_SELF_FORBIDDEN", "You cannot follow your own profile");
+    }
+
+    await createUserFollow(supabase, {
+      followerUserId,
+      followedUserId: targetUser.id,
+    });
+
+    const followersCount = await countUserFollowers(supabase, targetUser.id);
+    res.status(201).json({ following: true, followers_count: followersCount });
+  }),
+);
+
+app.delete(
+  "/api/users/public/:username/follow",
+  authenticateAppUser,
+  asyncRoute(async (req, res) => {
+    const followerUserId = normalizeUserId(req.user_id);
+    const supabase = getSupabaseAdmin();
+    const targetUser = await getUserByUsername(supabase, req.params.username);
+
+    if (!followerUserId || !targetUser?.id) {
+      throw createHttpError(400, "INVALID_FOLLOW_PAYLOAD", "A valid target user is required");
+    }
+
+    if (followerUserId === targetUser.id) {
+      throw createHttpError(400, "FOLLOW_SELF_FORBIDDEN", "You cannot unfollow your own profile");
+    }
+
+    const followRecord = await getFollowRecordByUsers(supabase, {
+      followerUserId,
+      followedUserId: targetUser.id,
+    });
+
+    if (followRecord?.id) {
+      await deleteUserFollowById(supabase, followRecord.id);
+    }
+
+    const followersCount = await countUserFollowers(supabase, targetUser.id);
+    res.json({ following: false, followers_count: followersCount });
+  }),
+);
+
+app.get(
+  "/api/users/me/followers",
+  authenticateAppUser,
+  asyncRoute(async (req, res) => {
+    const userId = normalizeUserId(req.user_id);
+    const supabase = getSupabaseAdmin();
+    const users = await listFollowersForUser(supabase, userId);
+
+    res.json({ users });
+  }),
+);
+
+app.get(
+  "/api/users/me/following",
+  authenticateAppUser,
+  asyncRoute(async (req, res) => {
+    const userId = normalizeUserId(req.user_id);
+    const supabase = getSupabaseAdmin();
+    const users = await listFollowingForUser(supabase, userId);
+
+    res.json({ users });
+  }),
+);
+
+app.get(
+  "/api/users/me/achievements",
+  authenticateAppUser,
+  asyncRoute(async (req, res) => {
+    const userId = normalizeUserId(req.user_id);
+
+    if (!userId) {
+      throw createHttpError(400, "INVALID_USER_ID", "A valid user_id is required");
+    }
+
+    const supabase = getSupabaseAdmin();
+    const achievements = await getUserAchievements(supabase, userId);
+
+    res.json({ achievements });
+  }),
+);
+
+app.get(
   "/api/admin/users",
   authenticateAppUser,
   asyncRoute(async (req, res) => {
@@ -4705,6 +5238,11 @@ app.post(
       entityId,
       ratingValue,
     });
+    const achievementsUnlocked = await collectUnlockedAchievementsForRating(supabase, {
+      userId,
+      entityType,
+      isNewRating: !existingRating.id,
+    });
 
     invalidateCachedRankings(entityType);
 
@@ -4718,6 +5256,7 @@ app.post(
       rating,
       summary,
       usage,
+      achievements_unlocked: achievementsUnlocked,
     });
   }),
 );
@@ -4850,10 +5389,11 @@ app.post(
       reviewText,
       ratingValue,
     });
+    const achievementsUnlocked = await collectUnlockedAchievementsForReview(supabase, { userId });
 
     const usage = await getDailyUsageStatus(supabase, currentUser);
 
-    res.status(201).json({ review, usage });
+    res.status(201).json({ review, usage, achievements_unlocked: achievementsUnlocked });
   }),
 );
 

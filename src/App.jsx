@@ -19,6 +19,7 @@ import NotFoundPage from "./pages/NotFoundPage";
 import ProPage from "./pages/ProPage";
 import ProfilePage from "./pages/ProfilePage";
 import PrivacyPage from "./pages/PrivacyPage";
+import PublicProfilePage from "./pages/PublicProfilePage";
 import RegisterPage from "./pages/RegisterPage";
 import SearchPage from "./pages/SearchPage";
 import TermsPage from "./pages/TermsPage";
@@ -152,6 +153,7 @@ export default function App() {
                   <Route path="/verify-email" element={<VerifyEmailPage />} />
                   <Route path="/profile" element={<ProfilePage />} />
                   <Route path="/profile/stats" element={<ProfilePage />} />
+                  <Route path="/u/:username" element={<PublicProfilePage />} />
                   <Route path="*" element={<NotFoundPage />} />
                 </Routes>
               </AppLayout>

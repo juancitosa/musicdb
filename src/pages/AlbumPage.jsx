@@ -3,16 +3,16 @@ import { Heart, MessageCircle, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
+import AchievementUnlockModal from "../components/shared/AchievementUnlockModal";
 import AuthRestrictionMessage from "../components/shared/AuthRestrictionMessage";
 import PopularityBar from "../components/shared/PopularityBar";
 import RatingStars from "../components/shared/RatingStars";
-import UserPreviewModal from "../components/shared/UserPreviewModal";
 import Button from "../components/ui/Button";
 import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../hooks/useToast";
 import { getMockAlbum, getMockAlbumTracks, getMockArtist } from "../services/catalog";
 import { DEFAULT_RATINGS_SUMMARY, getRatings, getUserRating, submitRating } from "../services/ratingHistory";
-import { createReview, createReviewReply, deleteReview, deleteReviewReply, fetchPublicUserPreview, getReviews, toggleReviewLike } from "../services/reviewHistory";
+import { createReview, createReviewReply, deleteReview, deleteReviewReply, getReviews, toggleReviewLike } from "../services/reviewHistory";
 import { formatTrackDuration, getAlbumById, getImageUrl } from "../services/spotify";
 
 function formatReviewDate(value) {
@@ -21,6 +21,16 @@ function formatReviewDate(value) {
     month: "short",
     year: "numeric",
   }).format(new Date(value));
+}
+
+function getReviewProfileHref(reviewLike) {
+  const username = String(reviewLike?.username ?? "").trim();
+
+  if (!username) {
+    return null;
+  }
+
+  return `/u/${username}`;
 }
 
 export default function AlbumPage() {
@@ -48,12 +58,11 @@ export default function AlbumPage() {
   const [expandedReplyComposerId, setExpandedReplyComposerId] = useState(null);
   const [togglingLikeReviewId, setTogglingLikeReviewId] = useState(null);
   const [animatingLikeReviewId, setAnimatingLikeReviewId] = useState(null);
-  const [previewUser, setPreviewUser] = useState(null);
-  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const [achievementQueue, setAchievementQueue] = useState([]);
   const canInteract = hasActiveSession && isLoggedIn;
   const currentUserId = user?.id ?? null;
   const canModerateReviews = user?.isAdmin === true;
+  const activeAchievement = achievementQueue[0] ?? null;
 
   async function reloadReviews(nextAlbum = album) {
     if (!nextAlbum) {
@@ -63,6 +72,18 @@ export default function AlbumPage() {
 
     const nextReviews = await getReviews("album", String(nextAlbum.id), appToken);
     setReviews(nextReviews);
+  }
+
+  function enqueueUnlockedAchievements(unlockedAchievements = []) {
+    if (!Array.isArray(unlockedAchievements) || unlockedAchievements.length === 0) {
+      return;
+    }
+
+    setAchievementQueue((currentQueue) => [...currentQueue, ...unlockedAchievements]);
+  }
+
+  function closeAchievementModal() {
+    setAchievementQueue((currentQueue) => currentQueue.slice(1));
   }
 
   useEffect(() => {
@@ -225,6 +246,7 @@ export default function AlbumPage() {
 
       setUserRating(nextRating);
       setRatingsSummary(response.summary ?? DEFAULT_RATINGS_SUMMARY);
+      enqueueUnlockedAchievements(response.achievements_unlocked);
       if (response?.usage && !response.usage.is_pro && response.usage.remaining?.ratings !== null) {
         toast({
           title: "Puntuación guardada",
@@ -269,6 +291,7 @@ export default function AlbumPage() {
 
       await reloadReviews();
       setReviewText("");
+      enqueueUnlockedAchievements(response.achievements_unlocked);
       if (response?.usage && !response.usage.is_pro && response.usage.remaining?.reviews !== null) {
         toast({
           title: "Reseña guardada",
@@ -418,37 +441,6 @@ export default function AlbumPage() {
       setReviewError("No pudimos eliminar la respuesta.");
     } finally {
       setDeletingReplyId(null);
-    }
-  }
-
-  async function handleOpenUserPreview(review) {
-    if (!review?.user_id) {
-      return;
-    }
-
-    setIsPreviewOpen(true);
-    setIsPreviewLoading(true);
-    setPreviewUser({
-      id: review.user_id,
-      username: review.username,
-      avatar_url: review.avatar_url,
-      banner_url: "",
-      is_pro: review.is_pro,
-    });
-
-    try {
-      const nextUser = await fetchPublicUserPreview(review.user_id);
-      setPreviewUser(nextUser);
-    } catch {
-      setPreviewUser({
-        id: review.user_id,
-        username: review.username,
-        avatar_url: review.avatar_url,
-        banner_url: "",
-        is_pro: review.is_pro,
-      });
-    } finally {
-      setIsPreviewLoading(false);
     }
   }
 
@@ -644,29 +636,30 @@ export default function AlbumPage() {
                   Cargando reseñas...
                 </div>
               ) : reviews.length > 0 ? (
-                reviews.map((review) => (
+                reviews.map((review) => {
+                  const reviewProfileHref = getReviewProfileHref(review);
+
+                  return (
                   <div key={review.id} className={`rounded-2xl border p-4 ${review.is_pro ? "pro-review-card" : "border-border/70 bg-background/50"}`}>
                     <div className="mb-3 flex items-start justify-between gap-4">
-                      <button
-                        type="button"
-                        onClick={() => handleOpenUserPreview(review)}
-                        className="flex min-w-0 cursor-pointer items-start gap-3 text-left transition hover:opacity-90"
-                      >
-                        {review.avatar_url ? (
-                          <img src={review.avatar_url} alt={review.username} className="h-10 w-10 shrink-0 rounded-full object-cover" />
-                        ) : (
-                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-semibold text-muted-foreground">
-                            {(review.username ?? "U").charAt(0).toUpperCase()}
+                      {reviewProfileHref ? (
+                        <Link to={reviewProfileHref} className="flex min-w-0 items-start gap-3 text-left transition hover:opacity-90">
+                          {review.avatar_url ? (
+                            <img src={review.avatar_url} alt={review.username} className="h-10 w-10 shrink-0 rounded-full object-cover" />
+                          ) : (
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-semibold text-muted-foreground">
+                              {(review.username ?? "U").charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                          <div className="min-w-0 pt-0.5">
+                            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                              <span className={`font-semibold ${review.is_pro ? "pro-username" : ""}`}>{review.username}</span>
+                              {review.is_pro ? <Star className="h-4 w-4 fill-current pro-username" /> : null}
+                              <span className="text-xs text-muted-foreground">{formatReviewDate(review.created_at)}</span>
+                            </div>
                           </div>
-                        )}
-                        <div className="min-w-0 pt-0.5">
-                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                            <span className={`font-semibold ${review.is_pro ? "pro-username" : ""}`}>{review.username}</span>
-                            {review.is_pro ? <Star className="h-4 w-4 fill-current pro-username" /> : null}
-                            <span className="text-xs text-muted-foreground">{formatReviewDate(review.created_at)}</span>
-                          </div>
-                        </div>
-                      </button>
+                        </Link>
+                      ) : null}
                       {review.user_id === currentUserId || canModerateReviews ? (
                         <button
                           type="button"
@@ -712,29 +705,30 @@ export default function AlbumPage() {
 
                     {review.replies.length > 0 ? (
                       <div className="mt-4 space-y-3 border-l border-border/80 pl-4">
-                        {review.replies.map((reply) => (
+                        {review.replies.map((reply) => {
+                          const replyProfileHref = getReviewProfileHref(reply);
+
+                          return (
                           <div key={reply.id} className="rounded-xl border border-border/60 bg-black/10 p-3">
                             <div className="mb-2 flex items-start justify-between gap-3">
-                              <button
-                                type="button"
-                                onClick={() => handleOpenUserPreview(reply)}
-                                className="flex min-w-0 items-start gap-3 text-left transition hover:opacity-90"
-                              >
-                                {reply.avatar_url ? (
-                                  <img src={reply.avatar_url} alt={reply.username} className="h-8 w-8 shrink-0 rounded-full object-cover" />
-                                ) : (
-                                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-muted-foreground">
-                                    {(reply.username ?? "").trim() ? (reply.username ?? "U").charAt(0).toUpperCase() : <UserRound className="h-3.5 w-3.5" />}
+                              {replyProfileHref ? (
+                                <Link to={replyProfileHref} className="flex min-w-0 items-start gap-3 text-left transition hover:opacity-90">
+                                  {reply.avatar_url ? (
+                                    <img src={reply.avatar_url} alt={reply.username} className="h-8 w-8 shrink-0 rounded-full object-cover" />
+                                  ) : (
+                                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-muted-foreground">
+                                      {(reply.username ?? "").trim() ? (reply.username ?? "U").charAt(0).toUpperCase() : <UserRound className="h-3.5 w-3.5" />}
+                                    </div>
+                                  )}
+                                  <div className="min-w-0">
+                                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                      <span className={`text-sm font-semibold ${reply.is_pro ? "pro-username" : ""}`}>{reply.username}</span>
+                                      {reply.is_pro ? <Star className="h-3.5 w-3.5 fill-current pro-username" /> : null}
+                                      <span className="text-[11px] text-muted-foreground">{formatReviewDate(reply.created_at)}</span>
+                                    </div>
                                   </div>
-                                )}
-                                <div className="min-w-0">
-                                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                                    <span className={`text-sm font-semibold ${reply.is_pro ? "pro-username" : ""}`}>{reply.username}</span>
-                                    {reply.is_pro ? <Star className="h-3.5 w-3.5 fill-current pro-username" /> : null}
-                                    <span className="text-[11px] text-muted-foreground">{formatReviewDate(reply.created_at)}</span>
-                                  </div>
-                                </div>
-                              </button>
+                                </Link>
+                              ) : null}
                               {reply.user_id === currentUserId ? (
                                 <button
                                   type="button"
@@ -749,7 +743,8 @@ export default function AlbumPage() {
                             </div>
                             <p className="text-sm leading-relaxed text-muted-foreground">{reply.reply_text}</p>
                           </div>
-                        ))}
+                        );
+                        })}
                       </div>
                     ) : null}
 
@@ -776,7 +771,8 @@ export default function AlbumPage() {
                       </div>
                     ) : null}
                   </div>
-                ))
+                );
+                })
               ) : (
                 <div className="rounded-xl border border-dashed border-border bg-secondary/40 p-4 text-sm text-muted-foreground">
                   Todavía no hay reseñas reales para este álbum.
@@ -786,14 +782,14 @@ export default function AlbumPage() {
           </div>
         </div>
       </div>
-      <UserPreviewModal
-        isOpen={isPreviewOpen}
-        isLoading={isPreviewLoading}
-        user={previewUser}
-        onClose={() => {
-          setIsPreviewOpen(false);
-          setPreviewUser(null);
-        }}
+
+      <AchievementUnlockModal
+        isOpen={Boolean(activeAchievement)}
+        onClose={closeAchievementModal}
+        title={activeAchievement?.name}
+        message={activeAchievement?.unlock_message || activeAchievement?.description}
+        tier={activeAchievement?.tier}
+        tierLabel={activeAchievement?.tier_label}
       />
     </div>
   );

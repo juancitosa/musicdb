@@ -40,6 +40,7 @@ export async function createReview({ session_token, entity_type, entity_id, revi
   return {
     review: data?.review ?? null,
     usage: data?.usage ?? null,
+    achievements_unlocked: Array.isArray(data?.achievements_unlocked) ? data.achievements_unlocked : [],
   };
 }
 

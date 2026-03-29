@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { AudioLines, Check, Disc3, Eye, EyeOff, Flame, LoaderCircle, Search, Star, UserRound, X, XCircle } from "lucide-react";
+import { AudioLines, Check, Clock3, Crown, Disc3, Eye, EyeOff, Flame, Heart, LoaderCircle, MessageSquareText, Search, Sparkles, Star, UserRound, Users, X, XCircle } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, NavLink, useLocation, useNavigate } from "react-router-dom";
 
@@ -12,6 +12,7 @@ import { useToast } from "../hooks/useToast";
 import { getMockAlbum, getMockArtist } from "../services/catalog";
 import { fetchSupabaseProfile, updateAuthenticatedPassword, updateAuthenticatedProfile, uploadProfileAvatar, uploadProfileBanner, verifyCurrentAuthenticatedPassword } from "../services/appAuth";
 import { getMyRatings } from "../services/ratingHistory";
+import { fetchMyAchievements, fetchMyFollowers, fetchMyFollowing } from "../services/social";
 import {
   formatTrackDuration,
   getAlbumById,
@@ -68,6 +69,95 @@ function formatProUntil(value) {
     month: "long",
     year: "numeric",
   }).format(date);
+}
+
+function getBadgeIcon(iconName) {
+  switch (iconName) {
+    case "message":
+      return MessageSquareText;
+    case "spark":
+      return Sparkles;
+    case "heart":
+      return Heart;
+    case "crown":
+      return Crown;
+    case "clock":
+      return Clock3;
+    default:
+      return Star;
+  }
+}
+
+function getBadgeTierClassName(tier) {
+  switch (tier) {
+    case "pro":
+      return "border-amber-300/30 bg-amber-300/10 text-amber-100";
+    case "diamond":
+      return "border-cyan-300/30 bg-cyan-300/10 text-cyan-100";
+    case "gold":
+      return "border-yellow-300/30 bg-yellow-300/10 text-yellow-100";
+    case "silver":
+      return "border-slate-300/30 bg-slate-300/10 text-slate-100";
+    default:
+      return "border-orange-300/30 bg-orange-300/10 text-orange-100";
+  }
+}
+
+function getBadgeDetailClassName(tier) {
+  if (tier === "diamond") {
+    return "badge-detail-diamond";
+  }
+
+  if (tier === "pro") {
+    return "badge-detail-pro";
+  }
+
+  if (tier === "gold") {
+    return "badge-detail-gold";
+  }
+
+  return "";
+}
+
+function BadgeMedallion({ badge, isActive, onClick }) {
+  const Icon = getBadgeIcon(badge.icon);
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex h-14 w-14 items-center justify-center rounded-full border transition ${
+        isActive
+          ? `${getBadgeTierClassName(badge.tier)} shadow-[0_0_28px_rgba(255,255,255,0.12)]`
+          : "border-white/14 bg-white/7 text-white/82 hover:border-white/24 hover:bg-white/12"
+      }`}
+      aria-label={badge.name}
+      title={badge.name}
+    >
+      <Icon className="h-5 w-5" />
+    </button>
+  );
+}
+
+function BadgeDetailCard({ badge }) {
+  return (
+    <div
+      className={`badge-detail-glow flex min-h-[156px] flex-col rounded-2xl border px-4 py-4 sm:h-[148px] ${getBadgeTierClassName(badge.tier)} ${getBadgeDetailClassName(badge.tier)}`}
+    >
+      <div className="grid min-h-[58px] grid-cols-1 items-start gap-3 sm:grid-cols-[1fr_auto]">
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-current/70">Medalla seleccionada</p>
+          <p className="mt-2 min-h-[40px] text-base font-bold leading-5">{badge.name}</p>
+        </div>
+        <span className="mt-0.5 w-fit rounded-full border border-current/20 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-current/70">
+          {badge.tier}
+        </span>
+      </div>
+      <div className="mt-3 min-h-[52px]">
+        <p className="text-sm leading-relaxed text-current/80">{badge.description}</p>
+      </div>
+    </div>
+  );
 }
 
 async function getEntityDetails(rating) {
@@ -836,20 +926,42 @@ function LocalPasswordSettings({
 
 function ProfileOverview({
   filteredEntries,
+  followers,
+  following,
   hasSpotifyFeatures,
   historyEntries,
   historyError,
   historyFilter,
+  isLoadingAchievements,
   isLoadingHistory,
+  isLoadingSocial,
+  isSocialModalOpen,
+  openSocialModal,
+  profileBadges,
   proUntilLabel,
   searchOpen,
   searchTerm,
+  selectedBadge,
+  setSelectedBadgeId,
+  socialListType,
+  socialSearchTerm,
   setHistoryFilter,
   setSearchOpen,
   setSearchTerm,
+  setSocialSearchTerm,
   spotifyUser,
   user,
 }) {
+  const socialSource = socialListType === "following" ? following : followers;
+  const normalizedSocialTerm = socialSearchTerm.trim().toLowerCase();
+  const filteredSocialUsers = socialSource.filter((entry) => {
+    if (!normalizedSocialTerm) {
+      return true;
+    }
+
+    return entry.displayName.toLowerCase().includes(normalizedSocialTerm) || entry.username.toLowerCase().includes(normalizedSocialTerm);
+  });
+
   return (
     <>
       <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -936,6 +1048,72 @@ function ProfileOverview({
         </section>
       </div>
 
+      <section className="mb-6 rounded-2xl border border-border bg-card p-6">
+        <div className="mb-5 flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-bold">Medallas del perfil</h2>
+            <p className="mt-2 text-sm text-muted-foreground">Se muestran solo los logros reales que ya desbloqueaste.</p>
+          </div>
+          <Sparkles className="h-5 w-5 text-primary" />
+        </div>
+
+        {isLoadingAchievements ? (
+          <div className="rounded-2xl border border-dashed border-border bg-secondary/40 p-6 text-sm text-muted-foreground">
+            Cargando medallas...
+          </div>
+        ) : profileBadges.length > 0 ? (
+          <div className="grid gap-4 lg:grid-cols-[auto_minmax(0,1fr)] lg:items-start">
+            <div className="flex flex-wrap gap-3">
+              {profileBadges.map((badge) => (
+                <BadgeMedallion
+                  key={badge.key}
+                  badge={badge}
+                  isActive={selectedBadge?.key === badge.key}
+                  onClick={() => setSelectedBadgeId(badge.key)}
+                />
+              ))}
+            </div>
+            {selectedBadge ? <BadgeDetailCard badge={selectedBadge} /> : null}
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-dashed border-border bg-secondary/40 p-6 text-sm text-muted-foreground">
+            Todavia no desbloqueaste medallas en tu perfil.
+          </div>
+        )}
+      </section>
+
+      <section className="mb-6 rounded-2xl border border-border bg-card p-6">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-bold">Relaciones sociales</h2>
+            <p className="mt-2 text-sm text-muted-foreground">Mira a quien sigues y quien te sigue dentro de MusicDB.</p>
+          </div>
+          <Users className="h-5 w-5 text-primary" />
+        </div>
+
+        <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => openSocialModal("followers")}
+            className="rounded-2xl border border-border/70 bg-background/70 p-4 text-left transition hover:border-primary/35 hover:bg-secondary/30"
+          >
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">Seguidores</p>
+            <p className="mt-3 text-3xl font-black">{followers.length}</p>
+            <p className="mt-1 text-sm text-muted-foreground">Ver quienes siguen tu perfil.</p>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => openSocialModal("following")}
+            className="rounded-2xl border border-border/70 bg-background/70 p-4 text-left transition hover:border-primary/35 hover:bg-secondary/30"
+          >
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">Seguidos</p>
+            <p className="mt-3 text-3xl font-black">{following.length}</p>
+            <p className="mt-1 text-sm text-muted-foreground">Ver los perfiles que sigues.</p>
+          </button>
+        </div>
+      </section>
+
       <section className="rounded-3xl border border-border bg-card p-6 shadow-lg shadow-black/5">
         {isLoadingHistory ? (
           <EmptySpotifyState message="Cargando tu historial de ratings..." />
@@ -991,6 +1169,95 @@ function ProfileOverview({
           />
         )}
       </section>
+
+      <AnimatePresence>
+        {isSocialModalOpen ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[230] overflow-y-auto bg-[rgba(3,4,10,0.42)] px-3 py-3 backdrop-blur-md sm:px-4 sm:py-6"
+            onClick={() => openSocialModal(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 24, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 16, scale: 0.98 }}
+              transition={{ duration: 0.22, ease: "easeOut" }}
+              className="mx-auto flex min-h-full w-full max-w-xl items-center"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="w-full rounded-[2rem] border border-white/14 bg-[linear-gradient(135deg,rgba(255,255,255,0.18),rgba(255,255,255,0.06))] p-5 shadow-[0_30px_120px_rgba(0,0,0,0.4)] ring-1 ring-white/10 backdrop-blur-3xl sm:p-7">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-primary/80">
+                      {socialListType === "following" ? "Seguidos" : "Seguidores"}
+                    </p>
+                    <h2 className="mt-2 text-2xl font-black text-foreground">
+                      {socialListType === "following" ? "Perfiles que sigues" : "Personas que te siguen"}
+                    </h2>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => openSocialModal(null)}
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-black/20 text-muted-foreground transition hover:bg-white/12 hover:text-foreground"
+                    aria-label="Cerrar lista social"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="relative mt-5">
+                  <Search className="pointer-events-none absolute top-1/2 left-4 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    type="text"
+                    value={socialSearchTerm}
+                    onChange={(event) => setSocialSearchTerm(event.target.value)}
+                    placeholder="Buscar por nombre o @usuario..."
+                    className="w-full rounded-2xl border border-white/10 bg-black/18 py-3 pr-4 pl-11 text-sm outline-none transition focus:border-primary"
+                  />
+                </div>
+
+                <div className="mt-5 max-h-[55vh] space-y-3 overflow-y-auto pr-1">
+                  {isLoadingSocial ? (
+                    <div className="rounded-2xl border border-dashed border-border bg-secondary/40 p-6 text-sm text-muted-foreground">
+                      Cargando relaciones...
+                    </div>
+                  ) : filteredSocialUsers.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-border bg-secondary/40 p-6 text-sm text-muted-foreground">
+                      {normalizedSocialTerm ? "No encontramos usuarios para esa busqueda." : "Todavia no hay perfiles en esta lista."}
+                    </div>
+                  ) : (
+                    filteredSocialUsers.map((entry) => (
+                      <Link
+                        key={entry.id}
+                        to={`/u/${entry.username}`}
+                        onClick={() => openSocialModal(null)}
+                        className="flex items-center gap-3 rounded-2xl border border-white/10 bg-black/18 p-3 transition hover:border-primary/30 hover:bg-white/8"
+                      >
+                        <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-full bg-secondary">
+                          {entry.avatarUrl ? (
+                            <img src={entry.avatarUrl} alt={entry.displayName} className="h-full w-full object-cover" />
+                          ) : (
+                            <UserRound className="h-5 w-5 text-muted-foreground" />
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="truncate font-semibold text-foreground">{entry.displayName}</p>
+                            {entry.isPro ? <Star className="h-3.5 w-3.5 fill-current text-amber-200" /> : null}
+                          </div>
+                          <p className="truncate text-sm text-muted-foreground">@{entry.username}</p>
+                        </div>
+                      </Link>
+                    ))
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
     </>
   );
 }
@@ -1118,6 +1385,15 @@ export default function ProfilePage() {
   const [historyFilter, setHistoryFilter] = useState("all");
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [followers, setFollowers] = useState([]);
+  const [following, setFollowing] = useState([]);
+  const [achievements, setAchievements] = useState([]);
+  const [isLoadingSocial, setIsLoadingSocial] = useState(false);
+  const [isLoadingAchievements, setIsLoadingAchievements] = useState(false);
+  const [isSocialModalOpen, setIsSocialModalOpen] = useState(false);
+  const [socialListType, setSocialListType] = useState("followers");
+  const [socialSearchTerm, setSocialSearchTerm] = useState("");
+  const [selectedBadgeId, setSelectedBadgeId] = useState(null);
   const [historyEntries, setHistoryEntries] = useState([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [historyError, setHistoryError] = useState("");
@@ -1158,6 +1434,27 @@ export default function ProfilePage() {
   const [bannerOffsetY, setBannerOffsetY] = useState(0);
   const bannerInputRef = useRef(null);
   const proUntilLabel = user?.isPro ? formatProUntil(user?.proUntil) : "";
+  const profileBadges = useMemo(() => {
+    const realAchievements = Array.isArray(achievements) ? achievements : [];
+
+    if (!user?.isPro) {
+      return realAchievements;
+    }
+
+    return [
+      ...realAchievements,
+      {
+        key: "pro_member",
+        name: "Music PRO",
+        description: "Perfil con membresia PRO activa.",
+        tier: "pro",
+        icon: "crown",
+        unlocked_at: user?.proUntil ?? null,
+      },
+    ];
+  }, [achievements, user?.isPro, user?.proUntil]);
+  const initialBadgeId = profileBadges.find((badge) => getBadgeDetailClassName(badge.tier))?.key ?? profileBadges?.[0]?.key ?? null;
+  const selectedBadge = useMemo(() => profileBadges.find((badge) => badge.key === selectedBadgeId) ?? profileBadges?.[0] ?? null, [profileBadges, selectedBadgeId]);
 
   useEffect(() => {
     return () => {
@@ -1207,6 +1504,96 @@ export default function ProfilePage() {
       document.body.style.overflow = previousOverflow;
     };
   }, [isEditProfileOpen]);
+
+  useEffect(() => {
+    if (!isSocialModalOpen) {
+      return undefined;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isSocialModalOpen]);
+
+  useEffect(() => {
+    if (!appToken) {
+      setFollowers([]);
+      setFollowing([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadSocialLists() {
+      setIsLoadingSocial(true);
+
+      try {
+        const [nextFollowers, nextFollowing] = await Promise.all([fetchMyFollowers(appToken), fetchMyFollowing(appToken)]);
+
+        if (!cancelled) {
+          setFollowers(nextFollowers);
+          setFollowing(nextFollowing);
+        }
+      } catch {
+        if (!cancelled) {
+          setFollowers([]);
+          setFollowing([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingSocial(false);
+        }
+      }
+    }
+
+    loadSocialLists();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [appToken]);
+
+  useEffect(() => {
+    if (!appToken) {
+      setAchievements([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadAchievements() {
+      setIsLoadingAchievements(true);
+
+      try {
+        const nextAchievements = await fetchMyAchievements(appToken);
+
+        if (!cancelled) {
+          setAchievements(nextAchievements);
+        }
+      } catch {
+        if (!cancelled) {
+          setAchievements([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingAchievements(false);
+        }
+      }
+    }
+
+    loadAchievements();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [appToken]);
+
+  useEffect(() => {
+    setSelectedBadgeId(initialBadgeId);
+  }, [initialBadgeId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1722,6 +2109,18 @@ export default function ProfilePage() {
     }
   }
 
+  function openSocialModal(type) {
+    if (!type) {
+      setIsSocialModalOpen(false);
+      setSocialSearchTerm("");
+      return;
+    }
+
+    setSocialListType(type);
+    setSocialSearchTerm("");
+    setIsSocialModalOpen(true);
+  }
+
   if (isLoadingSpotify && !profileUser) {
     return (
       <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
@@ -1972,17 +2371,29 @@ export default function ProfilePage() {
       ) : (
         <ProfileOverview
           filteredEntries={filteredEntries}
+          followers={followers}
+          following={following}
           hasSpotifyFeatures={hasSpotifyFeatures}
           historyEntries={historyEntries}
           historyError={historyError}
           historyFilter={historyFilter}
+          isLoadingAchievements={isLoadingAchievements}
+          isLoadingSocial={isLoadingSocial}
           isLoadingHistory={isLoadingHistory}
+          isSocialModalOpen={isSocialModalOpen}
+          openSocialModal={openSocialModal}
+          profileBadges={profileBadges}
           proUntilLabel={proUntilLabel}
           searchOpen={searchOpen}
           searchTerm={searchTerm}
+          selectedBadge={selectedBadge}
+          setSelectedBadgeId={setSelectedBadgeId}
+          socialListType={socialListType}
+          socialSearchTerm={socialSearchTerm}
           setHistoryFilter={setHistoryFilter}
           setSearchOpen={setSearchOpen}
           setSearchTerm={setSearchTerm}
+          setSocialSearchTerm={setSocialSearchTerm}
           spotifyUser={spotifyUser}
           user={user}
         />

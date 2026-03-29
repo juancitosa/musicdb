@@ -41,7 +41,12 @@ export async function submitRating({ session_token, entity_type, entity_id, rati
     throw new Error(data?.error?.code || "RATINGS_SUBMIT_ERROR");
   }
 
-  return data;
+  return {
+    rating: data?.rating ?? null,
+    summary: data?.summary ?? null,
+    usage: data?.usage ?? null,
+    achievements_unlocked: Array.isArray(data?.achievements_unlocked) ? data.achievements_unlocked : [],
+  };
 }
 
 export async function getRatings(entity_type, entity_id) {
