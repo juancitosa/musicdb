@@ -121,6 +121,7 @@ function getBadgeDetailClassName(tier) {
 
 function BadgeMedallion({ badge, isActive, onClick }) {
   const Icon = getBadgeIcon(badge.icon);
+  const isProBadge = badge.tier === "pro";
 
   return (
     <button
@@ -128,7 +129,7 @@ function BadgeMedallion({ badge, isActive, onClick }) {
       onClick={onClick}
       className={`flex h-14 w-14 items-center justify-center rounded-full border transition ${
         isActive
-          ? `${getBadgeTierClassName(badge.tier)} shadow-[0_0_28px_rgba(255,255,255,0.12)]`
+          ? `${getBadgeTierClassName(badge.tier)} shadow-[0_0_28px_rgba(255,255,255,0.12)] ${isProBadge ? "pro-medallion-selected" : ""}`
           : "border-white/14 bg-white/7 text-white/82 hover:border-white/24 hover:bg-white/12"
       }`}
       aria-label={badge.name}
@@ -140,21 +141,46 @@ function BadgeMedallion({ badge, isActive, onClick }) {
 }
 
 function BadgeDetailCard({ badge }) {
+  const isProBadge = badge.tier === "pro";
+  const badgeDateLabel = badge.unlockedAt
+    ? new Intl.DateTimeFormat("es-AR", {
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+      }).format(new Date(badge.unlockedAt))
+    : "";
+
   return (
     <div
-      className={`badge-detail-glow flex min-h-[156px] flex-col rounded-2xl border px-4 py-4 sm:h-[148px] ${getBadgeTierClassName(badge.tier)} ${getBadgeDetailClassName(badge.tier)}`}
+      className={`badge-detail-glow flex min-h-[156px] flex-col rounded-2xl border px-4 py-4 sm:h-[148px] ${
+        isProBadge ? "badge-detail-pro-shell text-violet-100" : `${getBadgeTierClassName(badge.tier)} ${getBadgeDetailClassName(badge.tier)}`
+      }`}
     >
       <div className="grid min-h-[58px] grid-cols-1 items-start gap-3 sm:grid-cols-[1fr_auto]">
         <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-current/70">Medalla seleccionada</p>
-          <p className="mt-2 min-h-[40px] text-base font-bold leading-5">{badge.name}</p>
+          <p
+            data-text={badge.name}
+            className={`mt-2 min-h-[40px] text-base font-bold leading-5 ${isProBadge ? "badge-detail-pro-title" : ""}`}
+          >
+            {badge.name}
+          </p>
         </div>
-        <span className="mt-0.5 w-fit rounded-full border border-current/20 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-current/70">
+        <span
+          className={`mt-0.5 w-fit rounded-full border border-current/20 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-current/70 ${
+            isProBadge ? "badge-detail-pro-label" : ""
+          }`}
+        >
           {badge.tier}
         </span>
       </div>
       <div className="mt-3 min-h-[52px]">
-        <p className="text-sm leading-relaxed text-current/80">{badge.description}</p>
+        <p className={`text-sm leading-relaxed text-current/80 ${isProBadge ? "badge-detail-pro-copy" : ""}`}>{badge.description}</p>
+        {badgeDateLabel ? (
+          <p className={`mt-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-current/60 ${isProBadge ? "badge-detail-pro-date" : ""}`}>
+            {isProBadge ? `Activa hasta ${badgeDateLabel}` : `Desbloqueada el ${badgeDateLabel}`}
+          </p>
+        ) : null}
       </div>
     </div>
   );

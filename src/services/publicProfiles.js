@@ -32,7 +32,7 @@ const ACHIEVEMENT_BADGE_CATALOG = {
   golden_circle: {
     id: "golden_circle",
     name: "Circulo dorado",
-    description: "Supero los 50 ranks de artistas dentro de la comunidad.",
+    description: "Supero los 50 ranks totales dentro de la comunidad.",
     tier: "gold",
     icon: "spark",
   },

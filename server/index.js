@@ -1171,8 +1171,8 @@ const ACHIEVEMENT_DEFINITIONS = {
   golden_circle: {
     key: "golden_circle",
     name: "Circulo dorado",
-    description: "Supero los 50 ranks de artistas dentro de la comunidad.",
-    unlock_message: "Superaste los 50 ranks de artistas y desbloqueaste una medalla dorada.",
+    description: "Supero los 50 ranks totales dentro de la comunidad.",
+    unlock_message: "Superaste los 50 ranks totales y desbloqueaste una medalla dorada.",
     tier: "gold",
     tier_label: "Medalla de oro",
     icon: "spark",
@@ -1360,14 +1360,13 @@ async function unlockAchievementIfMissing(supabase, { userId, achievementKey }) 
   return mapAchievementRecord(data);
 }
 
-async function countUserArtistRatings(supabase, userId) {
+async function countUserRatings(supabase, userId) {
   const { count, error } = await supabase
     .from("ratings")
     .select("id", { count: "exact", head: true })
-    .eq("user_id", userId)
-    .eq("entity_type", "artist");
+    .eq("user_id", userId);
 
-  handleSupabaseError(error, "Failed to count user artist ratings");
+  handleSupabaseError(error, "Failed to count user ratings");
   return Number(count || 0);
 }
 
@@ -1385,10 +1384,10 @@ async function collectUnlockedAchievementsForRating(supabase, { userId, entityTy
     }
   }
 
-  if (isNewRating && entityType === "artist") {
-    const artistRatingsCount = await countUserArtistRatings(supabase, userId);
+  if (entityType === "artist" || entityType === "album") {
+    const ratingsCount = await countUserRatings(supabase, userId);
 
-    if (artistRatingsCount > 50) {
+    if (ratingsCount > 50) {
       const goldenCircleAchievement = await unlockAchievementIfMissing(supabase, {
         userId,
         achievementKey: "golden_circle",

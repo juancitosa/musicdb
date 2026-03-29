@@ -291,6 +291,183 @@ h6 {
   box-shadow: 0 0 34px rgba(244, 210, 122, 0.16);
 }
 
+.pro-medallion-selected {
+  position: relative;
+  border-color: rgba(167, 139, 250, 0.52);
+  background:
+    radial-gradient(circle at 30% 28%, rgba(32, 14, 58, 0.96), rgba(13, 8, 24, 0.98)),
+    linear-gradient(135deg, rgba(139, 92, 246, 0.18), rgba(255, 255, 255, 0.04));
+  box-shadow:
+    0 0 0 1px rgba(167, 139, 250, 0.2),
+    0 0 18px rgba(139, 92, 246, 0.32),
+    0 0 42px rgba(91, 33, 182, 0.24);
+}
+
+.pro-medallion-selected::before {
+  content: "";
+  position: absolute;
+  inset: -10px;
+  border-radius: 9999px;
+  border: 1px solid rgba(196, 181, 253, 0.22);
+  box-shadow:
+    0 0 18px rgba(139, 92, 246, 0.28),
+    inset 0 0 18px rgba(196, 181, 253, 0.08);
+  animation: pro-medallion-outline-pulse 2.6s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.badge-detail-pro-shell {
+  position: relative;
+  border-color: rgba(139, 92, 246, 0.42);
+  background:
+    linear-gradient(180deg, rgba(7, 4, 14, 0.98), rgba(3, 2, 8, 0.99)),
+    radial-gradient(circle at top, rgba(139, 92, 246, 0.12), transparent 48%);
+  box-shadow:
+    0 0 0 1px rgba(139, 92, 246, 0.16),
+    0 0 28px rgba(91, 33, 182, 0.24),
+    inset 0 0 24px rgba(139, 92, 246, 0.06);
+}
+
+.badge-detail-pro-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow:
+    inset 0 0 0 1px rgba(196, 181, 253, 0.08),
+    inset 0 0 28px rgba(139, 92, 246, 0.04);
+}
+
+.badge-detail-pro-shell::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  background: linear-gradient(120deg, transparent 0%, transparent 36%, rgba(244, 114, 182, 0.52) 49%, rgba(255, 255, 255, 0.72) 50%, rgba(129, 140, 248, 0.48) 51%, transparent 64%, transparent 100%);
+  transform: translateX(-160%);
+  opacity: 0.44;
+  pointer-events: none;
+  animation: logout-neon-glint 5.6s ease-out infinite;
+}
+
+.badge-detail-pro-title {
+  position: relative;
+  display: inline-block;
+  color: #f5f3ff;
+  text-shadow:
+    0 0 10px rgba(168, 85, 247, 0.32),
+    0 0 22px rgba(99, 102, 241, 0.18);
+}
+
+.badge-detail-pro-title::before,
+.badge-detail-pro-title::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  mix-blend-mode: screen;
+  opacity: 0.8;
+}
+
+.badge-detail-pro-title::before {
+  color: rgba(244, 114, 182, 0.52);
+  transform: translate(-1.2px, -0.8px);
+  animation: pro-glitch-shift-left 2.15s steps(1, end) infinite;
+}
+
+.badge-detail-pro-title::after {
+  color: rgba(129, 140, 248, 0.52);
+  transform: translate(1.2px, 0.8px);
+  animation: pro-glitch-shift-right 2.15s steps(1, end) infinite;
+}
+
+.badge-detail-pro-label {
+  border-color: rgba(167, 139, 250, 0.34);
+  background: rgba(59, 33, 112, 0.28);
+  color: #e9d5ff;
+  box-shadow: 0 0 14px rgba(139, 92, 246, 0.16);
+}
+
+.badge-detail-pro-copy {
+  color: rgba(233, 213, 255, 0.86);
+}
+
+.badge-detail-pro-date {
+  color: rgba(196, 181, 253, 0.72);
+}
+
+@keyframes pro-medallion-outline-pulse {
+  0%,
+  100% {
+    opacity: 0.52;
+    transform: scale(0.98);
+  }
+
+  50% {
+    opacity: 0.9;
+    transform: scale(1.04);
+  }
+}
+
+@keyframes pro-glitch-shift-left {
+  0%,
+  72%,
+  100% {
+    transform: translate(-1.2px, -0.8px);
+    opacity: 0.42;
+  }
+
+  73% {
+    transform: translate(-2.9px, 1px);
+    opacity: 0.86;
+  }
+
+  76% {
+    transform: translate(0.8px, -1.8px);
+    opacity: 0.28;
+  }
+
+  79% {
+    transform: translate(-1.8px, -0.2px);
+    opacity: 0.72;
+  }
+
+  83% {
+    transform: translate(-2.4px, 0.3px);
+    opacity: 0.54;
+  }
+}
+
+@keyframes pro-glitch-shift-right {
+  0%,
+  72%,
+  100% {
+    transform: translate(1.2px, 0.8px);
+    opacity: 0.38;
+  }
+
+  74% {
+    transform: translate(3.2px, -1.2px);
+    opacity: 0.88;
+  }
+
+  77% {
+    transform: translate(0.4px, 2px);
+    opacity: 0.24;
+  }
+
+  80% {
+    transform: translate(2px, 0.2px);
+    opacity: 0.7;
+  }
+
+  84% {
+    transform: translate(2.8px, -0.1px);
+    opacity: 0.52;
+  }
+}
+
 .review-like-button {
   position: relative;
   transition:
